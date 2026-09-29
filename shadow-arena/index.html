@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shadow Arena</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="stage">
+    <canvas id="game" width="1920" height="1080" tabindex="0" aria-label="Shadow Arena game canvas"></canvas>
+  </main>
+  <div id="boot-error" role="alert"></div>
+  <noscript><div class="noscript">Shadow Arena needs JavaScript enabled.</div></noscript>
+
+  <!-- Classic scripts (no modules) so the game runs straight from file:// -->
+  <script src="src/core.js"></script>
+  <script src="src/storage.js"></script>
+  <script src="src/input.js"></script>
+  <script src="src/audio.js"></script>
+  <script src="src/particles.js"></script>
+  <script src="src/camera.js"></script>
+  <script src="src/physics.js"></script>
+  <script src="src/animation.js"></script>
+  <script src="src/combat.js"></script>
+  <script src="src/fighter.js"></script>
+  <script src="src/player.js"></script>
+  <script src="src/enemy.js"></script>
+  <script src="src/renderer.js"></script>
+  <script src="src/arena.js"></script>
+  <script src="src/ui.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
