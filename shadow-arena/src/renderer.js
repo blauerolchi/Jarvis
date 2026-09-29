@@ -271,6 +271,12 @@
     // rims: [{color, dx, dy}] light edges drawn by offsetting the silhouette
     drawFighter(ctx, f, rims, alpha) {
       const look = f.look;
+      let jitter = 0;
+      if (f.hitShake > 0) {
+        jitter = Math.sin(performance.now() * 0.09) * 7 * (f.hitShake / (f.hitShakeMax || 1));
+        ctx.save();
+        ctx.translate(jitter, 0);
+      }
       ctx.globalAlpha = alpha === undefined ? 1 : alpha;
       if (rims) {
         for (const r of rims) {
@@ -287,6 +293,14 @@
       drawAccessories(ctx, f, look.body, true);
       ctx.globalAlpha = 1;
       drawEyes(ctx, f);
+      if (f.hitFlash > 0) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = f.hitFlash * 0.55;
+        drawBody(ctx, f.skel, look, '#fff2e0', '#fff2e0');
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      if (jitter) ctx.restore();
       this.drawTrail(ctx, f);
     },
 

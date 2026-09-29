@@ -482,6 +482,11 @@
 
       this.drawEnergy(ctx, g.p1, 0);
       this.drawEnergy(ctx, g.p2, 1);
+      if (g.mode === 'fight' && m.round === 1 && SA.Save.data.stats.fights < 3 && m.phase !== 'matchEnd') {
+        const a = clamp(Math.min(m.t / 0.5, (9 - m.t) / 1), 0, 1);
+        if (a > 0) text(ctx, 'J  PUNCH   ·   K  HEAVY   ·   L  KICK   ·   U  BLOCK / PARRY   ·   I  DASH   ·   SPACE  SPECIAL', W / 2, H - 118,
+          { size: 19, weight: 700, spacing: 3, color: 'rgba(255,255,255,0.7)', align: 'center', alpha: a });
+      }
       this.drawCombo(ctx, 0);
       this.drawCombo(ctx, 1);
       this.drawBanner(ctx);

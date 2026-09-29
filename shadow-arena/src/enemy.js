@@ -299,6 +299,12 @@
         else if (me.isNeutral()) this.plan.i = plan.steps.length;
         return;
       }
+      // a clean hit with full energy: cancel straight into the special
+      if (me.state === 'attack' && me.moveContact === 'hit' && me.energy >= 100 && this.diffName !== 'easy' && chance(0.08)) {
+        c.press('special');
+        plan.i = plan.steps.length;
+        return;
+      }
       // chained attacks: continue only after contact; hard AI stops when blocked
       if (me.state === 'attack') {
         if (me.moveContact === 'hit' || (me.moveContact === 'block' && !this.D.safe && chance(0.5))) {
@@ -342,9 +348,13 @@
         if (dist > 330) this.enter('APPROACH', 40);
         return;
       }
-      if (me.energy >= 100 && dist < 560 && dist > 110 && chance(0.3 * aggr)) {
-        this.startPlan('ATTACK', ['special']);
-        return;
+      if (me.energy >= 100) {
+        const storm = me.specialId === 'storm';
+        const inRange = storm ? dist < 260 : dist < 560 && dist > 110;
+        if (inRange && chance(0.3 * aggr)) {
+          this.startPlan('ATTACK', ['special']);
+          return;
+        }
       }
       if (chance(D.mistakes)) {
         this.startPlan('ATTACK', [SA.M.pick(['heavy', 'kick', 'dkick', 'light'])]);

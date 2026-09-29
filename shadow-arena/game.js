@@ -132,6 +132,13 @@
       m.t = 0;
       m.stage = 0;
       m.phase = this.mode === 'fight' ? 'intro' : 'fight';
+      if (this.mode === 'fight' && m.round === 1) {
+        for (const f of [this.p1, this.p2]) {
+          f.setState('intro');
+          SA.Anim.copyPose(f.pose, SA.POSES.attention);
+          f.postUpdate(1, this);
+        }
+      }
     }
 
     startFight(arenaId) {
@@ -238,7 +245,6 @@
         for (let i = 0; i < c.seq.length; i++) if (seq[seq.length - c.seq.length + i] !== c.seq[i]) { ok = false; break; }
         if (ok) { a.combo.name = c.name; bestLen = c.seq.length; }
       }
-      if (hit.region === 'head' && dmg >= 40) this.label('HEAD', hit.x, hit.y - 100, '#ffd36b', a, 0.7);
       this.ui.onComboHit(a.side, a);
       if (a.isPlayer && this.mode === 'fight') {
         this.match.stats.damage += dmg;
@@ -370,6 +376,10 @@
     updateWorld() {
       const p1 = this.p1, p2 = this.p2, cam = this.camera;
       const realDt = SA.STEP;
+      for (const f of [p1, p2]) {
+        if (f.hitShake > 0) f.hitShake--;
+        if (f.hitFlash > 0) f.hitFlash = Math.max(0, f.hitFlash - realDt * 7);
+      }
       if (this.hitstop > 0) {
         this.hitstop--;
         this.flash = Math.max(0, (this.flash || 0) - realDt * 1.5);
@@ -460,6 +470,7 @@
           }
           if (m.t > 1.95) {
             m.phase = 'fight';
+            for (const f of [p1, p2]) if (f.state === 'intro') f.setState('idle');
             p1.ctrl.clearBuffer();
             p2.ctrl.clearBuffer();
           }

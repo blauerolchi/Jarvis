@@ -60,6 +60,8 @@
     victory2: P({ torso: 0.35, head: 0.3, aF1: 1.0, aF2: 2.35, aB1: 1.0, aB2: 2.35, lF1: 0.05, lF2: -0.02, lB1: -0.05, lB2: -0.02 }),
     defeat: P({ torso: 0.9, head: 0.6, aF1: 0.15, aF2: 0.1, aB1: 0.05, aB2: 0.15, lF1: 1.2, lF2: -2.2, lB1: 0.15, lB2: -1.72 }),
     special: P({ torso: 0.2, head: 0.1, aF1: 0.3, aF2: 2.6, aB1: -0.2, aB2: 2.6, lF1: 0.75, lF2: -1.0, lB1: -0.55, lB2: -0.6 }),
+    attention: P({ torso: 0, head: 0, aF1: 0.08, aF2: 0.12, aB1: -0.06, aB2: 0.12, lF1: 0.06, lF2: -0.02, lB1: -0.06, lB2: -0.02 }),
+    bow: P({ torso: 0.8, head: 0.5, aF1: 0.35, aF2: 0.15, aB1: 0.25, aB2: 0.15, lF1: 0.05, lF2: -0.04, lB1: -0.08, lB2: -0.04 }),
     rushDash: P({ torso: 0.75, head: -0.2, aF1: 1.55, aF2: 0.1, aB1: -0.9, aB2: 0.4, lF1: 1.2, lF2: -1.0, lB1: -0.9, lB2: -0.3 }),
   };
 
@@ -224,7 +226,10 @@
     f.animTime += dt;
 
     let name = st;
-    if (st === 'idle' || st === 'intro') {
+    if (st === 'intro') {
+      sampleKeys(INTRO, f.st, target);
+      k = 14;
+    } else if (st === 'idle') {
       idlePose(f.animTime, target);
     } else if (st === 'walk') {
       f.walkPhase += dt * (f.walkDir > 0 ? 10.5 : 9);
@@ -328,6 +333,10 @@
     [9, POSES.sit, 'smooth'],
     [17, POSES.crouch, 'smooth'],
     [24, POSES.stance, 'out'],
+  ];
+  const INTRO = [
+    [0, POSES.attention], [22, POSES.attention], [44, POSES.bow, 'smooth'], [66, POSES.bow],
+    [88, POSES.attention, 'smooth'], [106, POSES.stance, 'out'],
   ];
   const VICTORY = [[0, POSES.stance], [14, POSES.victory, 'back'], [999, POSES.victory]];
   const VICTORY2 = [[0, POSES.stance], [16, POSES.victory2, 'smooth'], [999, POSES.victory2]];

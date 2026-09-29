@@ -284,6 +284,7 @@
       a.addEnergy(2);
       b.addEnergy(5);
       game.hitStop(Math.max(2, (m.hitstop || 3) - 1));
+      b.hitShake = b.hitShakeMax = Math.max(2, (m.hitstop || 3) - 1);
       game.shake(m.shake * 0.4);
       SA.FX.block(game.particles, hit.x, hit.y, dir, m.power || 0.5);
       SA.audio.play('block', m.power || 0.5);
@@ -376,6 +377,9 @@
       let stop = (m.hitstop || 3) + (counter ? 2 : 0);
       if (ko) stop = 12;
       game.hitStop(stop);
+      b.hitShake = stop;
+      b.hitShakeMax = stop;
+      b.hitFlash = 1;
       game.shake((m.shake || 0.1) * (counter ? 1.3 : 1) + (ko ? 0.5 : 0));
       if (m.zoom) game.camera.punch(m.zoom);
       if (counter && (m.power || 0) >= 0.8) game.slowMo(0.45, 0.2);
