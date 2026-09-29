@@ -4,7 +4,7 @@
  * Types: spark (motion streak), glow, flash, ring, dust, shard, ray, text, slash
  */
 (function (SA) {
-  const { rand, clamp } = SA.M;
+  const { rand } = SA.M;
 
   class ParticleSystem {
     constructor(max) {
@@ -171,7 +171,7 @@
     }
   }
 
-  const FX = SA.FX = {
+  SA.FX = {
     hit(ps, x, y, dir, power, color) {
       const n = Math.round(8 + power * 16);
       for (let i = 0; i < n; i++) {

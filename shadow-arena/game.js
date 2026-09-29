@@ -232,7 +232,7 @@
       SA.FX.label(this.particles, x, y, textStr, color, scale);
     }
 
-    onHit(a, b, dmg, m, hit, flags) {
+    onHit(a, b, dmg, m, hit) {
       const S = SA.Save.data;
       if (S.settings.damageNumbers || this.mode === 'training') {
         SA.FX.damageNumber(this.particles, hit.x, hit.y - 40, dmg, hit.region === 'head' ? '#ffd36b' : '#ffffff', dmg >= 80);
@@ -251,7 +251,6 @@
         SA.Save.stat('totalDamage', dmg);
       }
       if (this.mode === 'fight') SA.audio.setMusicIntensity(1);
-      void m; void flags;
     }
     onBlock() {}
     onParry(defender) {

@@ -254,7 +254,7 @@
     }
   }
 
-  const Render = SA.Render = {
+  SA.Render = {
     Rope, createAccessories, resetAccessories, updateAccessories,
 
     drawShadow(ctx, f, strength) {

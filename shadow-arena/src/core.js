@@ -18,7 +18,7 @@ window.SA = window.SA || {};
   SA.GROUND_SCREEN = 0.83;     // ground line sits at 83% of screen height
   SA.TAU = Math.PI * 2;
 
-  const M = SA.M = {
+  SA.M = {
     clamp: (v, a, b) => (v < a ? a : v > b ? b : v),
     lerp: (a, b, t) => a + (b - a) * t,
     invLerp: (a, b, v) => (b === a ? 0 : (v - a) / (b - a)),

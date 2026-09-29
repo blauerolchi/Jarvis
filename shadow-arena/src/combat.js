@@ -247,7 +247,7 @@
     return Math.max(0.55, 1 - 0.08 * hits);
   }
 
-  const Combat = SA.Combat = {
+  SA.Combat = {
     hurtRegion,
 
     // Checks a's active hit against b and resolves it.

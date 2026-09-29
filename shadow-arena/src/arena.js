@@ -164,12 +164,11 @@
       const dir = rng() < 0.5 ? -1 : 1;
       for (let k = 0; k < 4; k++) {
         const len = rand(40, 90);
-        const ang = dir * rand(0.3, 1.2) + Math.PI / 2 * 0;
         g.save();
         g.translate(x, ly + k * 8);
         g.rotate(dir * (0.5 + k * 0.25) + rand(-0.1, 0.1));
         g.beginPath();
-        g.ellipse(dir * len / 2, 0, len / 2, 4 + rng() * 3, ang * 0.05, 0, SA.TAU);
+        g.ellipse(dir * len / 2, 0, len / 2, 4 + rng() * 3, 0, 0, SA.TAU);
         g.fill();
         g.restore();
       }
@@ -918,7 +917,6 @@
 
     // world space (camera applied): ground plane + neon reflections
     drawGround(ctx, cam) {
-      const r = this.groundRes;
       ctx.drawImage(this.groundCanvas, -GW / 2, 0, GW, GH);
       if (this.id === 'neon' && this.signs) {
         // neon reflections streak down the wet street
@@ -937,7 +935,6 @@
         }
         ctx.restore();
       }
-      void r;
     }
 
     // screen space, in front of fighters

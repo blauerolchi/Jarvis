@@ -127,7 +127,7 @@ Die KI steuert ihren Kämpfer über **denselben Controller** wie der Spieler: ge
 
 ## Modi & Fortschritt
 
-- **FIGHT**: Arena, Schwierigkeit und Special wählen. Gespielt wird Best of 3 mit 60-Sekunden-Timer. Die Rundenansage lautet „ROUND 1 … FIGHT!“, dazu kommen K.O., PERFECT und TIME.
+- **FIGHT**: Arena, Schwierigkeit und Special wählen. Vor Runde 1 verbeugen sich die Kämpfer. Gespielt wird Best of 3 mit 60-Sekunden-Timer. Die Rundenansage lautet „ROUND 1 … FIGHT!“, dazu kommen K.O., PERFECT und TIME.
 - **TRAINING**: Der Dummy greift nicht an. Über ESC lassen sich einstellen:
   - Dummy-Verhalten: Stehen, Alles blocken, Zufällig blocken, CPU.
   - Unendliche Lebenspunkte und unendliche Energie.
@@ -208,7 +208,9 @@ Das Spiel selbst braucht nichts davon. Die Tests steuern das echte Spiel über P
 
 ```bash
 NODE_PATH=$(npm root -g) node tests/mechanics.js   # 30 Mechanik-Checks (Reichweiten, Blockhöhen, Parry, Combos, Specials …)
+NODE_PATH=$(npm root -g) node tests/flow.js        # Echtzeit-Durchlauf aller Menüs nur per Tastatur
 NODE_PATH=$(npm root -g) node tests/aimatch.js     # komplette KI-gegen-KI-Matches in allen Arenen/Schwierigkeiten
+NODE_PATH=$(npm root -g) node tests/aibalance.js 8 # Siegquoten Hard/Normal/Easy gegeneinander
 NODE_PATH=$(npm root -g) node tests/smoke.js out/  # lädt index.html, klickt durch Menüs, Screenshots
 NODE_PATH=$(npm root -g) node tests/screens.js out/  # Screenshots: Special, K.O., Ergebnis, Menüs
 NODE_PATH=$(npm root -g) node tests/posesheet.js out/poses  # Kontaktbogen aller Animationen

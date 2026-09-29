@@ -8,7 +8,7 @@
  * - States: IDLE APPROACH RETREAT ATTACK COMBO BLOCK DODGE PUNISH RECOVER
  */
 (function (SA) {
-  const { rand, chance, weighted, clamp } = SA.M;
+  const { rand, chance, weighted } = SA.M;
 
   const DIFFICULTY = SA.DIFFICULTY = {
     easy: { label: 'EASY', react: 24, block: 0.2, lowRead: 0.3, parry: 0, dodge: 0.05, punish: 0.25, antiAir: 0.12,
