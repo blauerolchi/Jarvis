@@ -188,9 +188,14 @@
       this.stick = false;
     }
     held(a) { return this.hold.has(a); }
+    // Buffered press: action + the directions held at that moment + its age (frames).
+    // A move that comes out a few frames later still uses the direction of the press.
     press(a) {
-      this.buf.push({ a, age: 0 });
-      if (this.buf.length > 16) this.buf.shift();
+      const h = this.hold;
+      const dirs = (h.has('up') ? 1 : 0) | (h.has('down') ? 2 : 0) | (h.has('left') ? 4 : 0) | (h.has('right') ? 8 : 0);
+      const b = this.buf.length >= 16 ? this.buf.shift() : {};
+      b.a = a; b.age = 0; b.dirs = dirs;
+      this.buf.push(b);
     }
     // Ages buffered presses; called once per simulation tick (not during hit stop).
     tick(ts) {
@@ -209,11 +214,17 @@
     consume(a) {
       for (let i = 0; i < this.buf.length; i++) {
         if (this.buf[i].a === a) {
+          this.lastDirs = this.buf[i].dirs || 0;
           this.buf.splice(i, 1);
           return true;
         }
       }
       return false;
+    }
+    // held now, or held when the last consumed press was made
+    dirHeld(d) {
+      const bit = d === 'up' ? 1 : d === 'down' ? 2 : d === 'left' ? 4 : 8;
+      return this.hold.has(d) || ((this.lastDirs || 0) & bit) !== 0;
     }
     clearBuffer() { this.buf.length = 0; }
     clear() {

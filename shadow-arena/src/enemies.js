@@ -145,6 +145,29 @@
     },
   };
 
+  // Acrobatic movement personality per archetype (front flip, handspring, air dash, feints) and
+  // the movement combos they like. Tomb guards stay calm and precise, jackal assassins fly around.
+  const ACROBATICS = {
+    tomb_guard: { mob: { flip: 0, hand: 0, airdash: 0 }, feint: 0.1 },
+    scarab_warrior: { mob: { flip: 0, hand: 0, airdash: 0 }, feint: 0 },
+    tomb_executioner: { mob: { flip: 0, hand: 0, airdash: 0 }, feint: 0.15 },
+    royal_guard: { mob: { flip: 0.05, hand: 0.2, airdash: 0 }, feint: 0.45, combos: [['back', 'heavy'], ['guard', 'light', 'heavy']] },
+    desert_bandit: { mob: { flip: 0.4, hand: 0.35, airdash: 0.3 }, feint: 0.3, combos: [['roll', 'light', 'kick'], ['dash', 'dlight'], ['dash', 'jump', 'light']] },
+    jackal_assassin: { mob: { flip: 0.9, hand: 0.8, airdash: 0.7 }, feint: 0.5,
+      combos: [['dash', 'light', 'roll', 'jump', 'kick'], ['jump', 'adash', 'light'], ['hand', 'dash', 'light', 'light']] },
+    anubis_acolyte: { mob: { flip: 0.3, hand: 0.4, airdash: 0.2 }, feint: 0.5 },
+    cursed_mummy: { mob: { flip: 0.2, hand: 0.1, airdash: 0.1 }, feint: 0.2 },
+    desert_archer: { mob: { flip: 0.1, hand: 0.6, airdash: 0.1 }, feint: 0.1, combos: [['hand', 'ranged']] },
+    serpent_priest: { mob: { flip: 0.05, hand: 0.4, airdash: 0.05 }, feint: 0.2 },
+  };
+  for (const id in ACROBATICS) {
+    const a = ARCHETYPES[id], x = ACROBATICS[id];
+    if (!a) continue;
+    a.ai.mobility = Object.assign({}, a.ai.mobility, x.mob);
+    a.ai.feint = x.feint;
+    if (x.combos) a.ai.combos = a.ai.combos.concat(x.combos);
+  }
+
   const PREFIX = ['Sand', 'Ash', 'Dune', 'Obsidian', 'Gilded', 'Hollow', 'Cursed', 'Night', 'Sun-Burnt', 'Jackal', 'Lapis', 'Bone', 'Ember', 'Silent', 'Moon'];
   const ACCENTS = ['#e8b64a', '#35d6c6', '#ff8a3a', '#4a7cff', '#9dff5a', '#ff4a3a', '#d8c08a', '#6fe8ff', '#c07bff', '#ffd27a'];
 

@@ -44,7 +44,8 @@
       } else {
         // lead: the camera drifts ahead of a dashing / sprinting fighter, so the move feels fast
         let lead = 0, fast = 0;
-        for (const f of [a, b]) {
+        for (let fi = 0; fi < 2; fi++) {
+          const f = fi ? b : a;
           const st = f.state;
           if (st === 'dash' || st === 'sprint' || st === 'run' || st === 'roll' || (st === 'bossmove' && Math.abs(f.vx) > 1200)) lead += clamp(f.vx * 0.06, -110, 110);
           if (st === 'sprint' || (st === 'dash' && Math.abs(f.vx) > 1200)) fast = Math.max(fast, 1);

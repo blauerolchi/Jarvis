@@ -500,7 +500,7 @@
         if (r.perfectBonus) { text(ctx, `PERFECT +${Math.round(r.perfectBonus * 100)} %`, W / 2, y, { size: 24, weight: 900, spacing: 4, color: '#ffe39a', align: 'center', alpha: a }); y += 38; }
         for (const u of run.levelUps || []) {
           const pulse = 0.7 + 0.3 * Math.sin(this.t * 6);
-          text(ctx, `LEVEL UP!  LV ${u.level}  ·  +${u.coins} COINS`, W / 2, y + 10, { size: 32, weight: 900, spacing: 6, color: `rgba(255,${190 + pulse * 60},120,1)`, align: 'center', alpha: a });
+          text(ctx, `LEVEL UP!  LV ${u.level}  ·  +${u.coins} COINS`, W / 2, y + 10, { size: 32, weight: 900, spacing: 6, color: `rgba(255,${190 + Math.round(pulse * 6) * 10},120,1)`, align: 'center', alpha: a });
           y += 44;
           if (u.unlocks.length) { text(ctx, 'NEW IN SHOP: ' + u.unlocks.join(', ').toUpperCase(), W / 2, y, { size: 18, weight: 700, spacing: 2, color: 'rgba(255,255,255,0.75)', align: 'center', alpha: a }); y += 34; }
         }

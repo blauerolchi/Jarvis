@@ -61,6 +61,12 @@
     p.mobility = Object.assign({
       dash: 0.45 + 0.15 * dm, backstep: 0.35 * dm, roll: 0.2 * dm, jump: Math.min(1, p.jumpiness * 3.5), slide: 0.3, run: 0.7,
     }, p.mobility || {});
+    // acrobatics follow the archetype's general mobility unless given: front flip, handspring, air dash
+    const M = p.mobility;
+    if (M.flip === undefined) M.flip = M.jump * M.dash * 0.9;
+    if (M.hand === undefined) M.hand = M.backstep * M.roll * 0.9;
+    if (M.airdash === undefined) M.airdash = M.jump * 0.6;
+    if (p.feint === undefined) p.feint = 0.3 * dm;
     p.combos = p.combos || DEFAULT_COMBOS;
     p.weights = Object.assign({ jab: 2, kick: 1.5, heavy: 1.5, lowKick: 1, dashPunch: 1, slideKick: 0.6, jumpIn: 0.5, combo: 3, over: 0.8 }, p.weights || {});
     return p;
@@ -552,14 +558,24 @@
       if (this.cornered(me, this.opp) && dist < 260 && r < M.roll * mob * 2) { this.press('roll'); this.enter('DODGE'); return true; }
       if (dist > want + 90 && dist < 700 && r < (M.dash + M.jump + M.slide) * mob) {
         // close the gap in the archetype's style: plain dash, jump-in, slide or a running attack
-        const pick = weighted([[M.dash, 'dash'], [M.jump * 0.8, 'jumpIn'], [dist > 300 ? M.slide * 0.7 : 0, 'slide'], [dist > 380 ? M.run * 0.35 : 0, 'runAttack']]);
+        const pick = weighted([[M.dash, 'dash'], [M.jump * 0.8, 'jumpIn'], [dist > 300 ? M.slide * 0.7 : 0, 'slide'], [dist > 380 ? M.run * 0.35 : 0, 'runAttack'],
+          [dist > 340 ? M.flip * 0.8 : 0, 'flipIn'], [dist > 420 ? M.airdash * 0.6 : 0, 'airdashIn']]);
         if (pick === 'dash') { this.press('dash'); this.count('dash'); this.enter('DODGE'); this.timer = rand(4, 10); }
+        else if (pick === 'flipIn') { this.startPlan('ATTACK', ['dash', 'jump', chance(0.5) ? 'heavy' : 'light']); this.count('flip'); }
+        else if (pick === 'airdashIn') { this.startPlan('ATTACK', ['jump', 'adash', chance(0.5) ? 'light' : 'kick']); this.count('airdash'); }
         else if (pick === 'jumpIn') { this.startPlan('ATTACK', ['jump', chance(0.6) ? 'kick' : 'light']); this.count('jump'); }
         else if (pick === 'slide') { this.startPlan('ATTACK', ['dash', 'dlight']); this.count('slide'); }
         else { this.startPlan('ATTACK', ['runlight']); this.count('runAttack'); }
         return true;
       }
       if (dist < want - 70 && r < M.backstep * mob) { this.press('back'); this.enter('DODGE'); return true; }
+      if (dist < want - 90 && r < M.hand * mob * 1.5) { this.press('hand'); this.enter('DODGE'); return true; }
+      // feint: step in with a fake wind-up, back off, then come in for real (skilled fighters only)
+      if (dist > want - 40 && dist < want + 140 && this.D.quality > 0.5 && r < this.profile.feint * mob * 0.5) {
+        this.startPlan('ATTACK', ['feint', 'back', 'wait:5', 'dash', chance(0.5) ? 'light' : 'kick']);
+        this.count('feint');
+        return true;
+      }
       return false;
     }
 
@@ -595,6 +611,7 @@
         [dist < 560 ? M.dash * mob : 0, 'dashAttack'],
         [dist > 380 && dist < 700 ? M.slide * mob * 0.7 : 0, 'slide'],
         [dist > 300 && dist < 560 ? M.jump * mob * 0.8 : 0, 'jumpIn'],
+        [dist > 360 && dist < 640 ? M.flip * mob * 0.7 : 0, 'flipIn'],
         [dist > 420 && me.state !== 'idle' ? M.run * mob * 0.6 : 0, 'runAttack'],
         [1.2, 'none'],
       ];
@@ -603,6 +620,7 @@
         case 'dashAttack': this.startPlan('ATTACK', ['dash', chance(0.6) ? 'light' : 'kick']); this.count('dash'); return true;
         case 'slide': this.startPlan('ATTACK', ['dash', 'dlight']); this.count('slide'); return true;
         case 'jumpIn': this.startPlan('ATTACK', ['jump', chance(0.6) ? 'kick' : 'light']); this.count('jump'); return true;
+        case 'flipIn': this.startPlan('ATTACK', ['dash', 'jump', 'heavy']); this.count('flip'); return true;
         case 'runAttack': this.startPlan('ATTACK', ['runlight']); this.count('runAttack'); return true;
         default: return false;
       }
@@ -744,6 +762,7 @@
       else if (kind === 'roll') { c.hold.add('down'); c.press('dash'); this.count('roll'); }
       else if (kind === 'jump') { c.hold.add(back); c.press('up'); this.count('jumpBack'); }
       else if (kind === 'dash') { c.hold.add(fwd); c.press('dash'); }
+      else if (kind === 'hand') { c.hold.delete(fwd); c.hold.add(back); c.press('dash'); this.count('handspring'); }
     }
 
     // Executes one step: presses buttons through the controller.
@@ -752,6 +771,8 @@
       if (step === 'dash') { c.hold.add(fwd); c.press('dash'); return; }
       if (step === 'back') { this.press('back'); return; }
       if (step === 'roll') { this.press('roll'); return; }
+      if (step === 'hand') { this.press('hand'); return; }
+      if (step === 'adash') { c.hold.add(fwd); c.press('dash'); return; }
       if (step === 'jump') { c.hold.add(fwd); c.press('up'); return; }
       if (step === 'special') { c.press('special'); return; }
       if (step === 'ranged' || step === 'reload') { c.press(step); return; }
@@ -801,6 +822,16 @@
         if (me.isNeutral() || me.isMoving()) { this.doStep(step, fwd); plan.i++; }
         return;
       }
+      // feint: walk in with a visible fake wind-up, then the plan backs off
+      if (step === 'feint') {
+        if (!(me.isNeutral() || me.isMoving())) { plan.i = plan.steps.length; return; }
+        c.hold.add(fwd);
+        c.analog = GAIT.walk;
+        if (plan.wait === 0) me.feintT = 12;
+        plan.wait += 1;
+        if (plan.wait >= 9) { plan.wait = 0; plan.i++; }
+        return;
+      }
       // running attack: build up a run first, then strike out of it
       if (step === 'runlight') {
         c.hold.add(fwd);
@@ -829,9 +860,19 @@
         else if (me.isNeutral()) { this.doStep(step, fwd); plan.i++; }
         return;
       }
-      if (prev === 'jump') {
-        if (me.state === 'air' && (dist < 250 || me.vy > 150)) { this.doStep(step, fwd); plan.i++; }
+      if (prev === 'jump' || prev === 'adash') {
+        const air = me.state === 'air' || me.state === 'flip' || me.state === 'airdash';
+        if (step === 'adash') { if (air && me.st >= 6) { this.doStep(step, fwd); plan.i++; } else if (me.isNeutral() && me.st > 6) plan.i = plan.steps.length; return; }
+        if (air && (dist < 260 || me.vy > 150 || prev === 'adash')) { this.doStep(step, fwd); plan.i++; }
         else if (me.isNeutral() && me.st > 6) this.plan.i = plan.steps.length;
+        return;
+      }
+      if (prev === 'roll' || prev === 'hand') {
+        // attack out of the end of the roll (attack roll) / right after the handspring
+        const atkStep = /^(d|u|f)?(light|heavy|kick)$/.test(step);
+        if ((me.state === 'roll' && me.st >= (atkStep ? 12 : 19)) || me.isNeutral()) { this.doStep(step, fwd); plan.i++; }
+        else if (me.state === 'attack' && me.phase !== 'recovery') { /* the roll is still buffered behind the attack */ }
+        else if (me.state !== 'roll' && me.state !== 'flip') plan.i = plan.steps.length;
         return;
       }
       // a clean hit with full energy: cancel straight into the special
@@ -848,10 +889,16 @@
           plan.i++;
         } else if (me.moveContact === 'block' || (me.phase === 'recovery' && !me.moveContact)) {
           plan.i = plan.steps.length;
+          const M = this.profile.mobility;
           if (me.moveContact === 'block') {
-            // blocked: back off with a backstep sometimes instead of eating the punish
-            if (chance(this.profile.mobility.backstep * this.D.mobility * 0.6)) { c.press('dash'); this.count('backstep'); }
+            // blocked: back off (backstep / handspring) sometimes instead of eating the punish
+            if (chance(M.hand * this.D.mobility * 0.5)) { this.press('hand'); }
+            else if (chance(M.backstep * this.D.mobility * 0.6)) { c.press('dash'); this.count('backstep'); }
             else if (chance(this.D.block)) this.recoverGuard = true;
+          } else if (chance(this.D.quality * 0.5)) {
+            // whiffed: get out before the punish comes
+            this.recoverGuard = true;
+            this.count('whiffEscape');
           }
         }
       } else if (me.isNeutral()) {

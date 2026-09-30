@@ -8,43 +8,76 @@
   const W = SA.W, H = SA.H;
 
   // ---------- text helper with letter spacing ----------
+  // Text is rendered once into a sprite (per string + style) and then drawn with drawImage: the HUD
+  // no longer re-rasterises dozens of stroked, letter-spaced glyphs every frame.
   const widthCache = new Map();
+  const spriteCache = new Map();
+  const measureCtx = document.createElement('canvas').getContext('2d');
+  function measure(font, str, sp) {
+    measureCtx.font = font;
+    if (!sp) return { total: measureCtx.measureText(str).width, widths: null };
+    const key = font + '|' + str;
+    let widths = widthCache.get(key);
+    if (!widths) {
+      widths = [];
+      for (const ch of str) widths.push(measureCtx.measureText(ch).width);
+      if (widthCache.size > 600) widthCache.clear();
+      widthCache.set(key, widths);
+    }
+    let total = sp * Math.max(0, widths.length - 1);
+    for (let i = 0; i < widths.length; i++) total += widths[i];
+    return { total, widths };
+  }
+  function renderText(c, str, x, y, o, sp, widths) {
+    const drawOne = (ch, px) => {
+      if (o.stroke) { c.lineWidth = o.strokeWidth || 6; c.strokeStyle = o.stroke; c.lineJoin = 'round'; c.strokeText(ch, px, y); }
+      c.fillStyle = o.color || '#fff';
+      c.fillText(ch, px, y);
+    };
+    if (!sp) drawOne(str, x);
+    else {
+      let i = 0, cx = x;
+      for (const ch of str) { drawOne(ch, cx); cx += widths[i++] + sp; }
+    }
+  }
   function text(ctx, str, x, y, o) {
     o = o || {};
-    const font = `${o.italic ? 'italic ' : ''}${o.weight || 700} ${o.size || 32}px ${o.font || SA.FONT}`;
-    ctx.font = font;
-    ctx.textBaseline = o.baseline || 'middle';
+    str = String(str);
+    const size = o.size || 32;
+    const font = `${o.italic ? 'italic ' : ''}${o.weight || 700} ${size}px ${o.font || SA.FONT}`;
     const sp = o.spacing || 0;
+    const baseline = o.baseline || 'middle';
+    // texts with ever-changing numbers (damage, stats) are drawn directly instead of making a new sprite
+    if (str.length > 3 && /\d/.test(str)) {
+      const m = measure(font, str, sp);
+      ctx.font = font; ctx.textBaseline = baseline; ctx.textAlign = 'left';
+      ctx.globalAlpha = o.alpha === undefined ? 1 : o.alpha;
+      renderText(ctx, str, o.align === 'center' ? x - m.total / 2 : o.align === 'right' ? x - m.total : x, y, o, sp, m.widths);
+      ctx.globalAlpha = 1;
+      return m.total;
+    }
+    const key = font + '|' + sp + '|' + (o.color || '#fff') + '|' + (o.stroke || '') + '|' + (o.strokeWidth || 0) + '|' + baseline + '|' + str;
+    let spr = spriteCache.get(key);
+    if (!spr) {
+      const m = measure(font, str, sp);
+      const pad = Math.ceil((o.stroke ? (o.strokeWidth || 6) : 0) + size * 0.25);
+      const w = Math.max(1, Math.ceil(m.total + pad * 2)), h = Math.ceil(size * 1.9 + pad * 2);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const c = cv.getContext('2d');
+      c.font = font;
+      c.textBaseline = baseline;
+      c.textAlign = 'left';
+      renderText(c, str, pad, h / 2, o, sp, m.widths);
+      spr = { cv, total: m.total, pad, h };
+      if (spriteCache.size > 400) spriteCache.clear();
+      spriteCache.set(key, spr);
+    }
+    const cx = o.align === 'center' ? x - spr.total / 2 : o.align === 'right' ? x - spr.total : x;
     ctx.globalAlpha = o.alpha === undefined ? 1 : o.alpha;
-    let total;
-    let widths = null;
-    if (sp) {
-      const key = font + '|' + str;
-      widths = widthCache.get(key);
-      if (!widths) {
-        widths = [];
-        for (const ch of str) widths.push(ctx.measureText(ch).width);
-        if (widthCache.size > 600) widthCache.clear();
-        widthCache.set(key, widths);
-      }
-      total = widths.reduce((a, b) => a + b, 0) + sp * Math.max(0, widths.length - 1);
-    } else {
-      total = ctx.measureText(str).width;
-    }
-    let cx = o.align === 'center' ? x - total / 2 : o.align === 'right' ? x - total : x;
-    ctx.textAlign = 'left';
-    const draw = (s, px) => {
-      if (o.stroke) { ctx.lineWidth = o.strokeWidth || 6; ctx.strokeStyle = o.stroke; ctx.lineJoin = 'round'; ctx.strokeText(s, px, y); }
-      ctx.fillStyle = o.color || '#fff';
-      ctx.fillText(s, px, y);
-    };
-    if (!sp) draw(str, cx);
-    else {
-      let i = 0;
-      for (const ch of str) { draw(ch, cx); cx += widths[i++] + sp; }
-    }
+    ctx.drawImage(spr.cv, cx - spr.pad, y - spr.h / 2);
     ctx.globalAlpha = 1;
-    return total;
+    return spr.total;
   }
   SA.text = text;
 
@@ -975,19 +1008,31 @@
   }
 
   // Compact on-device overlay (Settings > DEBUG OVERLAY): FPS, states, distance, attack, AI intent.
+  // Compact on-device overlay (Settings > DEBUG OVERLAY): frame timing, frame data of the current
+  // move (phase, time, cancel window), velocity, blend, distance and the AI intent.
   UI.prototype.drawMiniDebug = function (ctx) {
     const g = this.game, p1 = g.p1, p2 = g.p2;
-    const atk = (f) => (f.move ? f.move.id + ':' + f.phase : f.sp ? 'special:' + f.sp.phase : f.bm ? 'god:' + f.bm.id + ':' + f.bm.phase : '-');
+    const fd = (f) => {
+      if (f.move && f.state === 'attack') {
+        const m = f.move, blend = Math.min(1, f.mt / Math.max(3, m.blend || 3));
+        return `${m.id.split(':').pop()} ${f.phase} ${Math.floor(f.mt)}/${m.startup}+${m.active}+${m.recovery}${f.cancelOpen() ? ' CANCEL' : ''} blend ${(blend * 100) | 0}%`;
+      }
+      if (f.flip) return `${f.flip.kind}flip ${Math.floor(f.st)}/${f.flip.F.rotFrames}`;
+      if (f.rm) return `root ${f.state} ${Math.floor(f.st)}/${f.rm.frames}`;
+      if (f.bm) return `god:${f.bm.id} ${f.bm.phase} ${Math.floor(f.bm.t)}`;
+      return '-';
+    };
+    const row = (tag, f) => `${tag} ${f.state.padEnd(8)} v ${String(Math.round(f.vx)).padStart(5)},${String(Math.round(f.vy)).padStart(5)} ${f.grounded ? 'GND' : 'AIR'} mob ${Math.round(f.mobility || 0)}`;
     const ai = g.ai2 && g.ai2.intent ? g.ai2.intent + ' / ' + g.ai2.state : '-';
     const lines = [
-      `FPS ${Math.round(g.fps)}   DIST ${Math.round(Math.abs(p1.x - p2.x))}   MIN ${Math.round(SA.Physics.minDistance(p1, p2))}`,
-      `P1 ${p1.state}  ${atk(p1)}`,
-      `P2 ${p2.state}  ${atk(p2)}`,
-      `AI ${ai}`,
+      `FPS ${Math.round(g.fps)}  frame ${(g.frameMs || 0).toFixed(1)} ms (max ${(g.frameMax || 0).toFixed(1)})  alpha ${(g.renderAlpha || 0).toFixed(2)}`,
+      row('P1', p1), '   ' + fd(p1),
+      row('P2', p2), '   ' + fd(p2),
+      `DIST ${Math.round(Math.abs(p1.x - p2.x))}  MIN ${Math.round(SA.Physics.minDistance(p1, p2))}  hitstop ${g.hitstop}  AI ${ai}`,
     ];
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(24, 132, 470, lines.length * 26 + 16);
-    lines.forEach((l, i) => SA.text(ctx, l, 36, 152 + i * 26, { size: 18, weight: 600, font: 'monospace', color: i === 0 ? (g.fps < 50 ? '#ff6b5b' : '#7dff9a') : i === 3 ? '#ffd27a' : '#d8f5ff' }));
+    ctx.fillStyle = 'rgba(0,0,0,0.62)';
+    ctx.fillRect(24, 132, 760, lines.length * 25 + 16);
+    lines.forEach((l, i) => SA.text(ctx, l, 36, 152 + i * 25, { size: 17, weight: 600, font: 'monospace', color: i === 0 ? (g.fps < 50 ? '#ff6b5b' : '#7dff9a') : i === 5 ? '#ffd27a' : i % 2 === 0 ? '#e8d9b0' : '#d8f5ff' }));
   };
 
   UI.Menu = Menu;

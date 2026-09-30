@@ -41,7 +41,7 @@ const { openGame } = require('./harness');
     }
     return used;
   });
-  const moveKinds = ['dash', 'backstep', 'roll', 'jump', 'jumpBack', 'run', 'sprint', 'slide', 'runAttack'].filter((k) => t9[k] > 0);
+  const moveKinds = ['dash', 'backstep', 'roll', 'jump', 'jumpBack', 'run', 'sprint', 'slide', 'runAttack', 'flip', 'airdash', 'handspring', 'feint'].filter((k) => t9[k] > 0);
   check('T9 AI uses many movement options', moveKinds.length >= 6, { moveKinds, used: t9 });
   const intents = Object.keys(t9).filter((k) => k.startsWith('intent:')).map((k) => k.slice(7));
   check('AI switches between several intents', intents.length >= 5, intents);

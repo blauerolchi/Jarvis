@@ -37,7 +37,7 @@
       tint: [40, 20, 80], fx: 'embers', introEye: '#ffd24a',
       ai: { aggression: 0.72, blockMul: 1.2, dodgeMul: 1.2, rangeBias: 10, parry: 0.12,
         intents: { pressure: 1.3, keepDistance: 0.6, bait: 0.8, defend: 0.6, combo: 1.6, reposition: 0.8, special: 1.4 },
-        mobility: { dash: 0.7, backstep: 0.6, roll: 0.3, jump: 0.25, slide: 0.2, run: 0.8 },
+        mobility: { dash: 0.7, backstep: 0.6, roll: 0.3, jump: 0.25, slide: 0.2, run: 0.8, hand: 0.4 },
         combos: [['ab:teleport', 'light', 'light', 'heavy'], ['light', 'light', 'ab:soulSlash'], ['dash', 'light', 'fheavy'], ['light', 'dkick', 'uheavy'], ['guard', 'light', 'heavy']],
         weights: { jab: 3, kick: 1.3, heavy: 2, lowKick: 1, over: 1.2 } },
       phases: [
@@ -79,8 +79,9 @@
       tint: [200, 60, 10], fx: 'embers', introEye: '#ff7a2a',
       ai: { aggression: 0.85, blockMul: 0.7, dodgeMul: 1.1, rangeBias: -30,
         intents: { pressure: 2, keepDistance: 0.2, bait: 0.4, defend: 0.3, combo: 1.8, reposition: 0.6, special: 1.3 },
-        mobility: { dash: 1, backstep: 0.4, roll: 0.4, jump: 0.6, slide: 0.6, run: 1 },
-        combos: [['light', 'light', 'dash', 'kick'], ['light', 'light', 'light', 'heavy'], ['dash', 'light', 'light', 'uheavy'], ['jump', 'kick', 'light'], ['ab:clawRush']],
+        mobility: { dash: 1, backstep: 0.4, roll: 0.4, jump: 0.6, slide: 0.6, run: 1, flip: 0.8, airdash: 0.4, hand: 0.2 },
+        combos: [['light', 'light', 'dash', 'kick'], ['light', 'light', 'light', 'heavy'], ['dash', 'light', 'light', 'uheavy'], ['jump', 'kick', 'light'], ['ab:clawRush'],
+          ['dash', 'jump', 'kick'], ['uheavy', 'jump', 'heavy']],
         weights: { jab: 3, kick: 1.6, heavy: 1.2, lowKick: 1.2, over: 0.6 } },
       phases: [
         { at: 1, abilities: [{ id: 'leap', cd: 6, min: 280, chance: 0.45 }, { id: 'clawRush', cd: 6.5, max: 340 }] },
@@ -100,8 +101,9 @@
       tint: [40, 120, 255], fx: 'embers', introEye: '#6fd8ff',
       ai: { aggression: 0.7, blockMul: 1, dodgeMul: 1.4, rangeBias: 60,
         intents: { pressure: 1, keepDistance: 1.1, bait: 0.7, defend: 0.6, combo: 1.2, reposition: 1.2, special: 1.5 },
-        mobility: { dash: 0.6, backstep: 0.7, roll: 0.3, jump: 1.2, slide: 0.2, run: 0.8 },
-        combos: [['jump', 'kick', 'light'], ['light', 'light', 'uheavy'], ['back', 'ab:windBolts'], ['fheavy'], ['dash', 'light', 'heavy']],
+        mobility: { dash: 0.6, backstep: 0.7, roll: 0.3, jump: 1.2, slide: 0.2, run: 0.8, flip: 1, airdash: 1.2, hand: 0.4 },
+        combos: [['jump', 'kick', 'light'], ['light', 'light', 'uheavy'], ['back', 'ab:windBolts'], ['fheavy'], ['dash', 'light', 'heavy'],
+          ['jump', 'adash', 'light'], ['dash', 'jump', 'heavy'], ['uheavy', 'jump', 'kick']],
         weights: { jab: 2.4, kick: 1.4, heavy: 1.6, lowKick: 0.8, over: 1 } },
       phases: [
         { at: 1, abilities: [{ id: 'dive', cd: 6.5, min: 260, chance: 0.45 }, { id: 'windBolts', cd: 6, min: 360, count: 2 }] },

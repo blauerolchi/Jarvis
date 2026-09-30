@@ -25,7 +25,7 @@
       this.n = n;
       this.seg = seg;
       this.pts = [];
-      for (let i = 0; i < n; i++) this.pts.push({ x: 0, y: 0, px: 0, py: 0 });
+      for (let i = 0; i < n; i++) this.pts.push({ x: 0.5, y: 0.5, px: 0.5, py: 0.5 });   // doubles from the start
       this.ready = false;
     }
     reset(x, y) {
@@ -107,15 +107,19 @@
   }
 
   function resetAccessories(f) {
-    for (const a of f.accessories || []) if (a.ropes) for (const r of a.ropes) r.ready = false;
+    for (let i_a = 0, a_a = f.accessories || []; i_a < a_a.length; i_a++) { const a = a_a[i_a]; if (a.ropes) for (const r of a.ropes) r.ready = false; }
   }
 
+  const ANCHOR = { x: 0, y: 0 };
   function anchorOf(f, a, i) {
     const L = f.local;
     const r = a.rope[i];
-    const off = r.at || [0, 0];
+    const off = r.at;
     const base = L[r.anchor || a.anchor || 'head'];
-    return lw(f, base.x + off[0], base.y + off[1]);
+    const lx = base.x + (off ? off[0] : 0), ly = base.y + (off ? off[1] : 0);
+    const sx = f.facing * f.spinScale * f.scaleX * f.look.scale, sy = f.scaleY * f.look.scale;
+    ANCHOR.x = f.x + lx * sx; ANCHOR.y = f.y + ly * sy;
+    return ANCHOR;
   }
 
   // Loose cloth reacts to the fighter's speed: dashes and specials whip the bandages back.
@@ -127,12 +131,12 @@
     const flare = f.bandageFlare || 0;
     const drag = -f.vx * (fast ? 0.75 : 0.45) - f.facing * flare * 2600;
     const lift = (f.state === 'special' ? 2600 : fast ? 900 : 0) + flare * 1800;
-    for (const a of f.accessories) {
+    for (let i_a = 0, a_a = f.accessories; i_a < a_a.length; i_a++) { const a = a_a[i_a];
       if (!a.ropes) continue;
-      a.ropes.forEach((r, i) => {
+      for (let i = 0; i < a.ropes.length; i++) { const r = a.ropes[i];
         const p = anchorOf(f, a, i);
         r.update(p.x, p.y, dt, wind * (a.windMul || 1) + drag, (a.lift || 0) + lift);
-      });
+      }
     }
   }
 
@@ -878,7 +882,7 @@
   }
 
   function drawLayer(ctx, f, P, layer, pal, flat) {
-    for (const a of f.accessories || []) {
+    for (let i_a = 0, a_a = f.accessories || []; i_a < a_a.length; i_a++) { const a = a_a[i_a];
       if (a.ropes || !a.type) continue;
       if ((LAYER[a.type] || 'head') !== layer) continue;
       drawTyped(ctx, f, P, a, pal, flat);
@@ -887,11 +891,11 @@
 
   function drawRopes(ctx, f, front, flat, pal) {
     const sc = f.look.scale;
-    for (const a of f.accessories || []) {
+    for (let i_a = 0, a_a = f.accessories || []; i_a < a_a.length; i_a++) { const a = a_a[i_a];
       if (!a.ropes || !!a.front !== front) continue;
       const c = flat || a.color || pal.wrap;
       const tip = flat ? null : (a.tip || (a.bandage ? pal.wrapDark : null));
-      a.ropes.forEach((r, i) => r.draw(ctx, a.rope[i].w0 * sc, a.rope[i].w1 * sc, c, tip));
+      for (let i = 0; i < a.ropes.length; i++) a.ropes[i].draw(ctx, a.rope[i].w0 * sc, a.rope[i].w1 * sc, c, tip);
     }
   }
 

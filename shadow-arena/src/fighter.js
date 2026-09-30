@@ -58,12 +58,13 @@
   for (const k in MOB) MOB[k].curve = makeCurve(MOB[k].shape);
   // acrobatics: take-off velocity, gravity scale, rotation frames, attack allowed from frame, invulnerable frames
   const FLIPS = {
-    front: { vy: -1260, vx: 820, grav: 1, rotFrames: 26, atkFrom: 8, dir: 1, cost: 18 },
-    back: { vy: -1150, vx: -600, grav: 1.05, rotFrames: 24, atkFrom: 14, dir: -1, cost: 18 },
+    front: { vy: -1260, vx: 820, grav: 1, rotFrames: 30, atkFrom: 8, dir: 1, cost: 18 },
+    back: { vy: -1150, vx: -600, grav: 1.05, rotFrames: 28, atkFrom: 14, dir: -1, cost: 18 },
     // handspring (flik-flak): low, fast arc backwards over the hands
     hand: { vy: -520, vx: -820, grav: 0.9, rotFrames: 19, atkFrom: 99, dir: -1, invuln: [2, 11], cost: 30 },
   };
   const ROLL = MOB.roll;
+  const FEET = ['footF', 'footB'];
   const MOB_REGEN = 70;   // mobility meter per second (hidden): chaining many dodges costs recovery time
 
   const NEUTRAL = { idle: 1, walk: 1, crouch: 1, block: 1 };
@@ -121,7 +122,7 @@
       this.entryPose = A.P();
       this.local = A.createSkeleton();
       this.skel = A.createSkeleton();
-      this.hurt = { head: { x: 0, y: 0, w: 0, h: 0 }, torso: { x: 0, y: 0, w: 0, h: 0 }, legs: { x: 0, y: 0, w: 0, h: 0 } };
+      this.hurt = { head: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }, torso: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }, legs: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } };
       this.hitList = new Set();
       this.combo = { hits: 0, damage: 0, seq: [], timer: 0, name: null };
       this.accessories = null;
@@ -212,7 +213,7 @@
       if (this.invuln > 0 || this.vanished) return false;
       const s = this.state;
       if (s === 'down' || s === 'getup' || s === 'ko' || s === 'victory' || s === 'defeat' || s === 'rushed') return false;
-      if (s === 'launched' && this.juggle >= 3 && !(attacker && attacker.state === 'special')) return false;
+      if (s === 'launched' && this.juggle >= 5 && !(attacker && attacker.state === 'special')) return false;
       return true;
     }
     // Heavy wind-ups and armored enemies absorb weaker hits without flinching.
@@ -354,6 +355,7 @@
       if (this.dashCd > 0) this.dashCd -= ts;
       if (this.landT > 0) this.landT -= ts;
       if (this.hsLand > 0) this.hsLand -= ts;
+      if (this.feintT > 0) this.feintT -= ts;
       // hidden mobility meter regenerates after a short rest
       if (this.mobRest > 0) this.mobRest -= dt;
       else if (this.mobility < 100) this.mobility = Math.min(100, this.mobility + MOB_REGEN * dt);
@@ -428,6 +430,8 @@
           // short landing recovery after a whiffed air attack; attacks may still cancel it late
           this.stun -= ts;
           this.vx = damp(this.vx, 0, 14, dt);
+          // defensive movement (roll / backstep / dash) comes out after 3 frames, attacks only late
+          if (this.st >= 3 && this.tryDash(game)) break;
           if (this.stun <= 3 && this.tryAttacks()) break;
           if (this.stun <= 0) this.toNeutral();
           break;
@@ -497,7 +501,11 @@
             if (c.consume('kick')) { this.rm = null; this.startMove(ms.kickDown); break; }
             if (c.consume('heavy')) { this.rm = null; this.startMove(ms.heavyUp); break; }
           }
-          if (this.st >= R.frames && this.st >= this.rollThrough) { this.vx *= 0.3; this.rm = null; this.toNeutral(); }
+          if (this.st >= R.frames && this.st >= this.rollThrough) {
+            this.vx *= 0.3; this.rm = null; this.toNeutral();
+            // a jump pressed during the roll's end comes out on the very next frame
+            if (c.consume('up')) this.startPrejump(false);
+          }
           break;
         }
 
@@ -629,13 +637,16 @@
       }
       if (c.consume('ranged') && this.tryRanged()) return true;
       if (c.consume('reload') && this.tryReload()) return true;
-      if (c.consume('light')) { this.startMove(down ? ms.lightDown : ms.light); return true; }
+      // directions: held now or held when the button was pressed (input buffer)
+      const fwdName = this.facing > 0 ? 'right' : 'left';
+      if (c.consume('light')) { this.startMove(down || c.dirHeld('down') ? ms.lightDown : ms.light); return true; }
       if (c.consume('heavy')) {
-        if (up && !down) c.consume('up');
-        this.startMove(down ? ms.heavyDown : up ? ms.heavyUp : this.fwdHeld() ? ms.heavyFwd : ms.heavy);
+        const d = down || c.dirHeld('down'), u = up || c.dirHeld('up');
+        if (u && !d) c.consume('up');
+        this.startMove(d ? ms.heavyDown : u ? ms.heavyUp : c.dirHeld(fwdName) ? ms.heavyFwd : ms.heavy);
         return true;
       }
-      if (c.consume('kick')) { this.startMove(down ? ms.kickDown : ms.kick); return true; }
+      if (c.consume('kick')) { this.startMove(down || c.dirHeld('down') ? ms.kickDown : ms.kick); return true; }
       return false;
     }
 
@@ -783,8 +794,13 @@
         else if (c.consume('heavy')) id = down ? ms.airKick : ms.airHeavy;
         if (id) {
           const dive = down && id === ms.airKick;
+          // a flip slash keeps rotating: remember where the flip's rotation is (in its own direction)
+          let r0 = this.pose.rot;
+          const fd = fromFlip && this.flip ? this.flip.F.dir : 0;
+          if (fd) { while (r0 * fd < 0) r0 += fd * SA.TAU; }
           this.startMove(id);
-          this.flipAtk = fromFlip ? this.flip && this.flip.F.dir : 0;   // a flip slash keeps rotating
+          this.flipAtk = fd;
+          this.flipRot0 = r0;
           if (dive) {
             // dive attack: steep drop onto the opponent
             this.dive = true;
@@ -795,9 +811,16 @@
           if (fromDash) this.moveBonus = 1.1;
           return true;
         }
-        if (c.consume('ranged') && this.tryRanged()) return true;
+        if (c.has('ranged')) {
+          let r0 = this.pose.rot;
+          const fd = this.state === 'flip' && this.flip ? this.flip.F.dir : 0;
+          if (fd) { while (r0 * fd < 0) r0 += fd * SA.TAU; }
+          c.consume('ranged');
+          if (this.tryRanged()) { this.flipAtk = fd; this.flipRot0 = r0; return true; }
+        }
       }
-      if (!fromDash && !this.airDashUsed && this.dashCd <= 0 && (c.has('dash') || c.has('step'))) {
+      // air dash (down + dash stays buffered: it is a roll on landing)
+      if (!fromDash && !this.airDashUsed && this.dashCd <= 0 && !c.held('down') && (c.has('dash') || c.has('step'))) {
         c.consume('dash'); c.consume('step');
         this.airDashUsed = true;
         const dir = this.backHeld() ? -1 : 1;
@@ -887,6 +910,14 @@
       }
       if (this.grounded) this.vx = damp(this.vx, 0, m.friction || 9, dt);
 
+      // a hit may always be cancelled into movement (dash / roll / backstep), a block only off cooldown
+      if (this.moveContact && this.grounded && ((m.power || 0.5) < 0.8 || this.moveContact === 'hit') && !m.ranged &&
+          (this.dashCd <= 0 || this.moveContact === 'hit') && this.mt >= m.startup && (c.has('dash') || c.has('step'))) {
+        this.cancelMove();
+        this.dashCd = 0;
+        this.tryDash(game);
+        return;
+      }
       if (m.chain && this.cancelOpen()) {
         for (const key in m.chain) {
           if (c.consume(key)) {
@@ -902,12 +933,6 @@
         }
       }
       // light / medium attacks that connected can be cancelled into a dash or backstep
-      if (this.moveContact && this.grounded && ((m.power || 0.5) < 0.8 || this.moveContact === 'hit') && !m.ranged && this.dashCd <= 0 &&
-          this.mt >= m.startup + m.active && (c.has('dash') || c.has('step'))) {
-        this.cancelMove();
-        this.tryDash(game);
-        return;
-      }
       if (this.moveContact === 'hit' && this.energy >= 100 && c.has('special')) {
         c.consume('special');
         this.startSpecial();
@@ -1303,7 +1328,8 @@
       const L = this._lock || (this._lock = { footF: { on: false, x: 0 }, footB: { on: false, x: 0 } });
       const S = this.skel;
       const max = st === 'run' || st === 'sprint' ? 10 : 16;
-      for (const k of ['footF', 'footB']) {
+      for (let fi = 0; fi < 2; fi++) {
+        const k = FEET[fi];
         const lk = L[k], foot = S[k];
         const contact = gait && foot.y > this.y - 7 * this.look.scale;
         if (!contact) { lk.on = false; continue; }
@@ -1321,7 +1347,7 @@
     // blended pose (previous → current) into skel / x / y, endRender() restores the simulation state.
     snapshotRender() {
       const P = this._rPrev || (this._rPrev = A.createSkeleton());
-      for (const k of A.POINTS) { P[k].x = this.skel[k].x; P[k].y = this.skel[k].y; }
+      for (let i_k = 0, a_k = A.POINTS; i_k < a_k.length; i_k++) { const k = a_k[i_k]; P[k].x = this.skel[k].x; P[k].y = this.skel[k].y; }
       this._rpx = this.x; this._rpy = this.y;
       this._rReady = true;
     }
@@ -1342,7 +1368,7 @@
       let m = turn;
       if (Math.abs(m) < 0.14) m = m < 0 ? -0.14 : 0.14;
       const cx = this.x;
-      for (const k of A.POINTS) {
+      for (let i_k = 0, a_k = A.POINTS; i_k < a_k.length; i_k++) { const k = a_k[i_k];
         const sk = S[k], c = C[k];
         c.x = sk.x; c.y = sk.y;
         let x = sk.x, y = sk.y;
@@ -1356,7 +1382,7 @@
     endRender() {
       if (!this._rOn) return;
       const C = this._rCur, S = this.skel;
-      for (const k of A.POINTS) { S[k].x = C[k].x; S[k].y = C[k].y; }
+      for (let i_k = 0, a_k = A.POINTS; i_k < a_k.length; i_k++) { const k = a_k[i_k]; S[k].x = C[k].x; S[k].y = C[k].y; }
       this.x = this._rx; this.y = this._ry;
       this.spinScale = this._rSpin;
       this._rOn = false;
@@ -1372,7 +1398,7 @@
       const pool = this._ghostPool || (this._ghostPool = []);
       let g = this.ghosts.length >= 3 ? this.ghosts.shift() : pool.pop();
       if (!g) { g = { pts: A.createSkeleton(), life: 1, facing: 1 }; }
-      for (const k of A.POINTS) { g.pts[k].x = this.skel[k].x; g.pts[k].y = this.skel[k].y; }
+      for (let i_k = 0, a_k = A.POINTS; i_k < a_k.length; i_k++) { const k = a_k[i_k]; g.pts[k].x = this.skel[k].x; g.pts[k].y = this.skel[k].y; }
       g.life = 1;
       g.facing = this.facing * this.spinScale;
       this.ghosts.push(g);
@@ -1432,7 +1458,7 @@
         }
       }
       // afterimages are short: 60–150 ms
-      for (const g of this.ghosts) g.life -= dt * 8;
+      for (let i_g = 0, a_g = this.ghosts; i_g < a_g.length; i_g++) { const g = a_g[i_g]; g.life -= dt * 8; }
       while (this.ghosts.length && this.ghosts[0].life <= 0) (this._ghostPool || (this._ghostPool = [])).push(this.ghosts.shift());
 
       SA.Render.updateAccessories(this, dt, game.arena);

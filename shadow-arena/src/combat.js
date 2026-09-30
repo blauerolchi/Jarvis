@@ -285,9 +285,11 @@
 
   const { clamp } = SA.M;
 
+  const REGIONS = ['head', 'torso', 'legs'];
   function hurtRegion(rect, b) {
     let best = null, bestA = 0, point = null;
-    for (const r of ['head', 'torso', 'legs']) {
+    for (let ri = 0; ri < 3; ri++) {
+      const r = REGIONS[ri];
       const i = SA.M.intersect(rect, b.hurt[r]);
       if (!i) continue;
       let a = i.w * i.h;
@@ -449,6 +451,11 @@
           b.bounced = false;
           b.juggle++;
           b.vy = Math.min(m.kbY || -520, airborne ? -560 : -300);
+          // juggle resistance: every extra air hit pops the victim less high and makes it fall faster
+          if (airborne && b.juggle > 1) {
+            b.vy *= Math.max(0.35, 1 - 0.2 * (b.juggle - 1));
+            b.gravMul = 1 + 0.22 * (b.juggle - 1);
+          }
           if (ko) b.vy = Math.min(b.vy, -760);
           b.vx = dir * (m.kb * (ko ? 1.15 : 0.85));
           if (b.y >= 0) b.y = -1;

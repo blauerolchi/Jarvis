@@ -47,7 +47,7 @@
 
     update(dt) {
       let n = 0;
-      for (const p of this.pool) {
+      for (let i_p = 0, a_p = this.pool; i_p < a_p.length; i_p++) { const p = a_p[i_p];
         if (!p.alive) continue;
         p.life += dt;
         if (p.life >= p.max) { p.alive = false; continue; }
@@ -66,10 +66,10 @@
       this.count = n;
     }
 
-    clear() { for (const p of this.pool) p.alive = false; }
+    clear() { for (let i_p = 0, a_p = this.pool; i_p < a_p.length; i_p++) { const p = a_p[i_p]; p.alive = false; } }
 
     // start of a simulation step: particles that don't move this step must not be blended
-    snapshot() { for (const p of this.pool) if (p.alive) { p.ox = p.x; p.oy = p.y; } }
+    snapshot() { for (let i_p = 0, a_p = this.pool; i_p < a_p.length; i_p++) { const p = a_p[i_p]; if (p.alive) { p.ox = p.x; p.oy = p.y; } } }
 
     draw(ctx, front) {
       // normal blended first, additive second (fewer composite switches)
@@ -77,7 +77,7 @@
         const additive = pass === 1;
         ctx.globalCompositeOperation = additive ? 'lighter' : 'source-over';
         const a = this.alpha === undefined ? 1 : this.alpha;
-        for (const p of this.pool) {
+        for (let i_p = 0, a_p = this.pool; i_p < a_p.length; i_p++) { const p = a_p[i_p];
           if (!p.alive || p.add !== additive || p.front !== front || !p.world) continue;
           if (a < 1) {
             // render interpolation between the last two simulation steps
@@ -110,13 +110,14 @@
           break;
         }
         case 'glow': {
-          const s = p.size * (1 - u * 0.5);
+          // large additive sprites are the most expensive thing to rasterise: keep them bounded
+          const s = Math.min(170, p.size * (1 - u * 0.5));
           ctx.globalAlpha = p.alpha * fade;
           ctx.drawImage(SA.glowSprite(p.color), p.x - s, p.y - s, s * 2, s * 2);
           break;
         }
         case 'flash': {
-          const s = p.size * (0.6 + SA.M.easeOutCubic(u) * 0.8);
+          const s = Math.min(240, p.size * (0.6 + SA.M.easeOutCubic(u) * 0.8));
           ctx.globalAlpha = p.alpha * Math.pow(fade, 1.6);
           ctx.drawImage(SA.glowSprite(p.color, 0.08), p.x - s, p.y - s, s * 2, s * 2);
           break;

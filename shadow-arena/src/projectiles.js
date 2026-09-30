@@ -21,20 +21,20 @@
       this.serial = 0;
     }
 
-    clear() { for (const p of this.pool) p.alive = false; }
+    clear() { for (let i_p = 0, a_p = this.pool; i_p < a_p.length; i_p++) { const p = a_p[i_p]; p.alive = false; } }
 
     // start of a simulation step (render interpolation): a projectile that doesn't move isn't blended
-    snapshot() { for (const p of this.pool) if (p.alive && p.px !== undefined) { p.px = p.x; p.py = p.y; } }
+    snapshot() { for (let i_p = 0, a_p = this.pool; i_p < a_p.length; i_p++) { const p = a_p[i_p]; if (p.alive && p.px !== undefined) { p.px = p.x; p.py = p.y; } } }
 
     get(ownerFilter) {
       const out = [];
-      for (const p of this.pool) if (p.alive && (!ownerFilter || p.owner !== ownerFilter)) out.push(p);
+      for (let i_p = 0, a_p = this.pool; i_p < a_p.length; i_p++) { const p = a_p[i_p]; if (p.alive && (!ownerFilter || p.owner !== ownerFilter)) out.push(p); }
       return out;
     }
 
     spawn(o) {
       let p = null;
-      for (const q of this.pool) if (!q.alive) { p = q; break; }
+      for (let i_q = 0, a_q = this.pool; i_q < a_q.length; i_q++) { const q = a_q[i_q]; if (!q.alive) { p = q; break; } }
       if (!p) return null;
       p.alive = true;
       p.px = p.py = undefined;
@@ -120,7 +120,7 @@
       const fighters = this._f || (this._f = []);
       fighters[0] = game.p1; fighters[1] = game.p2;
       let n = 0;
-      for (const p of this.pool) {
+      for (let i_p = 0, a_p = this.pool; i_p < a_p.length; i_p++) { const p = a_p[i_p];
         if (!p.alive) continue;
         n++;
         p.life += dt;
@@ -163,7 +163,7 @@
           this.kill(p);
           continue;
         }
-        for (const f of fighters) {
+        for (let i_f = 0, a_f = fighters; i_f < a_f.length; i_f++) { const f = a_f[i_f];
           if (f === p.owner && !p.reflected) continue;
           if (f === p.owner && p.reflected && p.life < 0.05) continue;
           if (p.hitList.has(f)) continue;
@@ -274,7 +274,7 @@
 
     // ---------- drawing ----------
     draw(ctx) {
-      for (const p of this.pool) {
+      for (let i_p = 0, a_p = this.pool; i_p < a_p.length; i_p++) { const p = a_p[i_p];
         if (!p.alive) continue;
         ctx.save();
         const ra = this.alpha === undefined || p.px === undefined ? 1 : this.alpha;

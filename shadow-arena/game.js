@@ -542,7 +542,8 @@
     updateWorld() {
       const p1 = this.p1, p2 = this.p2, cam = this.camera;
       const realDt = SA.STEP;
-      for (const f of [p1, p2]) {
+      for (let fi = 0; fi < 2; fi++) {
+        const f = fi ? p2 : p1;
         if (f.hitShake > 0) f.hitShake--;
         if (f.hitFlash > 0) f.hitFlash = Math.max(0, f.hitFlash - realDt * 7);
       }
@@ -580,7 +581,8 @@
       if (h2) SA.Combat.check(p2, p1, this, h2);
       this.projectiles.update(dt, this);
 
-      for (const [a, b] of [[p1, p2], [p2, p1]]) {
+      for (let fi = 0; fi < 2; fi++) {
+        const a = fi ? p2 : p1, b = fi ? p1 : p2;
         if (a.combo.hits > 0 && !b.isStunned()) this.endCombo(a);
         if (a.energy >= 100 && Math.random() < 0.4 * ts) SA.FX.aura(this.particles, a.x, a.y, a.look.accent);
         // special ready: golden hieroglyphs rise around the fighter
@@ -1004,7 +1006,7 @@
       (m.unlocks || []).forEach((u, i) => {
         const y = 490 + i * 56;
         const p = 0.6 + 0.4 * Math.sin(this.ui.t * 4 + i);
-        SA.text(ctx, u, SA.W / 2, y, { size: 28, weight: 900, spacing: 8, color: `rgba(255,${200 + p * 40},${120 + p * 60},1)`, align: 'center', alpha: a });
+        SA.text(ctx, u, SA.W / 2, y, { size: 28, weight: 900, spacing: 8, color: `rgba(255,${200 + Math.round(p * 4) * 10},${120 + Math.round(p * 4) * 15},1)`, align: 'center', alpha: a });
       });
       ctx.globalAlpha = 1;
       if (this.resultsMenu && m.t > 1.2) this.resultsMenu.draw(ctx, this.ui.t);

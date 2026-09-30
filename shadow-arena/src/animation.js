@@ -73,11 +73,11 @@
 
   // ---------- pose math ----------
   function copyPose(dst, src) {
-    for (const k of KEYS) dst[k] = src[k];
+    for (let i_k = 0, a_k = KEYS; i_k < a_k.length; i_k++) { const k = a_k[i_k]; dst[k] = src[k]; }
     return dst;
   }
   function lerpPose(out, a, b, t) {
-    for (const k of KEYS) out[k] = a[k] + (b[k] - a[k]) * t;
+    for (let i_k = 0, a_k = KEYS; i_k < a_k.length; i_k++) { const k = a_k[i_k]; out[k] = a[k] + (b[k] - a[k]) * t; }
     return out;
   }
   // wrap an angle to (-PI, PI]
@@ -90,7 +90,7 @@
   // shortest way round, so a finished roll / flip (rot = 2π) never unwinds backwards
   function dampPose(cur, target, k, dt) {
     const f = 1 - Math.exp(-k * dt);
-    for (const key of KEYS) {
+    for (let i_key = 0, a_key = KEYS; i_key < a_key.length; i_key++) { const key = a_key[i_key];
       if (key === 'rot') { cur.rot = wrapA(cur.rot); cur.rot += wrapA(target.rot - cur.rot) * f; }
       else cur[key] += (target[key] - cur[key]) * f;
     }
@@ -204,13 +204,13 @@
     const tuck = POSES.roll;
     ACRO.front = [
       [0, P({ torso: 0.35, head: -0.1, aF1: 2.6, aF2: 0.3, aB1: 2.4, aB2: 0.4, lF1: 0.2, lF2: -0.2, lB1: -0.4, lB2: -0.1 })],
-      [0.22, tuck, 'out'],
+      [0.22, tuck, 'smooth'],
       [0.7, P({ torso: 1.2, aF1: 1.0, aF2: 2.0, aB1: 0.9, aB2: 2.1 }, tuck)],
       [1, P({ torso: 0.1, head: -0.1, aF1: 1.4, aF2: 0.8, aB1: -0.8, aB2: 0.8, lF1: 0.8, lF2: -1.1, lB1: -0.1, lB2: -0.9 }), 'smooth'],
     ];
     ACRO.back = [
       [0, P({ torso: -0.35, head: 0.2, aF1: 2.9, aF2: 0.2, aB1: 2.7, aB2: 0.3, lF1: 0.3, lF2: -0.5, lB1: -0.2, lB2: -0.3 })],
-      [0.25, P({ torso: 0.9, head: 0.4, aF1: 1.2, aF2: 1.9, aB1: 1.0, aB2: 2.0 }, tuck), 'out'],
+      [0.25, P({ torso: 0.9, head: 0.4, aF1: 1.2, aF2: 1.9, aB1: 1.0, aB2: 2.0 }, tuck), 'smooth'],
       [0.7, P({ torso: 0.9, aF1: 1.6, aF2: 1.2, aB1: 1.4, aB2: 1.3 }, tuck)],
       [1, P({ torso: 0.2, aF1: 1.2, aF2: 1.2, aB1: 0.2, aB2: 1.6, lF1: 0.9, lF2: -1.3, lB1: 0.1, lB2: -1.1 }), 'smooth'],
     ];
@@ -237,12 +237,14 @@
     }
     return copyPose(out, keys[keys.length - 1][1]);
   }
-  const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  // rotation profile for flips / rolls: smooth start and end, peak speed only 1.5x the average,
+  // so the spin reads as one continuous motion instead of a snap in the middle
+  const easeInOut = (t) => t * t * (3 - 2 * t);
 
   // ---------- skeleton solve ----------
   function createSkeleton() {
     const s = {};
-    for (const p of POINTS) s[p] = { x: 0, y: 0 };
+    for (let i_p = 0, a_p = POINTS; i_p < a_p.length; i_p++) { const p = a_p[i_p]; s[p] = { x: 0.5, y: 0.5 }; }   // double fields from the start (no number boxing)
     return s;
   }
 
@@ -291,7 +293,7 @@
 
     if (pose.rot) {
       const c = Math.cos(pose.rot), s = Math.sin(pose.rot);
-      for (const k of POINTS) {
+      for (let i_k = 0, a_k = POINTS; i_k < a_k.length; i_k++) { const k = a_k[i_k];
         if (k === 'hip') continue;
         const p = S[k];
         const x = p.x - hip.x, y = p.y - hip.y;
@@ -301,11 +303,11 @@
     }
 
     let maxY = -Infinity;
-    for (const k of BODY) {
+    for (let i_k = 0, a_k = BODY; i_k < a_k.length; i_k++) { const k = a_k[i_k];
       const v = S[k].y + CONTACT[k] * (bulk || 1);
       if (v > maxY) maxY = v;
     }
-    for (const k of POINTS) S[k].y -= maxY;
+    for (let i_k = 0, a_k = POINTS; i_k < a_k.length; i_k++) { const k = a_k[i_k]; S[k].y -= maxY; }
     return S;
   }
 
@@ -314,7 +316,7 @@
     const L = f.local, Wd = f.skel;
     const sx = f.facing * f.spinScale * f.scaleX * f.look.scale;
     const sy = f.scaleY * f.look.scale;
-    for (const k of POINTS) {
+    for (let i_k = 0, a_k = POINTS; i_k < a_k.length; i_k++) { const k = a_k[i_k];
       Wd[k].x = f.x + L[k].x * sx;
       Wd[k].y = f.y + L[k].y * sy;
     }
@@ -334,6 +336,7 @@
     f.pose.rot = wrapA(f.pose.rot);
     let k = 18;
     let direct = false;
+    let attackPose = false;
     const st = f.state;
     f.animTime += dt;
 
@@ -378,8 +381,8 @@
       if (!ACRO.front) buildAcro();
       sampleU(ACRO[f.flip.kind], u, target);
       target.rot = F.dir * SA.TAU * easeInOut(u);
-      // enter from the take-off crouch over 2 frames, then follow the keys exactly
-      const w = clamp(f.st / 2, 0, 1);
+      // enter from the take-off crouch over 3 frames, then follow the keys exactly
+      const w = SA.M.smooth(clamp(f.st / 3, 0, 1));
       if (w < 1) { const r = target.rot; lerpPose(target, f.pose, target, w); target.rot = r; }
       copyPose(f.pose, target);
       direct = true;
@@ -392,7 +395,7 @@
       if (!ACRO.front) buildAcro();
       copyPose(target, ACRO.slide);
       target.torso += Math.sin(f.animTime * 30) * 0.02;
-      k = 32;
+      k = f.st < 4 ? 20 : 32;
     } else if (st === 'air') {
       const u = clamp((f.vy + 900) / 1600, 0, 1);
       lerpPose(target, POSES.jump, POSES.fall, u);
@@ -408,10 +411,12 @@
       // tucked ball rotating around the hip; ground snap keeps it on the floor.
       // Limbs tuck in over ~3 frames, the rotation eases in and out, the last frames open up again.
       const u = clamp(f.st / 23, 0, 1);
-      if (u < 0.82) copyPose(target, POSES.roll);
-      else lerpPose(target, POSES.roll, POSES.crouch, SA.M.smooth((u - 0.82) / 0.18));
+      // tuck in, roll, then open up into the fighting stance over the last quarter (no snap into idle)
+      if (u < 0.72) copyPose(target, POSES.roll);
+      else if (u < 0.88) lerpPose(target, POSES.roll, POSES.crouch, SA.M.smooth((u - 0.72) / 0.16));
+      else lerpPose(target, POSES.crouch, POSES.stance, SA.M.smooth((u - 0.88) / 0.12));
       const rot = (f.rollDir || 1) * SA.TAU * easeInOut(clamp(u / 0.9, 0, 1));
-      dampPose(f.pose, target, 40, dt);
+      dampPose(f.pose, target, f.st < 4 ? 26 : 40, dt);
       f.pose.rot = rot;
       copyPose(target, f.pose);
       direct = true;
@@ -457,19 +462,27 @@
       name = f.move ? f.move.id : f.sp ? 'special:' + f.sp.phase : st;
       // blend in from whatever the body was doing (run, roll, previous attack …) over ~3 frames:
       // hips / torso lead, the arms follow a fraction of a frame later, the weapon last
-      const blend = Math.max(3, f.move && f.move.blend !== undefined ? f.move.blend : 3);
-      const out = SA.M.easeOutCubic;
+      // out of a flip (body still turning, tucked) the attack pose blends in a little longer
+      const blend = Math.max(f.flipAtk ? 5 : 3, f.move && f.move.blend !== undefined ? f.move.blend : 3);
+      const out = SA.M.smooth;
       const wb = out(clamp(f.mt / blend, 0, 1));
       lerpPose(target, f.entryPose, sampled, wb);
       if (wb < 1) {
         const wa = out(clamp(f.mt / (blend + 0.7), 0, 1)), ww = out(clamp(f.mt / (blend + 1.2), 0, 1));
-        for (const key of ARM_KEYS) target[key] = f.entryPose[key] + (sampled[key] - f.entryPose[key]) * wa;
+        for (let i_key = 0, a_key = ARM_KEYS; i_key < a_key.length; i_key++) { const key = a_key[i_key]; target[key] = f.entryPose[key] + (sampled[key] - f.entryPose[key]) * wa; }
         target.wg = f.entryPose.wg + (sampled.wg - f.entryPose.wg) * ww;
         target.wgB = f.entryPose.wgB + (sampled.wgB - f.entryPose.wgB) * ww;
       }
-      // a slash out of a front flip keeps rotating: the spinning aerial slash
-      if (f.flipAtk && f.move && f.move.air) target.rot = f.flipAtk * SA.TAU * out(clamp(f.mt / Math.max(8, f.move.startup + f.move.active), 0, 1));
+      // an attack out of a flip finishes the flip's rotation (the spinning aerial slash) instead of
+      // snapping the body upright; any other leftover body rotation blends out with the entry
+      if (f.flipAtk && f.move && f.move.air) {
+        // finish the remaining turn at a flip-like pace (≈0.3 rad per step), within the move
+        const r0 = f.flipRot0 || 0, end = f.flipAtk * SA.TAU;
+        const n = clamp(Math.abs(end - r0) / 0.23, 6, Math.max(6, f.move.total || 20));
+        target.rot = r0 + (end - r0) * SA.M.smooth(clamp(f.mt / n, 0, 1));
+      }
       direct = true;
+      attackPose = true;
     } else {
       idlePose(f.animTime, target);
     }
@@ -507,6 +520,12 @@
       target.wg += 0.6 * w;
       f.scaleX = Math.min(f.scaleX, 1 - 0.18 * w);
     }
+    // feint (AI mind game): a fake wind-up the opponent can read, then nothing comes
+    if (f.feintT > 0 && !direct) {
+      const w = Math.sin(clamp(f.feintT / 12, 0, 1) * Math.PI);
+      target.torso -= 0.16 * w; target.hipX -= 10 * w;
+      target.aF1 += 0.5 * w; target.aF2 += 0.5 * w; target.wg -= 0.7 * w;
+    }
     // attacks: anticipation pull-back, commit on the strike, follow-through after it
     if (st === 'attack' && f.move && !f.move.air && !f.move.ranged) {
       const m = f.move, pw = clamp(m.power || 0.5, 0.2, 1.2);
@@ -524,7 +543,20 @@
     }
 
     f.animName = name;
-    if (direct) copyPose(f.pose, target);
+    // the first frames after touching down blend a little softer (the landing squash carries it)
+    if (!direct && f.landT > 5) k = Math.min(k, 14);
+    if (attackPose) {
+      // strikes: body, hips and rotation follow the keys exactly (frame data), the limbs and the weapon
+      // trail them by ~15 ms so a fast strike is drawn as an arc over several frames, never a snap
+      // active frames follow the keys exactly (the hitbox is the authored one)
+      const active = f.move && f.state === 'attack' && f.mt >= f.move.startup && f.mt < f.move.startup + f.move.active;
+      const kl = active ? 1 : 1 - Math.exp(-68 * dt), kt = active ? 1 : 1 - Math.exp(-58 * dt);
+      for (let i_key = 0, a_key = KEYS; i_key < a_key.length; i_key++) { const key = a_key[i_key];
+        if (key === 'rot' || key === 'hipX') f.pose[key] = target[key];
+        else if (key === 'torso' || key === 'head') f.pose[key] += (target[key] - f.pose[key]) * kt;   // trunk leads
+        else f.pose[key] += (target[key] - f.pose[key]) * kl;
+      }
+    } else if (direct) copyPose(f.pose, target);
     else dampPose(f.pose, target, k, dt);
 
     // spin illusion (x scale flips through zero)
