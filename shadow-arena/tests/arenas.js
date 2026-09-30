@@ -4,7 +4,8 @@ const { openGame } = require('./harness');
   const out = process.argv[2] || '.';
   const { browser, page, errors } = await openGame();
   await page.setViewportSize({ width: 1280, height: 720 });
-  for (const arena of ['temple', 'bamboo', 'neon', 'ruins']) {
+  const order = await page.evaluate(() => SA.ARENA_ORDER.slice());
+  for (const arena of order) {
     await page.evaluate((arena) => {
       const g = SA.game;
       g.scene = 'fight';

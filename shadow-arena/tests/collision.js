@@ -13,7 +13,7 @@ const { openGame } = require('./harness');
     T.setup = (o) => {
       o = o || {};
       g.training.tryItem = o.weapon || null;
-      T.training('stand', 'temple');
+      T.training('stand', 'desert_temple');
       g.training.infiniteHp = false;
       g.ai2.update = () => {};
       if (o.p2weapon) g.p2.setLoadout({ weapon: o.p2weapon });

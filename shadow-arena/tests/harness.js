@@ -27,7 +27,7 @@ async function openGame() {
       training(dummy, arena) {
         g.scene = 'fight';
         g.training.dummy = dummy || 'stand';
-        g.setupWorld({ mode: 'training', arena: arena || 'temple' });
+        g.setupWorld({ mode: 'training', arena: arena || SA.ARENA_ORDER[0] });
         g.training.infiniteEnergy = false;
         g.p1.energy = 0;
         g.transition = null; g.fade = 0;

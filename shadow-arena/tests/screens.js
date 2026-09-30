@@ -9,14 +9,14 @@ const { openGame } = require('./harness');
 
   // special move mid-rush
   await ev(() => {
-    const g = SA.game; g.scene = 'fight'; g.setupWorld({ mode: 'fight', arena: 'bamboo' });
+    const g = SA.game; g.scene = 'fight'; g.setupWorld({ mode: 'fight', arena: 'nile_night' });
     T.run(130); T.place(-250, 150); g.p1.energy = 100;
     T.run(1, { press: ['special'] }); T.run(34); g.render();
   });
   await shot('s1-special');
   // KO moment
   await ev(() => {
-    const g = SA.game; g.scene = 'fight'; g.setupWorld({ mode: 'fight', arena: 'neon' });
+    const g = SA.game; g.scene = 'fight'; g.setupWorld({ mode: 'fight', arena: 'scarab_catacombs' });
     T.run(130); T.place(-100, 90); g.p2.hp = 60;
     T.run(1, { press: ['light'] }); T.run(4); T.run(1, { press: ['light'] }); T.run(8); T.run(1, { press: ['heavy'] }); T.run(40); g.render();
   });
@@ -30,12 +30,12 @@ const { openGame } = require('./harness');
   await shot('s3-results');
   // training pause menu
   await ev(() => {
-    const g = SA.game; g.scene = 'fight'; g.setupWorld({ mode: 'training', arena: 'ruins' });
+    const g = SA.game; g.scene = 'fight'; g.setupWorld({ mode: 'training', arena: 'lost_pyramid' });
     g.debug.hitboxes = true; T.run(20); T.run(1, { press: ['pause'] }); T.run(5); g.render();
   });
   await shot('s4-training-pause');
   await ev(() => {
-    const g = SA.game; g.debug.hitboxes = false; g.paused = false; g.scene = 'menu'; g.setupWorld({ mode: 'demo', arena: 'temple' });
+    const g = SA.game; g.debug.hitboxes = false; g.paused = false; g.scene = 'menu'; g.setupWorld({ mode: 'demo', arena: 'desert_temple' });
     g.ui.go('settings'); T.run(30); g.render();
   });
   await shot('s5-settings');

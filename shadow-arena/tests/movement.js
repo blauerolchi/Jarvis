@@ -12,7 +12,7 @@ const { openGame } = require('./harness');
     const g = SA.game;
     T.fresh = (x1, x2, weapon) => {
       g.training.tryItem = weapon || null;
-      T.training('stand', 'temple');
+      T.training('stand', 'desert_temple');
       g.training.infiniteHp = false;
       g.ai2.update = () => {};
       T.place(x1 === undefined ? -600 : x1, x2 === undefined ? 600 : x2);

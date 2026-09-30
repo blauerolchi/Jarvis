@@ -31,12 +31,12 @@ const { openGame } = require('./harness');
     // corrupted save falls back to defaults
     localStorage.setItem(KEY, '{broken');
     SA.Save.load();
-    r.corruptOk = SA.Save.data.version === 2 && SA.Save.data.player.level === 1;
+    r.corruptOk = SA.Save.data.version === 3 && SA.Save.data.player.level === 1;
     SA.Save.resetProgress();
     if (old) { /* the test page has its own storage, nothing to restore */ }
     return r;
   });
-  check('migration v1->v2', mig.version === 2 && mig.diff === 'hard' && mig.arenas === 'temple,bamboo' && mig.storm && mig.wins === 3 && mig.master === 0.5 && mig.equipped === 'fists', mig);
+  check('migration v1->v2', mig.version === 3 && mig.diff === 'hard' && mig.arenas === 'desert_temple,nile_night' && mig.storm && mig.wins === 3 && mig.master === 0.5 && mig.equipped === 'fists', mig);
   check('migration pays coins for old wins', mig.coins >= 150 + 3 * 60, mig.coins);
   check('corrupted save -> defaults', mig.corruptOk);
 

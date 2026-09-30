@@ -7,7 +7,7 @@
  */
 (function (SA) {
   const KEY = 'shadowArena.save.v1';   // storage key stays stable; the schema version lives inside
-  const VERSION = 2;
+  const VERSION = 3;
 
   function defaults() {
     return {
@@ -19,8 +19,8 @@
       },
       progression: {
         difficulty: 'normal',
-        unlockedArenas: ['temple'],
-        lastArena: 'temple',
+        unlockedArenas: ['desert_temple'],
+        lastArena: 'desert_temple',
         arenaWins: {},
         bestStage: 0,
         arenaRuns: 0,
@@ -61,6 +61,21 @@
       // reward old players a little for their victories
       n.player.coins += (n.statistics.wins || 0) * 60;
       return n;
+    },
+    // v2 -> v3: the arenas became Egyptian; old arena ids map onto the new ones, nothing else changes
+    2(d) {
+      const R = SA.ARENA_RENAME || {};
+      const P = d.progression || {};
+      const ren = (id) => R[id] || id;
+      if (Array.isArray(P.unlockedArenas)) P.unlockedArenas = [...new Set(P.unlockedArenas.map(ren))];
+      if (P.lastArena) P.lastArena = ren(P.lastArena);
+      if (P.arenaWins) {
+        const w = {};
+        for (const k of Object.keys(P.arenaWins)) w[ren(k)] = (w[ren(k)] || 0) + P.arenaWins[k];
+        P.arenaWins = w;
+      }
+      d.progression = P;
+      return d;
     },
   };
 

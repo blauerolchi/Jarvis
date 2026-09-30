@@ -15,7 +15,7 @@
       difficultyOffset: { easy: -3, normal: 0, hard: 6 },
       rewardMul: { easy: 0.8, normal: 1, hard: 1.3 },
       energyCarry: 0.5,            // fraction of energy kept between stages
-      rotation: ['temple', 'bamboo', 'neon', 'frozen', 'palace', 'ancient', 'cyber', 'ruins'],
+      rotation: ['desert_temple', 'nile_night', 'lost_pyramid', 'scarab_catacombs', 'tomb_anubis', 'chaos_desert', 'temple_ra', 'hall_osiris'],
     },
 
     // Every AI parameter lerps from [stage 1 value, stage ~100 value] along t = 1 - exp(-s / curve).

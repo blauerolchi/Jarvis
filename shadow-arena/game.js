@@ -49,7 +49,7 @@
       this.fitCanvas();
       window.addEventListener('resize', () => this.fitCanvas());
       window.addEventListener('orientationchange', () => setTimeout(() => this.fitCanvas(), 200));
-      this.setupWorld({ mode: 'demo', arena: SA.Save.data.progression.lastArena || 'temple' });
+      this.setupWorld({ mode: 'demo', arena: SA.Save.data.progression.lastArena || SA.ARENA_ORDER[0] });
       this.fade = 1;
       this.transition = { phase: 'in' };
       requestAnimationFrame((t) => this.frame(t));
@@ -133,7 +133,7 @@
     setupWorld(o) {
       const P = SA.Save.data.progression;
       this.mode = o.mode;
-      const arenaId = o.arena || 'temple';
+      const arenaId = SA.ARENAS[o.arena] ? o.arena : (SA.ARENA_RENAME[o.arena] || SA.ARENA_ORDER[0]);
       if (!this.arena || this.arena.id !== arenaId) {
         if (this.arena) this.arena.dispose();
         this.arena = new SA.Arena(arenaId);
@@ -249,7 +249,7 @@
       this.training.tryItem = (opts && opts.tryItem) || null;
       this.transitionTo(() => {
         this.scene = 'fight';
-        this.setupWorld({ mode: 'training', arena: P.lastArena || 'temple' });
+        this.setupWorld({ mode: 'training', arena: P.lastArena || SA.ARENA_ORDER[0] });
         this.buildTrainingMenu();
         if (this.training.tryItem) this.ui.toast('TRYING ' + SA.Items.get(this.training.tryItem).name.toUpperCase());
       });
@@ -261,7 +261,7 @@
         this.paused = false;
         this.arenaRun = null;
         this.training.tryItem = null;
-        this.setupWorld({ mode: 'demo', arena: SA.Save.data.progression.lastArena || 'temple' });
+        this.setupWorld({ mode: 'demo', arena: SA.Save.data.progression.lastArena || SA.ARENA_ORDER[0] });
         this.ui.go(screen || 'main');
       });
     }
@@ -767,7 +767,7 @@
         ctx.save();
         ctx.scale(1, -0.55);
         ctx.globalAlpha = 0.22;
-        for (const f of [p1, p2]) SA.Render.drawSilhouette(ctx, f, '#1a0f2a');
+        for (const f of [p1, p2]) SA.Render.drawSilhouette(ctx, f, arena.def.reflectColor || '#1a0f2a');
         ctx.restore();
         ctx.globalAlpha = 1;
       }

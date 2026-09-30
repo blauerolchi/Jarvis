@@ -12,7 +12,7 @@
 
   const BOSSES = {
     executioner: {
-      name: 'THE EXECUTIONER', title: 'Headsman of the Burning Palace', arena: 'palace',
+      name: 'THE EXECUTIONER', title: 'Headsman of the Burning Palace', arena: 'temple_ra',
       weapon: 'executioner_axe', ranged: null, special: 'quake',
       hp: 2.0, dmg: 1.12, speed: 0.88, scale: 1.2, bulk: 1.28, armor: 0.1, superArmor: 0.6,
       accent: '#ff3a1a', eye: '#ff2a1a', acc: () => [{ type: 'hood' }, SA.EnemyGen.cape(8)],
@@ -26,7 +26,7 @@
       ],
     },
     shadow_ronin: {
-      name: 'SHADOW RONIN', title: 'The Blade That Casts No Shadow', arena: 'bamboo',
+      name: 'SHADOW RONIN', title: 'The Blade That Casts No Shadow', arena: 'nile_night',
       weapon: 'shadow_katana', ranged: 'shuriken', special: 'slash',
       hp: 1.6, dmg: 1.05, speed: 1.08, scale: 1.05, bulk: 1.02, armor: 0, superArmor: 0, parry: 0.2,
       accent: '#b58cff', eye: '#d2b2ff', acc: () => [{ type: 'hat' }, SA.EnemyGen.cape(7)],
@@ -40,7 +40,7 @@
       ],
     },
     iron_titan: {
-      name: 'IRON TITAN', title: 'The Mountain That Walks', arena: 'frozen',
+      name: 'IRON TITAN', title: 'The Mountain That Walks', arena: 'tomb_anubis',
       weapon: 'titan_hammer', ranged: null, special: 'quake',
       hp: 2.5, dmg: 1.15, speed: 0.8, scale: 1.26, bulk: 1.4, armor: 0.3, superArmor: 0.8,
       accent: '#9fd0ff', eye: '#bfe6ff', acc: () => [{ type: 'helmet' }],
@@ -54,7 +54,7 @@
       ],
     },
     hunter: {
-      name: 'THE HUNTER', title: 'Nothing Escapes the Crossbow', arena: 'ancient',
+      name: 'THE HUNTER', title: 'Nothing Escapes the Crossbow', arena: 'chaos_desert',
       weapon: 'dual_blades', ranged: 'crossbow', special: 'storm',
       hp: 1.6, dmg: 1.05, speed: 1.06, scale: 1.03, bulk: 1, armor: 0, superArmor: 0,
       accent: '#7cff6b', eye: '#caffb0', acc: () => [{ type: 'hood' }, SA.EnemyGen.cape(9)],
@@ -68,7 +68,7 @@
       ],
     },
     cyber_warlord: {
-      name: 'CYBER WARLORD', title: 'Steel, Neon and Fire', arena: 'cyber',
+      name: 'CYBER WARLORD', title: 'Steel, Neon and Fire', arena: 'hall_osiris',
       weapon: 'katana', ranged: 'energy_pistol', special: 'rush',
       hp: 2.0, dmg: 1.1, speed: 1.04, scale: 1.12, bulk: 1.12, armor: 0.1, superArmor: 0.4,
       accent: '#35f0ff', eye: '#35f0ff', visor: true, acc: () => [SA.EnemyGen.coat()],
