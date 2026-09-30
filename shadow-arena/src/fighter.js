@@ -30,9 +30,9 @@
   const STUNNED = { hitstun: 1, launched: 1, stagger: 1, rushed: 1 };
 
   SA.SPECIALS = {
-    rush: { id: 'rush', name: 'SHADOW RUSH', desc: 'Lightning dash into a five-strike flurry and a crushing finisher.' },
-    storm: { id: 'storm', name: 'CRESCENT STORM', desc: 'Rising whirlwind of kicks. Great anti-air, launches the enemy.' },
-    slash: { id: 'slash', name: 'SHADOW SLASH', desc: 'A lunging cut that releases a crescent of shadow across the arena.' },
+    rush: { id: 'rush', name: 'TOMB RUSH', desc: 'A dash wrapped in sand: five strikes from every side and a crushing finisher.' },
+    storm: { id: 'storm', name: 'SANDSTORM SPIRAL', desc: 'Rising whirlwind of kicks inside a sand vortex. Great anti-air, launches the enemy.' },
+    slash: { id: 'slash', name: 'CRESCENT OF ANUBIS', desc: 'A lunging cut that releases a black-gold crescent across the arena.' },
     quake: { id: 'quake', name: 'EARTHSHAKER', desc: 'Leap and slam the ground: shockwaves travel both ways.' },
   };
 

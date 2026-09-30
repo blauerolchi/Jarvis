@@ -221,11 +221,16 @@
     return rot[Math.floor((stage - 1) / 3) % rot.length];
   }
 
+  // Materials come from the archetype (undead / human / beast / mummy), the accent varies per enemy.
   function makeLook(arch, accent, rng) {
+    const L = arch.look || {};
+    const v = (rng() - 0.5) * 0.16;
     return {
-      body: '#050508', back: SA.M.shade('#16161f', (rng() - 0.5) * 0.3), accent, trail: accent, spark: SA.M.shade(accent, 0.4),
-      eye: accent, eyeCore: '#ffffff', scale: arch.scale * (0.98 + rng() * 0.05), bulk: arch.bulk, victory: rng() < 0.5 ? 1 : 2,
-      visor: false,
+      kind: L.kind || 'human',
+      mat: { skin: SA.M.shade(L.skin || '#3a2618', v), wrap: L.wrap, metal: L.metal, cloth: L.cloth || SA.M.shade(accent, -0.55) },
+      wraps: L.wraps, tatters: L.tatters, headScale: L.headScale,
+      body: '#0a0808', back: '#1a1614', accent, trail: accent, spark: SA.M.shade(accent, 0.4),
+      eye: L.eye || accent, eyeCore: '#ffffff', scale: arch.scale * (0.98 + rng() * 0.05), bulk: arch.bulk, victory: rng() < 0.5 ? 1 : 2,
       accessories: arch.acc(SA.M.shade(accent, -0.2)),
     };
   }
@@ -303,7 +308,16 @@
     return f;
   }
 
+  // FIGHT mode / menu demo opponent: an archetype champion at a strength that fits the difficulty
+  const FIGHT_STAGE = { easy: 4, normal: 14, hard: 29 };
+  function makeOpponent(archId, difficulty, seed) {
+    const def = generate(FIGHT_STAGE[difficulty] || 14, 'normal', seed || 3, false, archId);
+    def.name = def.name.replace(/^Elite /, '');
+    return { def, fighter: createFighter(def, new SA.Controller()) };
+  }
+  SA.opponentName = (id) => (SA.CHARACTERS[id] ? SA.CHARACTERS[id].name : ARCHETYPES[id] ? ARCHETYPES[id].label : String(id).toUpperCase());
+
   SA.ARCHETYPES = ARCHETYPES;
   SA.ELITE_MODIFIERS = MODIFIERS;
-  SA.EnemyGen = { generate, createFighter, aiParams, statScale, stageKind, arenaFor, makeLook, pickArchetype, cape, band, coat, tail, sash, wraps };
+  SA.EnemyGen = { generate, createFighter, makeOpponent, aiParams, statScale, stageKind, arenaFor, makeLook, pickArchetype, cape, band, coat, tail, sash, wraps };
 })(window.SA);

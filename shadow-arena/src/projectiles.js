@@ -254,48 +254,74 @@
         const dir = Math.sign(p.vx) || 1;
         switch (p.type) {
           case 'shuriken': {
+            // spinning bronze scarab disc
             ctx.rotate(p.rot);
-            ctx.fillStyle = '#1a1a22';
-            ctx.beginPath();
-            for (let i = 0; i < 4; i++) {
-              const a = i * Math.PI / 2;
-              ctx.lineTo(Math.cos(a) * 16, Math.sin(a) * 16);
-              ctx.lineTo(Math.cos(a + 0.78) * 5, Math.sin(a + 0.78) * 5);
-            }
-            ctx.closePath(); ctx.fill();
-            ctx.strokeStyle = 'rgba(230,240,255,0.8)'; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.fillStyle = '#b88a44';
+            ctx.beginPath(); ctx.ellipse(0, 0, 15, 11, 0, 0, SA.TAU); ctx.fill();
+            ctx.fillStyle = '#2fb8a0';
+            ctx.beginPath(); ctx.ellipse(0, 0, 8, 6, 0, 0, SA.TAU); ctx.fill();
+            ctx.strokeStyle = '#ffe2a0'; ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.stroke();
             break;
           }
-          case 'knife': case 'kunai': case 'bolt': {
+          case 'knife': case 'kunai': {
             ctx.rotate(Math.atan2(p.vy, p.vx));
-            ctx.fillStyle = '#16161c';
+            ctx.fillStyle = '#3a2616';
             ctx.fillRect(-18, -2.5, 16, 5);
-            ctx.fillStyle = '#d8dde6';
+            ctx.fillStyle = p.type === 'kunai' ? '#5a4a6a' : '#d8b066';
             ctx.beginPath(); ctx.moveTo(-2, -5); ctx.lineTo(18, 0); ctx.lineTo(-2, 5); ctx.closePath(); ctx.fill();
-            if (p.type === 'kunai') { ctx.strokeStyle = '#d7263d'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(-22, 0, 4, 0, SA.TAU); ctx.stroke(); }
+            if (p.type === 'kunai') { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; ctx.drawImage(SA.glowSprite('#9b6bff'), -12, -12, 24, 24); ctx.globalAlpha = 1; }
             if (p.explode) { ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(SA.glowSprite('#ff7a2a'), -30, -12, 24, 24); }
-            if (p.type === 'bolt') { ctx.fillStyle = '#8a5a30'; ctx.fillRect(-30, -2, 14, 4); }
+            break;
+          }
+          case 'bolt': {
+            // arrow with fletching
+            ctx.rotate(Math.atan2(p.vy, p.vx));
+            ctx.strokeStyle = '#6a4a2a'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(-34, 0); ctx.lineTo(10, 0); ctx.stroke();
+            ctx.fillStyle = '#c9a25a';
+            ctx.beginPath(); ctx.moveTo(8, -5); ctx.lineTo(20, 0); ctx.lineTo(8, 5); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#e8dcc0';
+            ctx.beginPath(); ctx.moveTo(-34, 0); ctx.lineTo(-40, -7); ctx.lineTo(-26, 0); ctx.lineTo(-40, 7); ctx.closePath(); ctx.fill();
             break;
           }
           case 'boomerang': {
+            // Egyptian throwing stick
             ctx.rotate(p.rot);
-            ctx.strokeStyle = '#1a1a22'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+            ctx.strokeStyle = '#8a5a2a'; ctx.lineWidth = 8; ctx.lineCap = 'round';
             ctx.beginPath(); ctx.arc(0, 0, 20, 0.2, 2.6); ctx.stroke();
-            ctx.strokeStyle = 'rgba(230,240,255,0.7)'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(0, 0, 23, 0.3, 2.5); ctx.stroke();
+            ctx.strokeStyle = '#e0b24a'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, 0, 20, 0.5, 2.3); ctx.stroke();
             break;
           }
           case 'bullet': case 'pellet': {
             ctx.globalCompositeOperation = 'lighter';
-            ctx.strokeStyle = '#fff1c2'; ctx.lineWidth = p.type === 'bullet' ? 4 : 3; ctx.lineCap = 'round';
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-dir * (p.type === 'bullet' ? 46 : 22), 0); ctx.stroke();
-            ctx.drawImage(SA.glowSprite('#ffc861'), -14, -14, 28, 28);
+            if (p.type === 'pellet') {
+              // sand shards
+              ctx.fillStyle = '#e8c884';
+              ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-dir * 16, -4); ctx.lineTo(-dir * 12, 4); ctx.closePath(); ctx.fill();
+              ctx.globalAlpha = 0.5; ctx.drawImage(SA.glowSprite('#ffcf8a'), -12, -12, 24, 24);
+            } else if (p.sourceId === 'revolver') {
+              // lightning of Set: jagged bolt
+              ctx.strokeStyle = '#bfe0ff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+              ctx.beginPath(); ctx.moveTo(0, 0);
+              for (let i = 1; i <= 5; i++) ctx.lineTo(-dir * i * 11, (i % 2 ? -7 : 7) * Math.random());
+              ctx.stroke();
+              ctx.drawImage(SA.glowSprite('#7ab8ff'), -20, -20, 40, 40);
+            } else {
+              // sunlight bolt (Eye of Ra)
+              ctx.strokeStyle = '#fff1c2'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+              ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-dir * 46, 0); ctx.stroke();
+              ctx.drawImage(SA.glowSprite('#ffc861'), -18, -18, 36, 36);
+            }
             break;
           }
           case 'energy': {
+            // divine light (Ankh of Radiance) or serpent venom (green)
             ctx.globalCompositeOperation = 'lighter';
-            ctx.drawImage(SA.glowSprite('#35f0ff'), -30, -30, 60, 60);
-            ctx.fillStyle = '#e8ffff'; ctx.beginPath(); ctx.arc(0, 0, 7, 0, SA.TAU); ctx.fill();
+            const c = p.color && p.color !== '#ffffff' ? p.color : '#ffd27a';
+            ctx.drawImage(SA.glowSprite(c), -30, -30, 60, 60);
+            ctx.fillStyle = '#fffbe8'; ctx.beginPath(); ctx.arc(0, 0, 7, 0, SA.TAU); ctx.fill();
             break;
           }
           case 'rocket': {

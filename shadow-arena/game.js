@@ -147,10 +147,10 @@
       const pc = demo ? new SA.Controller() : new SA.PlayerController(this.input);
       if (demo) {
         const w = SA.M.pick(['katana', 'fists', 'spear', 'dual_blades', 'war_hammer']);
-        this.p1 = SA.createFighter('shadow', pc, { weapon: w, special: 'rush' });
+        this.p1 = SA.createFighter('mummy', pc, { weapon: w, special: 'rush' });
       } else {
         const lo = this.playerLoadout();
-        this.p1 = SA.createFighter('shadow', pc, { isPlayer: true, weapon: lo.weapon, ranged: lo.ranged, special: lo.special, cosmetic: lo.cosmetic });
+        this.p1 = SA.createFighter('mummy', pc, { isPlayer: true, weapon: lo.weapon, ranged: lo.ranged, special: lo.special, cosmetic: lo.cosmetic });
       }
 
       let profile;
@@ -160,12 +160,16 @@
         profile = o.enemy.ai;
       } else {
         this.enemyDef = null;
-        const oppId = this.mode === 'training' ? 'dummy' : SA.ARENAS[arenaId].opponent;
-        const demoWeapon = demo ? SA.M.pick(['fists', 'katana', 'bo_staff', 'great_sword']) : null;
-        this.p2 = SA.createFighter(oppId, new SA.Controller(), {
-          special: oppId === 'kitsune' || oppId === 'oni' ? 'storm' : 'rush', weapon: demoWeapon || undefined,
-        });
-        profile = SA.CHARACTERS[oppId].ai;
+        const oppId = this.mode === 'training' ? 'dummy' : demo ? SA.M.pick(Object.keys(SA.ARCHETYPES)) : SA.ARENAS[arenaId].opponent;
+        if (SA.CHARACTERS[oppId]) {
+          this.p2 = SA.createFighter(oppId, new SA.Controller(), {});
+          profile = SA.CHARACTERS[oppId].ai;
+        } else {
+          // FIGHT mode and the menu demo use the Egyptian archetype champions
+          const o2 = SA.EnemyGen.makeOpponent(oppId, demo ? 'hard' : this.difficulty, SA.ARENA_ORDER.indexOf(arenaId) + 7);
+          this.p2 = o2.fighter;
+          profile = o2.def.ai;
+        }
       }
       this.p1.game = this.p2.game = this;
       this.p1.side = 0; this.p2.side = 1;
@@ -180,7 +184,7 @@
           mode: this.mode === 'training' ? 'dummy' : 'fight', dummy: this.training.dummy,
         });
       }
-      this.ai1 = demo ? new SA.EnemyAI(this.p1, this.p2, this, { difficulty: 'hard', profile: SA.CHARACTERS.volt.ai }) : null;
+      this.ai1 = demo ? new SA.EnemyAI(this.p1, this.p2, this, { difficulty: 'hard', profile: SA.ARCHETYPES.anubis_acolyte.ai }) : null;
 
       const timed = this.mode === 'fight' || this.mode === 'arena';
       this.match = { round: 1, wins: [0, 0], timer: 60, phase: timed ? 'intro' : 'fight', t: 0, stage: 0, stats: { maxCombo: 0, damage: 0, parries: 0 } };

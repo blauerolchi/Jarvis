@@ -13,7 +13,7 @@
   const text = SA.text;
   const { skewRect, brush, ACCENT, GOLD } = UI;
   const RARITY = SA.BALANCE.weapons.rarityColor;
-  const CAT_LABEL = { weapons: 'WEAPONS', throwables: 'THROWABLES', firearms: 'FIREARMS', specials: 'SPECIALS', cosmetics: 'COSMETICS' };
+  const CAT_LABEL = { weapons: 'WEAPONS', throwables: 'THROWN', firearms: 'RELICS', specials: 'SPECIALS', cosmetics: 'COSMETICS' };
 
   function hit(m, r) { return m && m.x >= r.x && m.x <= r.x + r.w && m.y >= r.y && m.y <= r.y + r.h; }
 
@@ -40,7 +40,7 @@
   // live preview fighter holding an item
   function makePreview(loadout) {
     const eq = SA.Save.equipped;
-    const f = SA.createFighter('shadow', new SA.Controller(), {
+    const f = SA.createFighter('mummy', new SA.Controller(), {
       weapon: loadout.weapon || eq.primary, ranged: loadout.ranged === undefined ? eq.ranged : loadout.ranged,
       special: eq.special, cosmetic: loadout.cosmetic || eq.cosmetic,
     });
@@ -328,7 +328,7 @@
         ctx.beginPath(); ctx.arc(0, 0, 24, -1.2, 1.9); ctx.stroke();
       } else if (cat === 'cosmetics') {
         const c = SA.COSMETICS[id];
-        ctx.fillStyle = c.band;
+        ctx.fillStyle = c.wrap || c.accent;
         ctx.beginPath(); ctx.arc(0, 0, 26, 0, SA.TAU); ctx.fill();
         ctx.fillStyle = c.eye;
         ctx.fillRect(4, -6, 16, 5);

@@ -14,7 +14,7 @@
 
   DEFS.frozen = {
     id: 'frozen', name: 'FROZEN MOUNTAIN', sub: 'Thin air, heavy blows',
-    opponent: 'kitsune', music: 'bamboo', ambience: 'wind', wind: -140,
+    opponent: 'royal_guard', music: 'bamboo', ambience: 'wind', wind: -140,
     rims: [{ color: 'rgba(210,235,255,0.95)', dx: -3, dy: -2 }],
     shadow: 0.5, grade: ['rgba(120,170,255,0.05)'],
     sun: { x: 0.7, y: -470 },
@@ -83,7 +83,7 @@
 
   DEFS.palace = {
     id: 'palace', name: 'BURNING PALACE', sub: 'The throne room is on fire',
-    opponent: 'oni', music: 'ruins', ambience: 'fire', wind: 90,
+    opponent: 'tomb_executioner', music: 'ruins', ambience: 'fire', wind: 90,
     rims: [{ color: 'rgba(255,130,50,0.95)', dx: -3, dy: -1 }, { color: 'rgba(255,60,20,0.6)', dx: 3, dy: -2 }],
     shadow: 0.5, grade: ['rgba(255,70,10,0.07)'],
     skyStatic(ctx) {
@@ -154,7 +154,7 @@
 
   DEFS.ancient = {
     id: 'ancient', name: 'ANCIENT RUINS', sub: 'Where old gods sleep under moss',
-    opponent: 'ronin', music: 'temple', ambience: 'wind', wind: -70,
+    opponent: 'desert_archer', music: 'temple', ambience: 'wind', wind: -70,
     rims: [{ color: 'rgba(255,220,140,0.9)', dx: 3, dy: -2 }],
     shadow: 0.5, grade: ['rgba(255,200,90,0.05)'],
     sun: { x: 0.58, y: -380 },
@@ -232,7 +232,7 @@
 
   DEFS.cyber = {
     id: 'cyber', name: 'CYBER ARENA', sub: 'Live on every screen in the city',
-    opponent: 'volt', music: 'neon', ambience: 'rain', wind: 0,
+    opponent: 'serpent_priest', music: 'neon', ambience: 'rain', wind: 0,
     rims: [{ color: 'rgba(53,240,255,0.95)', dx: -3, dy: -1 }, { color: 'rgba(255,43,214,0.8)', dx: 3, dy: -1 }],
     reflective: true, shadow: 0.35, grade: ['rgba(40,120,255,0.05)'],
     skyStatic(ctx) {

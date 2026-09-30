@@ -209,7 +209,7 @@
 
   DEFS.temple = {
     id: 'temple', name: 'SUNSET TEMPLE', sub: 'Where the last light burns',
-    opponent: 'ronin', music: 'temple', ambience: 'wind', wind: -260,
+    opponent: 'tomb_guard', music: 'temple', ambience: 'wind', wind: -260,
     rims: [{ color: 'rgba(255,160,90,0.95)', dx: 3, dy: -2 }],
     shadow: 0.55, grade: ['rgba(255,120,40,0.07)', 'rgba(40,0,30,0.25)'],
     sun: { x: 0.63, y: -330 },
@@ -331,7 +331,7 @@
 
   DEFS.bamboo = {
     id: 'bamboo', name: 'MOONLIT BAMBOO', sub: 'Silence between the stalks',
-    opponent: 'kitsune', music: 'bamboo', ambience: 'night', wind: -90,
+    opponent: 'desert_bandit', music: 'bamboo', ambience: 'night', wind: -90,
     rims: [{ color: 'rgba(170,210,255,0.95)', dx: -3, dy: -2 }],
     shadow: 0.45, grade: ['rgba(60,110,200,0.06)', 'rgba(0,5,20,0.35)'],
     skyStatic(ctx) {
@@ -415,7 +415,7 @@
 
   DEFS.neon = {
     id: 'neon', name: 'NEON RAIN', sub: 'District 9, after midnight',
-    opponent: 'volt', music: 'neon', ambience: 'rain', wind: -60,
+    opponent: 'anubis_acolyte', music: 'neon', ambience: 'rain', wind: -60,
     rims: [{ color: 'rgba(60,235,255,0.9)', dx: -3, dy: -1 }, { color: 'rgba(255,60,200,0.9)', dx: 3, dy: -1 }],
     reflective: true, shadow: 0.35, grade: ['rgba(180,40,255,0.06)', 'rgba(5,0,20,0.35)'],
     skyStatic(ctx) {
@@ -551,7 +551,7 @@
 
   DEFS.ruins = {
     id: 'ruins', name: 'EMBER RUINS', sub: 'The city that would not stop burning',
-    opponent: 'oni', music: 'ruins', ambience: 'fire', wind: 120,
+    opponent: 'scarab_warrior', music: 'ruins', ambience: 'fire', wind: 120,
     rims: [{ color: 'rgba(255,120,40,0.95)', dx: -3, dy: -1 }, { color: 'rgba(255,70,20,0.7)', dx: 3, dy: -2 }],
     shadow: 0.5, grade: ['rgba(255,60,0,0.06)', 'rgba(20,0,0,0.35)'],
     skyStatic(ctx) {

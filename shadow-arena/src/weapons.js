@@ -179,7 +179,7 @@
       combos: [['a1', 'a2', 'a3', 'WHIRLING STAFF']],
     },
     spear: {
-      labels: { light: 'THRUST', heavy: 'LUNGE' },
+      labels: { desc: 'Leaf-bladed bronze spear. Extreme reach: win by spacing, get punished up close.', grip: '#5a3e22', metal: '#b88a44', name: 'Bronze Spear', light: 'THRUST', heavy: 'LUNGE' },
       moves: {
         a1: { tpl: 'thrust', st: 9, ac: 4, rc: 17, dmg: 50, kb: 360, hitstun: 18, blockstun: 10, level: 'mid', lunge: [2, 260], hit: hitF(14), power: 0.45, chain: { light: 'a2', heavy: 'hv', kick: 'kick' } },
         a2: { tpl: 'thrust', st: 8, ac: 4, rc: 18, dmg: 54, kb: 420, hitstun: 18, blockstun: 10, level: 'mid', lunge: [2, 300], hit: hitF(14), power: 0.5, chain: { heavy: 'launch' } },
@@ -208,7 +208,7 @@
       combos: [['a1', 'a2', 'a3', 'EARTHBREAKER']],
     },
     scythe: {
-      labels: { light: 'REAP', heavy: 'HOOK' },
+      labels: { desc: 'Long harvesting blade of the underworld. The heavy HOOK pulls enemies in.', grip: '#2a1c12', metal: '#9a8a6a', name: 'Reaper’s Sickle', light: 'REAP', heavy: 'HOOK' },
       moves: {
         a1: { tpl: 'slashH', st: 9, ac: 5, rc: 15, dmg: 50, kb: 280, hitstun: 18, blockstun: 10, level: 'high', lunge: [2, 280], hit: hitF(26), power: 0.5, chain: { light: 'a2', heavy: 'hv', kick: 'kick' } },
         a2: { tpl: 'slashUp', st: 9, ac: 5, rc: 16, dmg: 54, kb: 300, hitstun: 18, blockstun: 10, level: 'high', lunge: [2, 280], hit: hitF(26), power: 0.55, chain: { heavy: 'hv', light: 'launch' } },
@@ -265,124 +265,129 @@
   // melee: style, len (reach of the weapon itself), back (length behind the hand), speed, damage
   const WEAPONS = {
     fists: { name: 'Fists', type: 'melee', style: 'fists', rarity: 'common', price: 0, levelRequired: 1,
-      speed: 1, damage: 1, len: 0, desc: 'Fast, mobile and always with you. The purest way to fight.', icon: 'fist' },
-    wood_staff: { name: 'Wood Staff', type: 'melee', style: 'staff', rarity: 'common', price: 250, levelRequired: 1,
+      speed: 1, damage: 1, len: 0, desc: 'Linen-wrapped fists of the dead. Fast, mobile, always with you.', icon: 'fist' },
+    cursed_fists: { name: 'Cursed Fists', type: 'melee', style: 'fists', rarity: 'epic', price: 5200, levelRequired: 14,
+      speed: 1, damage: 1.07, len: 0, element: 'shadow', icon: 'fist',
+      desc: 'Wrappings soaked in a pharaoh’s curse: every fist strike bites a little harder and leaves black smoke.' },
+    wood_staff: { grip: '#6a4a2e', metal: '#c9a25a', name: 'Ceremonial Staff', type: 'melee', style: 'staff', rarity: 'common', price: 250, levelRequired: 1,
       speed: 1.02, damage: 0.92, len: 115, back: 70, look: 'staff', color: '#6a4a2e',
-      desc: 'Long reach and quick pokes. Good defense: blocks take less chip and stun.' },
-    katana: { name: 'Katana', type: 'melee', style: 'sword', rarity: 'uncommon', price: 1200, levelRequired: 3,
-      speed: 1, damage: 1, len: 108, back: 26, look: 'katana', special: 'slash',
-      desc: 'Balanced blade with long reach. Rewards spacing and timing. Signature: Shadow Slash.' },
-    bo_staff: { name: 'Iron Bo', type: 'melee', style: 'staff', rarity: 'rare', price: 2600, levelRequired: 7,
-      speed: 1.05, damage: 1.02, len: 125, back: 80, look: 'staff', color: '#5b6068', element: null,
-      desc: 'Reinforced staff. Faster sweeps, excellent anti-air and defense.' },
-    dual_blades: { name: 'Dual Blades', type: 'melee', style: 'dual', rarity: 'uncommon', price: 2000, levelRequired: 5,
-      speed: 1.05, damage: 1, len: 62, back: 12, dual: true, look: 'dagger',
-      desc: 'Very fast, low damage per hit. Four-hit strings and dash cancels.' },
+      desc: 'Temple staff of cedar and gold. Long reach, quick pokes, sturdy guard.' },
+    katana: { grip: '#3a2616', metal: '#c89a4a', name: 'Khopesh', type: 'melee', style: 'sword', rarity: 'uncommon', price: 1200, levelRequired: 3,
+      speed: 1, damage: 1, len: 108, back: 26, look: 'khopesh', special: 'slash',
+      desc: 'The sickle-sword of the pharaoh’s soldiers. Balanced reach and speed. Signature: Crescent of Anubis.' },
+    bo_staff: { grip: '#2a1f16', metal: '#e0b24a', name: 'Ankh Staff', type: 'melee', style: 'staff', rarity: 'rare', price: 2600, levelRequired: 7,
+      speed: 1.05, damage: 1.02, len: 125, back: 80, look: 'ankh', color: '#5b6068', element: null,
+      desc: 'Staff crowned with the ankh. Faster sweeps, excellent anti-air and defense.' },
+    dual_blades: { grip: '#2a1c12', metal: '#b88a44', name: 'Dual Khopesh', type: 'melee', style: 'dual', rarity: 'uncommon', price: 2000, levelRequired: 5,
+      speed: 1.05, damage: 1, len: 62, back: 12, dual: true, look: 'khopesh',
+      desc: 'Two short sickle-blades. Very fast four-hit strings and dash cancels.' },
     spear: { name: 'Spear', type: 'melee', style: 'spear', rarity: 'rare', price: 3200, levelRequired: 8,
       speed: 1, damage: 1, len: 170, back: 60, look: 'spear',
       desc: 'Extreme reach, slow recovery. Win by spacing; get punished up close.' },
-    great_sword: { name: 'Great Sword', type: 'melee', style: 'heavy', rarity: 'rare', price: 4500, levelRequired: 10,
+    great_sword: { grip: '#1c3a6a', metal: '#e6be5a', name: 'Pharaoh Greatsword', type: 'melee', style: 'heavy', rarity: 'rare', price: 4500, levelRequired: 10,
       speed: 0.95, damage: 1.02, len: 132, back: 30, look: 'greatsword',
-      desc: 'Very high damage, slow swings. Heavy attacks shrug off hits while winding up.' },
-    war_hammer: { name: 'War Hammer', type: 'melee', style: 'heavy', rarity: 'rare', price: 6500, levelRequired: 15,
-      speed: 0.9, damage: 1.06, len: 118, back: 40, look: 'hammer', special: 'quake',
-      desc: 'Massive knockback. Heavy ground slam sends a shockwave. Signature: Earthshaker.' },
-    frost_spear: { name: 'Frost Spear', type: 'melee', style: 'spear', rarity: 'epic', price: 11000, levelRequired: 18,
+      desc: 'Gilded royal blade. Huge damage; heavy attacks shrug off hits while winding up.' },
+    war_hammer: { grip: '#4a3220', metal: '#8a7a62', name: 'War Mace', type: 'melee', style: 'heavy', rarity: 'rare', price: 6500, levelRequired: 15,
+      speed: 0.9, damage: 1.06, len: 118, back: 40, look: 'mace', special: 'quake',
+      desc: 'Stone-headed mace. Massive knockback, the slam sends a shockwave. Signature: Earthshaker.' },
+    frost_spear: { grip: '#2a2a3a', metal: '#bfd6e8', name: 'Moonlit Spear', type: 'melee', style: 'spear', rarity: 'epic', price: 11000, levelRequired: 18,
       speed: 1.02, damage: 1, len: 175, back: 60, look: 'spear', element: 'frost',
-      desc: 'Icy reach. Hits may chill the target and slow their movement briefly.' },
+      desc: 'Blessed by the moon god Khonsu. Hits may chill and slow the target.' },
     scythe: { name: 'Scythe', type: 'melee', style: 'scythe', rarity: 'epic', price: 9000, levelRequired: 20,
       speed: 0.98, damage: 1, len: 150, back: 50, look: 'scythe',
       desc: 'Wide sweeps. The heavy HOOK pulls enemies toward you for follow-ups.' },
-    flame_katana: { name: 'Flame Katana', type: 'melee', style: 'sword', rarity: 'epic', price: 15000, levelRequired: 22,
-      speed: 1, damage: 1, len: 110, back: 26, look: 'katana', element: 'fire', special: 'slash',
-      desc: 'A burning edge: orange sparks and a short burn on hit. Signature: Shadow Slash.' },
-    electric_baton: { name: 'Electric Baton', type: 'melee', style: 'baton', rarity: 'epic', price: 12000, levelRequired: 25,
-      speed: 1.04, damage: 1, len: 84, back: 18, look: 'baton', element: 'shock',
-      desc: 'Charged strikes. Chance to stun briefly; the heavy SHOCK always stuns.' },
-    shadow_blades: { name: 'Shadow Blades', type: 'melee', style: 'dual', rarity: 'legendary', price: 22000, levelRequired: 27,
-      speed: 1.08, damage: 1, len: 66, back: 12, dual: true, look: 'dagger', element: 'shadow',
-      desc: 'Twin blades of night. Dashes leave a shadow trail.' },
-    thunder_hammer: { name: 'Thunder Hammer', type: 'melee', style: 'heavy', rarity: 'legendary', price: 30000, levelRequired: 28,
-      speed: 0.92, damage: 1.04, len: 120, back: 40, look: 'hammer', element: 'shock', special: 'quake',
-      desc: 'The slam crackles with lightning and can stun. Signature: Earthshaker.' },
-    shadow_katana: { name: 'Shadow Katana', type: 'melee', style: 'sword', rarity: 'legendary', price: 25000, levelRequired: 30,
-      speed: 1.05, damage: 1.02, len: 114, back: 26, look: 'katana', element: 'shadow', special: 'slash',
-      desc: 'The blade of the nameless. Faster cuts and a shadow trail. Signature: Shadow Slash.' },
+    flame_katana: { grip: '#4a1a10', metal: '#f0b040', name: 'Solar Khopesh', type: 'melee', style: 'sword', rarity: 'epic', price: 15000, levelRequired: 22,
+      speed: 1, damage: 1, len: 110, back: 26, look: 'khopesh', element: 'fire', special: 'slash',
+      desc: 'Forged in the light of Ra: burns on hit. Signature: Crescent of Anubis.' },
+    electric_baton: { grip: '#1c2a3a', metal: '#6ab8d8', name: 'Was Sceptre', type: 'melee', style: 'baton', rarity: 'epic', price: 12000, levelRequired: 25,
+      speed: 1.04, damage: 1, len: 84, back: 18, look: 'scepter', element: 'shock',
+      desc: 'Sceptre of Set, crackling with storm power. Chance to stun; the heavy always stuns.' },
+    shadow_blades: { grip: '#101a18', metal: '#2fb8a0', name: 'Scarab Blades', type: 'melee', style: 'dual', rarity: 'legendary', price: 22000, levelRequired: 27,
+      speed: 1.08, damage: 1, len: 66, back: 12, dual: true, look: 'khopesh', element: 'shadow',
+      desc: 'Twin blades of green scarab bronze. Dashes leave a shadow trail.' },
+    thunder_hammer: { grip: '#2a1a14', metal: '#6a7a9a', name: 'Mace of Set', type: 'melee', style: 'heavy', rarity: 'legendary', price: 30000, levelRequired: 28,
+      speed: 0.92, damage: 1.04, len: 120, back: 40, look: 'mace', element: 'shock', special: 'quake',
+      desc: 'The chaos god’s mace, the slam crackles with lightning. Signature: Earthshaker.' },
+    shadow_katana: { grip: '#c9a24e', metal: '#1a1620', name: 'Khopesh of Anubis', type: 'melee', style: 'sword', rarity: 'legendary', price: 25000, levelRequired: 30,
+      speed: 1.05, damage: 1.02, len: 114, back: 26, look: 'khopesh', element: 'shadow', special: 'slash',
+      desc: 'Black blade of the Guardian of the Dead. Faster cuts and a shadow trail.' },
     // boss-only
-    executioner_axe: { name: 'Executioner Axe', type: 'melee', style: 'heavy', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
+    executioner_axe: { grip: '#2a1c12', metal: '#6a6258', name: 'Executioner’s Axe', type: 'melee', style: 'heavy', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
       speed: 0.86, damage: 1.1, len: 150, back: 50, look: 'axe' },
-    titan_hammer: { name: 'Titan Hammer', type: 'melee', style: 'heavy', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
-      speed: 0.85, damage: 1.12, len: 135, back: 50, look: 'hammer', element: 'shock' },
+    titan_hammer: { grip: '#1c1a12', metal: '#4a5a42', name: 'Sobek’s Maul', type: 'melee', style: 'heavy', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
+      speed: 0.85, damage: 1.12, len: 135, back: 50, look: 'mace', element: 'shock' },
   };
 
   // ranged slot
   const RANGED = {
-    shuriken: { name: 'Shuriken', type: 'throwable', kind: 'throw', rarity: 'common', price: 200, levelRequired: 1,
+    shuriken: { name: 'Scarab Discs', type: 'throwable', kind: 'throw', rarity: 'common', price: 200, levelRequired: 1,
       charges: 3, recharge: 2.2, startup: 5, recovery: 9, air: true, sound: 'throw',
       proj: { type: 'shuriken', speed: 1500, dmg: 22, hitstun: 16, kb: 120, size: 22 },
-      desc: 'Fast, light damage. Great to extend combos and poke from range.' },
-    throwing_knife: { name: 'Throwing Knife', type: 'throwable', kind: 'throw', rarity: 'common', price: 700, levelRequired: 3,
+      desc: 'Spinning bronze scarabs. Fast and light: extend combos and poke from range.' },
+    throwing_knife: { name: 'Throwing Knives', type: 'throwable', kind: 'throw', rarity: 'common', price: 700, levelRequired: 3,
       charges: 2, recharge: 2.8, startup: 7, recovery: 11, air: true, sound: 'throw',
       proj: { type: 'knife', speed: 1750, dmg: 40, hitstun: 18, kb: 200, size: 18 },
-      desc: 'Precise and harder hitting than shuriken, fewer charges.' },
-    kunai: { name: 'Kunai', type: 'throwable', kind: 'throw', rarity: 'uncommon', price: 1500, levelRequired: 8,
+      desc: 'Precise bronze knives, harder hitting than scarab discs, fewer charges.' },
+    kunai: { name: 'Cursed Daggers', type: 'throwable', kind: 'throw', rarity: 'uncommon', price: 1500, levelRequired: 8,
       charges: 3, recharge: 2.4, startup: 6, recovery: 10, air: true, sound: 'throw',
       proj: { type: 'kunai', speed: 1250, vy: -380, grav: 1100, dmg: 34, hitstun: 18, kb: 220, size: 20 },
-      desc: 'Arcing throw. Drops over guards and hits jumping enemies.' },
-    boomerang_blade: { name: 'Boomerang Blade', type: 'throwable', kind: 'throw', rarity: 'rare', price: 3800, levelRequired: 12,
+      desc: 'Arcing throw that drops over guards and hits jumping enemies.' },
+    boomerang_blade: { name: 'Throwing Stick', type: 'throwable', kind: 'throw', rarity: 'rare', price: 3800, levelRequired: 12,
       charges: 1, recharge: 0.6, startup: 8, recovery: 12, air: false, sound: 'throw',
       proj: { type: 'boomerang', speed: 1300, dmg: 30, hitstun: 16, kb: 160, size: 30, returns: true, life: 1.5 },
-      desc: 'Flies out and comes back, hitting twice. Catch it to throw again.' },
-    explosive_kunai: { name: 'Explosive Kunai', type: 'throwable', kind: 'throw', rarity: 'epic', price: 7500, levelRequired: 20,
+      desc: 'The hunters’ curved throwing stick: flies out and returns, hitting twice.' },
+    explosive_kunai: { name: 'Fire Scarab', type: 'throwable', kind: 'throw', rarity: 'epic', price: 7500, levelRequired: 20,
       charges: 2, recharge: 4.2, startup: 8, recovery: 12, air: true, sound: 'throw',
       proj: { type: 'kunai', speed: 1150, vy: -420, grav: 1150, dmg: 18, hitstun: 16, kb: 200, size: 20, explode: { r: 150, dmg: 55 } },
-      desc: 'Explodes on impact in a small radius. Can hit a guarding enemy for chip.' },
-    pistol: { name: 'Pistol', type: 'firearm', kind: 'gun', rarity: 'uncommon', price: 2500, levelRequired: 5,
-      magazine: 6, reload: 1.5, startup: 5, recovery: 12, recoil: 110, sound: 'gunshot',
+      desc: 'A scarab of burning resin that explodes on impact. Chips through guards.' },
+    pistol: { name: 'Eye of Ra', type: 'firearm', kind: 'gun', rarity: 'uncommon', price: 2500, levelRequired: 5,
+      magazine: 6, reload: 1.5, startup: 5, recovery: 12, recoil: 110, sound: 'energy',
       proj: { type: 'bullet', speed: 2600, dmg: 32, hitstun: 14, kb: 160, size: 10 },
-      desc: 'Small magazine, moderate damage, long reload. Crouching dodges bullets.' },
-    revolver: { name: 'Revolver', type: 'firearm', kind: 'gun', rarity: 'rare', price: 5200, levelRequired: 10,
-      magazine: 5, reload: 2.1, startup: 9, recovery: 20, recoil: 220, sound: 'revolver',
+      desc: 'Amulet that fires bolts of sunlight. Six charges, then it must be re-lit. Crouch to dodge.' },
+    revolver: { name: 'Scepter of Set', type: 'firearm', kind: 'gun', rarity: 'rare', price: 5200, levelRequired: 10,
+      magazine: 5, reload: 2.1, startup: 9, recovery: 20, recoil: 220, sound: 'energy',
       proj: { type: 'bullet', speed: 2900, dmg: 70, hitstun: 20, kb: 380, size: 12 },
-      desc: 'Very high damage per shot, slow to fire and reload.' },
-    crossbow: { name: 'Crossbow', type: 'firearm', kind: 'gun', rarity: 'rare', price: 4600, levelRequired: 13,
+      desc: 'Hurls a lightning bolt: huge damage, slow to fire and to recharge.' },
+    crossbow: { name: 'Desert Bow', type: 'firearm', kind: 'gun', rarity: 'rare', price: 4600, levelRequired: 13,
       magazine: 1, reload: 1.5, startup: 15, recovery: 14, recoil: 90, sound: 'crossbow',
       proj: { type: 'bolt', speed: 1900, dmg: 86, hitstun: 22, kb: 520, size: 14 },
-      desc: 'Slow and powerful. One bolt, then reload.' },
-    shotgun: { name: 'Shotgun', type: 'firearm', kind: 'gun', rarity: 'epic', price: 8200, levelRequired: 15,
-      magazine: 2, reload: 2.0, startup: 10, recovery: 24, recoil: 320, sound: 'shotgun',
+      desc: 'Composite bow of horn and sinew. One powerful arrow, then draw again.' },
+    shotgun: { name: 'Sandburst Relic', type: 'firearm', kind: 'gun', rarity: 'epic', price: 8200, levelRequired: 15,
+      magazine: 2, reload: 2.0, startup: 10, recovery: 24, recoil: 320, sound: 'explosion',
       proj: { type: 'pellet', speed: 2300, dmg: 17, hitstun: 20, kb: 420, size: 10, count: 5, spread: 0.12, life: 0.22 },
-      desc: 'Short range, massive knockback. Useless from far away.' },
-    energy_pistol: { name: 'Energy Pistol', type: 'firearm', kind: 'gun', rarity: 'legendary', price: 16000, levelRequired: 25,
+      desc: 'Blasts a cone of sand shards. Short range, massive knockback.' },
+    energy_pistol: { name: 'Ankh of Radiance', type: 'firearm', kind: 'gun', rarity: 'legendary', price: 16000, levelRequired: 25,
       cooldown: 1.0, startup: 6, recovery: 12, recoil: 90, sound: 'energy',
       proj: { type: 'energy', speed: 2100, dmg: 44, hitstun: 18, kb: 260, size: 22 },
-      desc: 'No ammo: cools down between shots instead of reloading.' },
+      desc: 'Divine relic: no charges, it cools down between blasts of light.' },
     // enemy / boss only
     venom_orb: { name: 'Venom Orb', type: 'throwable', kind: 'throw', rarity: 'rare', price: 0, levelRequired: 99, hidden: true,
       charges: 3, recharge: 1.7, startup: 10, recovery: 14, air: false, element: 'fire', sound: 'energy',
       proj: { type: 'energy', speed: 1250, dmg: 30, hitstun: 16, kb: 220, size: 24, color: '#8fff6a', poison: true },
       desc: 'Serpent magic: a slow green orb that poisons on hit.' },
-    rocket_pod: { name: 'Rocket Pod', type: 'firearm', kind: 'gun', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
+    rocket_pod: { name: 'Sun Orbs', type: 'firearm', kind: 'gun', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
       magazine: 3, reload: 3, startup: 14, recovery: 16, recoil: 60, sound: 'rocket',
       proj: { type: 'rocket', speed: 900, aim: true, grav: 900, dmg: 30, hitstun: 18, kb: 300, size: 24, explode: { r: 170, dmg: 50 } } },
   };
 
   const SPECIAL_ITEMS = {
-    rush: { name: 'Shadow Rush', type: 'special', rarity: 'uncommon', price: 0, levelRequired: 1 },
-    storm: { name: 'Crescent Storm', type: 'special', rarity: 'rare', price: 900, levelRequired: 4 },
-    slash: { name: 'Shadow Slash', type: 'special', rarity: 'epic', price: 1800, levelRequired: 6 },
+    rush: { name: 'Tomb Rush', type: 'special', rarity: 'uncommon', price: 0, levelRequired: 1 },
+    storm: { name: 'Sandstorm Spiral', type: 'special', rarity: 'rare', price: 900, levelRequired: 4 },
+    slash: { name: 'Crescent of Anubis', type: 'special', rarity: 'epic', price: 1800, levelRequired: 6 },
     quake: { name: 'Earthshaker', type: 'special', rarity: 'epic', price: 3000, levelRequired: 12 },
   };
 
+  // cosmetics recolour the mummy: bandages, metal, eye glow and the dash / sand trail
   const COSMETICS = {
-    cos_crimson: { name: 'Crimson Sash', type: 'cosmetic', rarity: 'common', price: 0, levelRequired: 1, accent: '#e3263f', band: '#d9233a', trail: '#ff7a6a', eye: '#9fe3ff' },
-    cos_gold: { name: 'Gilded Sash', type: 'cosmetic', rarity: 'uncommon', price: 400, levelRequired: 3, accent: '#ffc15e', band: '#e9a93a', trail: '#ffd88a', eye: '#fff0c0' },
-    cos_azure: { name: 'Azure Wind', type: 'cosmetic', rarity: 'uncommon', price: 700, levelRequired: 6, accent: '#35b8ff', band: '#2a8fe0', trail: '#8fdcff', eye: '#bfefff' },
-    cos_jade: { name: 'Jade Spirit', type: 'cosmetic', rarity: 'rare', price: 1100, levelRequired: 9, accent: '#2fd58a', band: '#1fae6c', trail: '#8fffc4', eye: '#caffe4' },
-    cos_violet: { name: 'Violet Veil', type: 'cosmetic', rarity: 'rare', price: 1600, levelRequired: 14, accent: '#a86bff', band: '#8a4cf0', trail: '#d2b2ff', eye: '#e6d6ff' },
-    cos_ember: { name: 'Ember Soul', type: 'cosmetic', rarity: 'epic', price: 2600, levelRequired: 20, accent: '#ff6a1a', band: '#ff4a10', trail: '#ffb070', eye: '#ffe0b0' },
-    cos_void: { name: 'Void Walker', type: 'cosmetic', rarity: 'legendary', price: 6000, levelRequired: 30, accent: '#7a5cff', band: '#15131f', trail: '#b7a2ff', eye: '#ffffff' },
+    cos_crimson: { name: 'Sand Wraps', type: 'cosmetic', rarity: 'common', price: 0, levelRequired: 1, wrap: '#c9b58a', accent: '#e0b24a', trail: '#d8c08a', eye: '#4ff0dc' },
+    cos_gold: { name: 'Gilded Burial', type: 'cosmetic', rarity: 'uncommon', price: 400, levelRequired: 3, wrap: '#dccb96', metal: '#f2c458', accent: '#ffcf5a', trail: '#ffe0a0', eye: '#ffe38a' },
+    cos_azure: { name: 'Lapis Curse', type: 'cosmetic', rarity: 'uncommon', price: 700, levelRequired: 6, wrap: '#b6ae98', accent: '#4a7cff', trail: '#8fc0ff', eye: '#5aa8ff' },
+    cos_jade: { name: 'Jade Spirit', type: 'cosmetic', rarity: 'rare', price: 1100, levelRequired: 9, wrap: '#a8b28e', accent: '#2fd58a', trail: '#8fffc4', eye: '#6fffb0' },
+    cos_violet: { name: 'Amethyst Hex', type: 'cosmetic', rarity: 'rare', price: 1600, levelRequired: 14, wrap: '#b2a6b4', accent: '#a86bff', trail: '#d2b2ff', eye: '#c07bff' },
+    cos_ember: { name: 'Ember Soul', type: 'cosmetic', rarity: 'epic', price: 2600, levelRequired: 20, wrap: '#8e6c4a', skin: '#1c0c06', accent: '#ff6a1a', trail: '#ffb070', eye: '#ff8a3a' },
+    cos_void: { name: 'Obsidian Wraps', type: 'cosmetic', rarity: 'legendary', price: 6000, levelRequired: 30, wrap: '#2c2832', metal: '#9a8ab8', accent: '#7a5cff', trail: '#b7a2ff', eye: '#ffffff' },
   };
+
 
   // ---------- move generation ----------
   function scaleFrames(n, sp) { return Math.max(1, Math.round(n / sp)); }
@@ -529,6 +534,28 @@
     }
   }
 
+  // Fist variants (Cursed Fists): the fist moveset cloned with an element and a damage factor.
+  function cloneFists(wid, w) {
+    const map = {}, done = {};
+    const clone = (mid) => {
+      if (!mid) return mid;
+      const nid = wid + ':' + mid;
+      if (done[mid]) return nid;
+      done[mid] = true;
+      const m = SA.MOVES[mid];
+      const c = Object.assign({}, m, { id: nid, weapon: wid, element: w.element, damage: Math.round(m.damage * (w.damage || 1)) });
+      if (m.chain) { c.chain = {}; for (const k in m.chain) c.chain[k] = clone(m.chain[k]); }
+      SA.MOVES[nid] = c;
+      return nid;
+    };
+    for (const k in FIST_MAP) map[k] = clone(FIST_MAP[k]);
+    // named fist combos keep their names
+    for (const cn of SA.COMBO_NAMES.slice()) {
+      if (cn.seq.every((x) => done[x])) SA.COMBO_NAMES.push({ seq: cn.seq.map((x) => wid + ':' + x), name: cn.name });
+    }
+    return map;
+  }
+
   // ---------- registry ----------
   SA.WEAPONS = WEAPONS;
   SA.RANGED = RANGED;
@@ -539,7 +566,7 @@
   for (const id of Object.keys(WEAPONS)) {
     const w = WEAPONS[id];
     w.id = id;
-    SA.WEAPON_SETS[id] = w.style === 'fists' ? Object.assign({}, FIST_MAP) : generateStyleMoves(id, w);
+    SA.WEAPON_SETS[id] = w.style === 'fists' ? (w.element || w.damage !== 1 ? cloneFists(id, w) : Object.assign({}, FIST_MAP)) : generateStyleMoves(id, w);
     if (w.style !== 'fists') {
       w.touch = STYLES[w.style].labels;
       w.geom = { len: w.len, back: w.back || 0, dual: !!w.dual };

@@ -372,9 +372,9 @@
       arena.drawWeatherWorld(ctx, false);
       // opponent silhouette preview
       const oppId = SA.ARENAS[id].opponent;
-      const f = SA.createFighter(oppId, new SA.Controller());
+      const f = SA.CHARACTERS[oppId] ? SA.createFighter(oppId, new SA.Controller()) : SA.EnemyGen.makeOpponent(oppId, 'normal', 7).fighter;
       f.reset(160, -1);
-      const hero = SA.createFighter('shadow', new SA.Controller());
+      const hero = SA.createFighter('mummy', new SA.Controller());
       hero.reset(-160, 1);
       for (const x of [f, hero]) {
         for (let i = 0; i < 30; i++) x.postUpdate(1, { arena });
@@ -876,7 +876,7 @@
           text(ctx, i < 4 ? `WIN AT ${SA.ARENAS[SA.ARENA_ORDER[i - 1]].name}` : 'REACH IT IN ARENA MODE', x + cw / 2, y + lift + ch / 2 + 22, { size: 14, weight: 700, spacing: 2, color: 'rgba(255,255,255,0.7)', align: 'center' });
         }
         text(ctx, def.name, x + 4, y + ch + 24, { size: 19, weight: 800, spacing: 3, color: sel ? '#fff' : 'rgba(255,255,255,0.6)' });
-        text(ctx, locked ? '???' : 'VS ' + SA.CHARACTERS[def.opponent].name, x + cw - 4, y + ch + 24, { size: 15, weight: 700, spacing: 3, color: sel ? GOLD : 'rgba(233,194,122,0.5)', align: 'right' });
+        text(ctx, locked ? '???' : 'VS ' + SA.opponentName(def.opponent), x + cw - 4, y + ch + 24, { size: 15, weight: 700, spacing: 3, color: sel ? GOLD : 'rgba(233,194,122,0.5)', align: 'right' });
         this.selRects.push({ x, y: y - 8, w: cw, h: ch + 40, arena: i });
       });
 
