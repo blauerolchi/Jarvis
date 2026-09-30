@@ -74,7 +74,7 @@ const { openGame } = require('./harness');
       JLL: combo([[0, 'light'], [4, 'kick'], [14, 'kick']]),
       SL_J: combo([[0, 'kick', ['down']], [6, 'light']], 180),
       SJ_SL_J: combo([[0, 'light', ['down']], [4, 'kick', ['down']], [14, 'light']], 170),
-      JJK_mashedEarly: combo([[0, 'light'], [2, 'light'], [3, 'heavy']]),
+      JJK_mashedEarly: combo([[0, 'light'], [3, 'light'], [10, 'heavy']]),   // early presses inside the 150 ms buffer
     };
 
     // 6) dash attacks
@@ -89,7 +89,7 @@ const { openGame } = require('./harness');
     // 7) jump attacks
     fresh(0, 330); T.run(1, { press: ['up'], hold: ['right'] }); T.run(14, { hold: ['right'] }); T.run(1, { press: ['kick'] }); T.run(50);
     out.flyingKick = { hit: hit(), dmg: g.p2.maxHp - g.p2.hp };
-    fresh(0, 380); T.run(1, { press: ['up'], hold: ['right'] }); T.run(22, { hold: ['right'] }); T.run(1, { press: ['light'] }); T.run(50);
+    fresh(0, 380); T.run(1, { press: ['up'], hold: ['right'] }); T.run(16, { hold: ['right'] }); T.run(1, { press: ['light'] }); T.run(50);
     out.airPunch = { hit: hit(), dmg: g.p2.maxHp - g.p2.hp };
     // overhead vs crouch block
     fresh(0, 330); g.ai2.forceHold = ['block', 'down']; T.run(1, { press: ['up'], hold: ['right'] }); T.run(14, { hold: ['right'] }); T.run(1, { press: ['kick'] }); T.run(50);
@@ -134,7 +134,7 @@ const { openGame } = require('./harness');
     ['J J K = 3 hits + name', r.combos.JJK.hits === 3 && r.combos.JJK.name === 'TWIN DRAGON PALM'],
     ['J L L = 3 hits + name', r.combos.JLL.hits === 3 && r.combos.JLL.name === 'CRESCENT CHAIN'],
     ['S+L -> J = 2 hits', r.combos.SL_J.hits === 2],
-    ['fast mashed J J K still combos', r.combos.JJK_mashedEarly.hits === 3],
+    ['early buffered J J K still combos', r.combos.JJK_mashedEarly.hits === 3],
     ['dash punch connects', r.dashPunch.hit],
     ['slide kick knocks down', r.slideKick.hit],
     ['evade dodges heavy', r.evadeHeavy === 'evaded'],

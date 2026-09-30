@@ -14,15 +14,19 @@
   const { clamp, damp, lerp } = SA.M;
   const A = SA.Anim;
 
-  const WALK_FWD = 360, WALK_BACK = 285;
-  const JUMP_VY = -1300, JUMP_VX = 430;
-  const DASH_SPEED = 1250, RUN_SPEED = 700;
-  const DASH_FRAMES = 14, EVADE_FRAMES = 18;
+  // Movement tuning (px/s, frames). Responsive input: target speeds are reached within ~3 frames.
+  const WALK_FWD = 430, WALK_BACK = 350, RUN_SPEED = 760, SPRINT_SPEED = 960;
+  const ACCEL = 60, DECEL = 40;
+  const JUMP_VY = -1310, JUMP_VX = 540, LEAP_VY = -1200, LEAP_VX = 880;
+  const DASH_SPEED = 1450, DASH_FRAMES = 11, EVADE_FRAMES = 16, DASH_CD = 14;
+  const RUN_AFTER = 9, SPRINT_AFTER = 38;      // keyboard: hold forward to break into a run / sprint
+  const AIR_STEER = 900, AIR_MAX = 600;
 
   // combat roll: 26 frames, passes the enemy body for 18, fully invulnerable 2..12, then vulnerable
   const ROLL = { frames: 26, speed: 980, through: 18, invuln: 12 };
 
   const NEUTRAL = { idle: 1, walk: 1, crouch: 1, block: 1 };
+  const MOVING = { run: 1, sprint: 1, dash: 1 };
   const STUNNED = { hitstun: 1, launched: 1, stagger: 1, rushed: 1 };
 
   SA.SPECIALS = {
@@ -45,7 +49,7 @@
   });
 
   // root joint of a striking limb (used for the near/close-range hitbox)
-  const PARENT = { handF: 'sh', handB: 'sh', footF: 'hip', footB: 'hip' };
+  const PARENT = { handF: 'sh', handB: 'sh', footF: 'hip', footB: 'hip', kneeF: 'hip', kneeB: 'hip' };
   function segRect(x0, y0, x1, y1, pad) {
     return { x: Math.min(x0, x1) - pad, y: Math.min(y0, y1) - pad, w: Math.abs(x1 - x0) + pad * 2, h: Math.abs(y1 - y0) + pad * 2 };
   }
@@ -120,6 +124,7 @@
       this.trail = [];
       this.fromRun = false;
       this.turnT = 0; this.rollDir = 1; this.rollThrough = 0;
+      this.fwdT = 0; this.dashCd = 0; this.landT = 0; this.gravMul = 1; this.moveBonus = 1;
       if (this.rangedWeapon) this.rangedState = new SA.RangedState(this.rangedWeapon);
       this.startCombo();
       A.copyPose(this.pose, A.STANCE);
@@ -143,6 +148,16 @@
     fwdHeld() { return this.ctrl.held(this.facing > 0 ? 'right' : 'left'); }
     backHeld() { return this.ctrl.held(this.facing > 0 ? 'left' : 'right'); }
     isNeutral() { return !!NEUTRAL[this.state]; }
+    isMoving() { return !!MOVING[this.state]; }
+    // walk / run / sprint: stick deflection on touch, hold time on keyboard (and digital AI input)
+    moveTier() {
+      const c = this.ctrl;
+      if (c.stick || c.analog < 1) {
+        const a = c.analog;
+        return a >= SA.Stick.RUN ? 'sprint' : a >= SA.Stick.WALK ? 'run' : 'walk';
+      }
+      return this.fwdT >= SPRINT_AFTER ? 'sprint' : this.fwdT >= RUN_AFTER ? 'run' : 'walk';
+    }
     isStunned() { return !!STUNNED[this.state]; }
     isCrouching() {
       return this.state === 'crouch' || ((this.state === 'block' || this.state === 'blockstun') && this.crouchBlock) ||
@@ -206,6 +221,7 @@
     startMove(id) {
       const m = SA.MOVES[id];
       if (!m) return;
+      this.moveBonus = m.id === 'backCounter' || (this.state === 'evade' && id === this.moveset.backCounter) ? 1.2 : 1;
       A.copyPose(this.entryPose, this.pose);
       this.move = m;
       this.animKeys = m.keys;
@@ -264,6 +280,8 @@
       this.st += ts;
       if (this.invuln > 0) this.invuln -= ts;
       if (this.parryLock > 0) this.parryLock -= ts;
+      if (this.dashCd > 0) this.dashCd -= ts;
+      if (this.landT > 0) this.landT -= ts;
       this.parryAge += ts;
       if (c.consume('block')) {
         this.parryAge = this.parryLock > 0 ? 99 : 0; // mashing block never parries
@@ -272,7 +290,7 @@
       if (!this.grounded) this.airTime += dt;
       this.updateStatus(dt, game);
 
-      if (game.fightLocked && (this.isNeutral() || this.state === 'run' || this.state === 'dash')) {
+      if (game.fightLocked && (this.isNeutral() || this.isMoving())) {
         if (this.state !== 'idle') this.setState('idle');
         this.vx = damp(this.vx, 0, 12, dt);
       } else {
@@ -316,13 +334,17 @@
           if (this.st >= 2) this.doJump(game);
           break;
 
-        case 'air':
+        case 'air': {
+          // a little air control and a snappier fall
+          const steer = this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0;
+          if (steer) this.vx = clamp(this.vx + this.facing * steer * AIR_STEER * dt, -Math.max(AIR_MAX, Math.abs(this.vx)), Math.max(AIR_MAX, Math.abs(this.vx)));
           if (!this.airAttackUsed) {
             if (c.consume('light')) this.startMove(ms.airLight);
             else if (c.consume('kick') || c.consume('heavy')) this.startMove(ms.airHeavy);
             else if (c.consume('ranged')) this.tryRanged();
           }
           break;
+        }
 
         case 'landing':
           this.stun -= ts;
@@ -332,23 +354,36 @@
 
         case 'dash': {
           const u = clamp(this.st / DASH_FRAMES, 0, 1);
-          this.vx = this.facing * lerp(DASH_SPEED, RUN_SPEED, u) * this.speedMul;
+          this.vx = this.facing * lerp(DASH_SPEED, RUN_SPEED, u * u) * this.speedMul;
           this.spawnGhost(this.weapon.element === 'shadow' ? 2 : 3);
           if (this.runActions(game)) break;
-          if (this.st >= DASH_FRAMES) this.setState(this.fwdHeld() ? 'run' : 'idle');
+          if (this.st >= DASH_FRAMES) {
+            if (this.fwdHeld()) { this.fwdT = Math.max(this.fwdT, RUN_AFTER); this.setState(this.moveTier() === 'sprint' ? 'sprint' : 'run'); }
+            else this.setState('idle');
+          }
           break;
         }
 
-        case 'run':
-          this.vx = damp(this.vx, this.facing * RUN_SPEED * this.speedMul, 20, dt);
-          this.spawnGhost(5);
-          if (Math.floor(this.st) % 14 === 0 && this.st % 1 < ts) SA.FX.dust(game.particles, this.x - this.facing * 30, 0, 0.35, -this.facing);
-          if (this.runActions(game)) break;
+        case 'run': case 'sprint': {
           if (!this.fwdHeld()) {
-            SA.FX.dust(game.particles, this.x + this.facing * 20, 0, 0.5, this.facing);
+            // stop: a short skid keeps a little momentum, controls stay live
+            SA.FX.dust(game.particles, this.x + this.facing * 20, 0, this.state === 'sprint' ? 0.8 : 0.5, this.facing);
+            this.vx *= 0.55;
+            this.fwdT = 0;
+            if (this.backHeld()) this.turnT = 6;   // reversing out of a run: pivot / foot slide
             this.setState(c.held('down') ? 'crouch' : 'idle');
+            break;
           }
+          this.fwdT += ts;
+          const tier = this.moveTier();
+          if (tier === 'walk') { this.setState('walk'); break; }
+          if (tier !== this.state) this.setState(tier);
+          const sp = (tier === 'sprint' ? SPRINT_SPEED : RUN_SPEED) * this.speedMul;
+          this.vx = damp(this.vx, this.facing * sp, ACCEL * 0.7, dt);
+          if (tier === 'sprint') this.spawnGhost(4);
+          if (this.runActions(game)) break;
           break;
+        }
 
         case 'roll': {
           // tucked roll: passes through the enemy body and under high attacks, short vulnerable end
@@ -361,9 +396,11 @@
         }
 
         case 'evade':
+          // backstep: short defensive hop back; heavy right after it = backstep counter
           this.vx = damp(this.vx, 0, 7, dt);
           this.spawnGhost(3);
-          if (this.st >= 13 && this.tryAttacks()) break;
+          if (this.st >= 5 && c.consume('heavy')) { this.startMove(this.moveset.backCounter); break; }
+          if (this.st >= 10 && this.tryAttacks()) break;
           if (this.st >= EVADE_FRAMES) this.toNeutral();
           break;
 
@@ -432,12 +469,9 @@
     updateNeutral(dt, game) {
       const c = this.ctrl;
       const down = c.held('down'), fwd = this.fwdHeld(), back = this.backHeld();
+      if (!fwd) this.fwdT = 0;
       if (this.tryAttacks()) return;
-      if (c.consume('dash')) {
-        if (down) this.startRoll(game, back ? -1 : 1);
-        else if (fwd) this.startDash(game); else this.startEvade(game);
-        return;
-      }
+      if (this.tryDash(game)) return;
       if (c.consume('up')) { this.startPrejump(false); return; }
       if (c.held('block')) {
         if (this.state !== 'block') this.setState('block');
@@ -450,13 +484,29 @@
         this.vx = damp(this.vx, 0, 25, dt);
       } else if (fwd || back) {
         const dir = fwd ? 1 : -1;
+        if (fwd) {
+          this.fwdT += dt * 60;
+          const tier = this.moveTier();
+          if (tier !== 'walk') {
+            this.setState(tier);
+            this.vx = damp(this.vx, this.facing * (tier === 'sprint' ? SPRINT_SPEED : RUN_SPEED) * this.speedMul, ACCEL, dt);
+            return;
+          }
+        }
+        // quick reversal: short pivot / foot slide (visual only)
+        if (this.state === 'walk' && this.walkDir !== dir && Math.abs(this.vx) > 150) {
+          this.turnT = 5;
+          SA.FX.dust(game.particles, this.x, 0, 0.35, -dir * this.facing);
+        }
         if (this.state !== 'walk') this.setState('walk');
         this.walkDir = dir;
-        const speed = (dir > 0 ? WALK_FWD : WALK_BACK) * this.speedMul * (c.analog || 1);
-        this.vx = damp(this.vx, this.facing * dir * speed, 42, dt);
+        // stick: walking speed follows the deflection inside the walk zone
+        const a = c.stick || c.analog < 1 ? clamp((c.analog - SA.Stick.DEAD) / (SA.Stick.WALK - SA.Stick.DEAD), 0, 1) : 1;
+        const speed = (dir > 0 ? WALK_FWD : WALK_BACK) * this.speedMul * lerp(0.55, 1, a);
+        this.vx = damp(this.vx, this.facing * dir * speed, ACCEL, dt);
       } else {
         if (this.state !== 'idle') this.setState('idle');
-        this.vx = damp(this.vx, 0, 36, dt);
+        this.vx = damp(this.vx, 0, DECEL, dt);
       }
     }
 
@@ -474,7 +524,7 @@
       if (c.consume('light')) { this.startMove(down ? ms.lightDown : ms.light); return true; }
       if (c.consume('heavy')) {
         if (up && !down) c.consume('up');
-        this.startMove(down ? ms.heavyDown : up ? ms.heavyUp : ms.heavy);
+        this.startMove(down ? ms.heavyDown : up ? ms.heavyUp : this.fwdHeld() ? ms.heavyFwd : ms.heavy);
         return true;
       }
       if (c.consume('kick')) { this.startMove(down ? ms.kickDown : ms.kick); return true; }
@@ -501,19 +551,36 @@
       return true;
     }
 
+    // Attacks out of dash / run / sprint: dash attacks, running attack, slide (down + attack), leap.
     runActions(game) {
       const c = this.ctrl, ms = this.moveset;
-      if (c.consume('light')) { this.startMove(ms.dashLight); return true; }
-      if (c.consume('kick') || c.consume('heavy')) { this.startMove(ms.dashHeavy); return true; }
+      const dash = this.state === 'dash', down = c.held('down');
+      if (c.consume('light')) { this.startMove(down ? ms.slide : dash ? ms.dashLight : ms.runLight); return true; }
+      if (c.consume('kick')) { this.startMove(down || dash ? ms.dashHeavy : ms.runLight); return true; }
+      if (c.consume('heavy')) { this.startMove(down ? ms.slide : dash ? ms.dashHeavy : ms.heavyFwd); return true; }
       if (c.has('special') && this.energy >= 100) { c.consume('special'); this.startSpecial(); return true; }
       if (c.consume('ranged') && this.tryRanged()) return true;
       if (c.consume('up')) { this.startPrejump(true); return true; }
-      if (c.held('block')) { this.setState('block'); this.crouchBlock = c.held('down'); return true; }
+      if (!dash && this.tryDash(game)) return true;
+      if (c.held('block')) { this.setState('block'); this.crouchBlock = down; this.vx *= 0.4; return true; }
       return false;
+    }
+
+    // dash button: down = roll, forward = dash, otherwise backstep. Small cooldown against spamming;
+    // a press during the cooldown stays buffered and fires as soon as it ends.
+    tryDash(game) {
+      const c = this.ctrl;
+      if (!c.has('dash') || this.dashCd > 0) return false;
+      c.consume('dash');
+      if (c.held('down')) this.startRoll(game, this.backHeld() ? -1 : 1);
+      else if (this.fwdHeld()) this.startDash(game);
+      else this.startEvade(game);
+      return true;
     }
 
     startDash(game) {
       this.setState('dash');
+      this.dashCd = DASH_FRAMES + DASH_CD;
       this.vx = this.facing * DASH_SPEED * this.speedMul;
       SA.audio.play('dash');
       SA.FX.dust(game.particles, this.x - this.facing * 20, 0, 0.7, -this.facing);
@@ -524,13 +591,15 @@
       this.rollDir = dir;
       this.rollThrough = ROLL.through;
       this.invuln = ROLL.invuln;
+      this.dashCd = ROLL.frames + DASH_CD;
       SA.audio.play('dash', 0.8);
       SA.FX.dust(game.particles, this.x, 0, 0.6, -this.facing * dir);
     }
 
     startEvade(game) {
       this.setState('evade');
-      this.vx = -this.facing * 1100 * this.speedMul;
+      this.dashCd = EVADE_FRAMES + DASH_CD;
+      this.vx = -this.facing * 1150 * this.speedMul;
       this.invuln = 12;
       SA.audio.play('dash');
       SA.FX.dust(game.particles, this.x + this.facing * 10, 0, 0.6, this.facing);
@@ -545,8 +614,9 @@
     doJump(game) {
       const dir = this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0;
       this.jumpDir = this.fromRun ? 1 : dir;
-      this.vy = JUMP_VY;
-      this.vx = this.fromRun ? this.facing * 640 * this.speedMul : dir * this.facing * JUMP_VX * this.speedMul;
+      // from a run: leap (long, flat, fast); otherwise neutral / forward / back jump
+      this.vy = this.fromRun ? LEAP_VY : JUMP_VY;
+      this.vx = this.fromRun ? this.facing * LEAP_VX * this.speedMul : dir * this.facing * JUMP_VX * this.speedMul;
       this.grounded = false;
       this.y = -1;
       this.airAttackUsed = false;
@@ -614,6 +684,13 @@
           return;
         }
       }
+      // light / medium attacks that connected can be cancelled into a dash or backstep
+      if (this.moveContact && this.grounded && (m.power || 0.5) < 0.8 && !m.ranged && this.dashCd <= 0 &&
+          this.mt >= m.startup + m.active && c.has('dash')) {
+        this.cancelMove();
+        this.tryDash(game);
+        return;
+      }
       if (this.moveContact === 'hit' && this.energy >= 100 && c.has('special')) {
         c.consume('special');
         this.startSpecial();
@@ -628,16 +705,23 @@
       this.y = 0;
       this.airTime = 0;
       switch (this.state) {
-        case 'air':
-          this.scaleY = 0.84; this.scaleX = 1.1;
-          SA.FX.dust(game.particles, this.x, 0, 0.5, 0);
-          SA.audio.play('land', 0.4);
+        case 'air': {
+          // no input lock on a normal landing: knee bend + squash are purely visual
+          const hard = impactVy > 1700;
+          this.scaleY = hard ? 0.78 : 0.86; this.scaleX = hard ? 1.14 : 1.08;
+          this.landT = hard ? 12 : 8;
+          SA.FX.dust(game.particles, this.x, 0, hard ? 1 : 0.5, 0);
+          SA.audio.play('land', hard ? 0.7 : 0.4);
+          if (hard) game.shake(0.12);
           this.toNeutral();
           break;
+        }
         case 'attack':
+          // a whiffed jump attack is punishable on landing
+          this.stun = this.moveContact ? 4 : 10;
           this.cancelMove();
           this.setState('landing');
-          this.stun = 5;
+          this.landT = 10;
           this.scaleY = 0.86; this.scaleX = 1.08;
           SA.FX.dust(game.particles, this.x, 0, 0.5, 0);
           break;

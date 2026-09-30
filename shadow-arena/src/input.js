@@ -179,6 +179,7 @@
       this.buf = [];
       this.hold = new Set();
       this.analog = 1;
+      this.stick = false;
     }
     held(a) { return this.hold.has(a); }
     press(a) {
@@ -227,8 +228,10 @@
     sync(presses) {
       this.hold.clear();
       for (const a of FIGHT_ACTIONS) if (this.input.held(a)) this.hold.add(a);
-      // keyboard always walks at full speed; the joystick walks analog
-      this.analog = this.input.heldActions.has('left') || this.input.heldActions.has('right') ? 1 : this.input.analogX;
+      // keyboard: digital (walk -> run -> sprint by hold time); joystick: analog deflection picks the tier
+      const kb = this.input.heldActions.has('left') || this.input.heldActions.has('right');
+      this.stick = !kb && (this.input.virtual.has('left') || this.input.virtual.has('right'));
+      this.analog = this.stick ? this.input.analogX : 1;
       for (const a of presses) if (FIGHT_ACTIONS.indexOf(a) >= 0) this.press(a);
     }
   }

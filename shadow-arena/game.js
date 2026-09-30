@@ -562,11 +562,11 @@
     updateFacing(f, o) {
       if (!f.grounded) return;
       const st = f.state;
-      if (!(f.isNeutral() || st === 'landing' || st === 'prejump' || st === 'getup' || st === 'run')) return;
+      if (!(f.isNeutral() || st === 'landing' || st === 'prejump' || st === 'getup' || st === 'run' || st === 'sprint')) return;
       const dx = o.x - f.x;
       if (dx * f.facing >= -FACE_DEADZONE) return;
       f.facing = -f.facing;
-      if (st === 'run') f.setState('walk');
+      if (st === 'run' || st === 'sprint') { f.setState('walk'); f.fwdT = 0; }
       f.turnT = 7;
       if (st === 'walk' || st === 'run' || st === 'idle') SA.FX.dust(this.particles, f.x, 0, 0.45, f.facing);
     }

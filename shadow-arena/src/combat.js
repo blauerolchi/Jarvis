@@ -152,8 +152,8 @@
       keys: [
         [0, J],
         [3, P({ aF1: 1.9, aF2: 1.6, torso: 0.1 }, J)],
-        [5, P({ torso: 0.45, aF1: 1.05, aF2: 0.05, aB1: -0.6 }, J), 'out'],
-        [13, P({ torso: 0.45, aF1: 1.08, aF2: 0.08, aB1: -0.6 }, J)],
+        [5, P({ torso: 0.55, aF1: 0.8, aF2: 0.05, aB1: -0.6 }, J), 'out'],
+        [13, P({ torso: 0.55, aF1: 0.83, aF2: 0.08, aB1: -0.6 }, J)],
         [23, SA.POSES.fall],
       ],
     },
@@ -195,6 +195,59 @@
         [18, P({ torso: -0.9, head: 0.5, lF1: 1.48, lF2: -0.05, lB1: 0.75, lB2: -2.3, aF1: -0.6, aF2: 0.5, aB1: -0.9, aB2: 0.3 })],
         [26, C],
         [34, S],
+      ],
+    },
+    // ---- directional heavies & mobility attacks ----
+    sweep: {
+      name: 'Sweep', startup: 9, active: 5, recovery: 18, crouching: true,
+      damage: 72, hitstun: 26, blockstun: 12, kb: 240, kbY: -420, knockdown: true, level: 'low',
+      hit: { joint: 'footF', w: 116, h: 44, ox: 10, oy: 0 },
+      lunge: [3, 240], hitstop: 5, shake: 0.3, sound: 'hit_kick', whoosh: 'heavy', power: 0.75,
+      keys: [
+        [0, C],
+        [4, P({ hipX: -6, torso: 0.9, head: 0.4, lF1: -0.3, lF2: -1.2, lB1: 1.4, lB2: -2.5, aF1: 1.2, aF2: 1.2, aB1: 0.4, aB2: 1.8 })],
+        [9, P({ hipX: 14, torso: 0.95, head: 0.45, lF1: 1.56, lF2: -0.02, lB1: 1.45, lB2: -2.55, aF1: 2.4, aF2: 0.6, aB1: 0.6, aB2: 1.2 }), 'out'],
+        [14, P({ hipX: 14, torso: 0.92, head: 0.45, lF1: 1.52, lF2: -0.05, lB1: 1.45, lB2: -2.55, aF1: 2.3, aF2: 0.7, aB1: 0.6, aB2: 1.2 })],
+        [22, C],
+        [32, S],
+      ],
+    },
+    lunge: {
+      name: 'Lunge Punch', startup: 11, active: 4, recovery: 22,
+      damage: 92, hitstun: 24, blockstun: 14, kb: 760, level: 'high', friction: 6,
+      hit: { joint: 'handF', w: 80, h: 50, ox: 12, oy: 0 },
+      lunge: [8, 820], hitstop: 6, shake: 0.4, zoom: 0.05, sound: 'hit_heavy', whoosh: 'heavy', power: 0.88,
+      keys: [
+        [0, S],
+        [6, P({ hipX: -8, torso: -0.05, head: 0.1, aF1: 0.1, aF2: 2.5, aB1: 0.9, aB2: 2.3, lF1: 0.7, lF2: -1.2, lB1: -0.5, lB2: -0.3 })],
+        [11, P({ hipX: 34, torso: 0.6, head: 0.05, aF1: 1.57, aF2: 0.02, aB1: -0.4, aB2: 1.5, lF1: 1.15, lF2: -1.1, lB1: -0.95, lB2: -0.05 }), 'out'],
+        [15, P({ hipX: 34, torso: 0.62, head: 0.05, aF1: 1.55, aF2: 0.05, aB1: -0.4, aB2: 1.5, lF1: 1.15, lF2: -1.1, lB1: -0.95, lB2: -0.05 })],
+        [37, S],
+      ],
+    },
+    backCounter: {
+      name: 'Backstep Counter', startup: 4, active: 4, recovery: 16,
+      damage: 78, hitstun: 22, blockstun: 12, kb: 620, level: 'mid', friction: 5,
+      hit: { joint: 'handF', w: 80, h: 50, ox: 12, oy: 0 },
+      lunge: [0, 950], hitstop: 5, shake: 0.3, zoom: 0.03, sound: 'hit_heavy', whoosh: 'heavy', power: 0.8,
+      keys: [
+        [0, SA.POSES.evade],
+        [4, P({ hipX: 30, torso: 0.5, aF1: 1.55, aF2: 0.05, aB1: 0.2, aB2: 1.8, lF1: 1.0, lF2: -1.0, lB1: -0.8, lB2: -0.1 }), 'out'],
+        [8, P({ hipX: 30, torso: 0.52, aF1: 1.53, aF2: 0.08, aB1: 0.2, aB2: 1.8, lF1: 1.0, lF2: -1.0, lB1: -0.8, lB2: -0.1 })],
+        [24, S],
+      ],
+    },
+    runStrike: {
+      name: 'Flying Knee', startup: 5, active: 7, recovery: 18,
+      damage: 74, hitstun: 22, blockstun: 12, kb: 560, kbY: -380, knockdown: true, level: 'mid', friction: 4,
+      hit: { joint: 'kneeF', w: 80, h: 80, ox: 14, oy: 0 },
+      lunge: [0, 760], hitstop: 5, shake: 0.35, zoom: 0.03, sound: 'hit_kick', whoosh: 'medium', power: 0.82,
+      keys: [
+        [0, SA.POSES.dash],
+        [3, P({ torso: 0.2, lF1: 1.2, lF2: -2.2, lB1: -0.6, lB2: -0.4, aF1: 0.6, aF2: 1.8, aB1: -0.6, aB2: 1.2 })],
+        [5, P({ hipX: 20, torso: -0.1, head: 0.1, lF1: 1.9, lF2: -2.4, lB1: -0.3, lB2: -0.2, aF1: 0.3, aF2: 2.4, aB1: 0.2, aB2: 2.2 }), 'out'],
+        [12, P({ hipX: 20, torso: -0.08, head: 0.1, lF1: 1.88, lF2: -2.4, lB1: -0.3, lB2: -0.2, aF1: 0.3, aF2: 2.4, aB1: 0.2, aB2: 2.2 })],
+        [30, S],
       ],
     },
   };
@@ -347,7 +400,7 @@
       const inCombo = a.combo.hits > 0 && b.isStunned();
       if (!inCombo) a.startCombo();
 
-      let dmg = m.damage * (a.damageMul || 1);
+      let dmg = m.damage * (a.damageMul || 1) * (a.moveBonus || 1);
       if (hit.region === 'head') dmg *= 1.2;
       else if (hit.region === 'legs') dmg *= 0.92;
       if (counter) dmg *= 1.2;
@@ -390,6 +443,7 @@
           b.stun = m.hitstun + (counter ? 6 : 0);
           b.vx = dir * m.kb;
           b.hitPose = hit.region === 'head' ? 'hitHigh' : hit.region === 'legs' ? 'hitLow' : 'hitBody';
+          b.hitPower = m.power || 0.5;
           SA.Anim.lerpPose(b.pose, b.pose, SA.POSES[b.hitPose], 0.6);
         }
         // pinned against the wall: the attacker gets pushed back out of the corner instead

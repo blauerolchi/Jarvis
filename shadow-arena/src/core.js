@@ -13,7 +13,7 @@ window.SA = window.SA || {};
   SA.WALL = SA.ARENA_HALF - 70;
   SA.MAX_SEPARATION = 1150;    // camera wall: fighters can never be further apart than this
   SA.GRAVITY = 3400;
-  SA.BUFFER_FRAMES = 13;       // input buffer window (~215 ms)
+  SA.BUFFER_FRAMES = 9;        // input buffer window (150 ms): early presses fire the moment it's possible
   SA.PARRY_WINDOW = 9;         // block pressed at most this many frames before the hit = parry
   SA.GROUND_SCREEN = 0.83;     // ground line sits at 83% of screen height
   SA.TAU = Math.PI * 2;

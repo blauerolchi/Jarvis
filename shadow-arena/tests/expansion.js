@@ -118,8 +118,8 @@ const { openGame } = require('./harness');
     return r;
   });
   check('context: down+light = low', ctxs.low === 'katana:low', ctxs.low);
-  check('context: down+heavy = launcher', ctxs.launch === 'katana:launch', ctxs.launch);
-  check('context: up+heavy = overhead', ctxs.over === 'katana:over', ctxs.over);
+  check('context: down+heavy = sweep', ctxs.launch === 'katana:sweep', ctxs.launch);
+  check('context: up+heavy = launcher (rising slash)', ctxs.over === 'katana:launch', ctxs.over);
   check('context: air attack', ctxs.air === 'katana:air', ctxs.air);
   check('context: dash attack', ctxs.dash === 'katana:dash', ctxs.dash);
 

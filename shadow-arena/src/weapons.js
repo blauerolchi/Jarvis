@@ -239,15 +239,27 @@
   };
 
   // fists use the original hand-authored moves
+  // Input -> move. Directional heavies: neutral / forward (lunge) / up (uppercut, launcher) / down (sweep).
+  // Mobility attacks: dash + attack, running attack, slide (run + down + attack), backstep counter.
   const FIST_MAP = {
-    light: 'jab', lightDown: 'crouchJab', heavy: 'heavy', heavyDown: 'uppercut', heavyUp: 'uppercut',
-    dashLight: 'dashPunch', dashHeavy: 'slideKick', airLight: 'airPunch', airHeavy: 'flyingKick',
-    kick: 'kick', kickDown: 'lowKick',
+    light: 'jab', lightDown: 'crouchJab', heavy: 'heavy', heavyFwd: 'lunge', heavyDown: 'sweep', heavyUp: 'uppercut',
+    dashLight: 'dashPunch', dashHeavy: 'slideKick', runLight: 'runStrike', slide: 'slideKick', backCounter: 'backCounter',
+    airLight: 'airPunch', airHeavy: 'flyingKick', kick: 'kick', kickDown: 'lowKick',
   };
   const STYLE_MAP = {
-    light: 'a1', lightDown: 'low', heavy: 'hv', heavyDown: 'launch', heavyUp: 'over',
-    dashLight: 'dash', airLight: 'air',
+    light: 'a1', lightDown: 'low', heavy: 'over', heavyFwd: 'hv', heavyDown: 'sweep', heavyUp: 'launch',
+    dashLight: 'dash', runLight: 'dash', backCounter: 'dash', airLight: 'air',
   };
+  // every weapon style gets a knockdown sweep (down + heavy), derived from its low attack
+  for (const st of Object.values(STYLES)) {
+    const low = st.moves.low;
+    if (!low || st.moves.sweep) continue;
+    st.moves.sweep = Object.assign({}, low, {
+      st: low.st + 3, ac: low.ac + 2, rc: low.rc + 7, dmg: Math.round(low.dmg * 1.35), kb: 240, kbY: -420,
+      knockdown: true, level: 'low', crouching: true, power: 0.72, hitstop: 5, shake: 0.3, chain: null,
+      lunge: [2, (low.lunge ? low.lunge[1] : 220) + 60],
+    });
+  }
 
   // ---------- catalog ----------
   // melee: style, len (reach of the weapon itself), back (length behind the hand), speed, damage

@@ -28,10 +28,12 @@
   // radius used for ground contact per joint
   const CONTACT = { hip: 15, neck: 12, head: 21, handF: 8, handB: 8, elbF: 8, elbB: 8, kneeF: 10, kneeB: 10, footF: 5, footB: 5, toeF: 4, toeB: 4, sh: 12 };
 
+  // Fighting stance: slightly hunched, knees bent, compact footprint so two fighters in contact
+  // don't visually stand inside each other.
   const STANCE = {
-    hipX: 0, torso: 0.12, head: 0.05,
-    aF1: 0.55, aF2: 1.95, aB1: 0.25, aB2: 2.25,
-    lF1: 0.55, lF2: -0.8, lB1: -0.4, lB2: -0.05,
+    hipX: 0, torso: 0.2, head: -0.04,
+    aF1: 0.68, aF2: 1.9, aB1: 0.32, aB2: 2.2,
+    lF1: 0.46, lF2: -0.82, lB1: -0.3, lB2: -0.22,
     rot: 0, wg: -0.35, wgB: -0.35,
   };
 
@@ -109,42 +111,54 @@
 
   // ---------- procedural locomotion ----------
   const tmp = P();
+  // Idle: breathing chest, weight shifting between the legs, restless guard hands, small head moves.
   function idlePose(t, out) {
-    const b = Math.sin(t * 2.3);
+    const b = Math.sin(t * 2.4);                 // breath
+    const w = Math.sin(t * 0.9);                 // slow weight shift
+    const h = Math.sin(t * 1.7 + 1.3);           // hands
     copyPose(out, STANCE);
-    out.torso += b * 0.018;
-    out.head += Math.sin(t * 2.3 - 0.6) * 0.03;
-    out.aF2 += b * 0.07;
-    out.aB2 += Math.sin(t * 2.3 + 0.8) * 0.06;
-    out.lF2 -= (b + 1) * 0.06;
-    out.lB2 -= (b + 1) * 0.06;
-    out.lF1 += (b + 1) * 0.025;
+    out.torso += b * 0.03 + w * 0.02;
+    out.head += Math.sin(t * 2.4 - 0.7) * 0.05 + Math.sin(t * 0.63) * 0.04;
+    out.hipX += w * 5;
+    out.aF1 += h * 0.08; out.aF2 += b * 0.09 - h * 0.06;
+    out.aB1 -= h * 0.06; out.aB2 += Math.sin(t * 2.4 + 0.8) * 0.08;
+    out.lF1 += (b + 1) * 0.03 + w * 0.04;
+    out.lF2 -= (b + 1) * 0.07 + Math.max(0, w) * 0.08;
+    out.lB2 -= (b + 1) * 0.07 + Math.max(0, -w) * 0.08;
+    out.wg += h * 0.08;
     return out;
   }
   function walkPose(phase, dir, out) {
     copyPose(out, STANCE);
     const s = Math.sin(phase), c = Math.cos(phase);
-    out.lF1 = 0.55 + s * 0.3;
-    out.lB1 = -0.4 - s * 0.26;
-    out.lF2 = -0.8 - Math.max(0, c * dir) * 0.5;
-    out.lB2 = -0.05 - Math.max(0, -c * dir) * 0.75;
-    out.torso = dir > 0 ? 0.2 : 0.02;
-    out.aF1 += s * 0.06;
-    out.aB1 -= s * 0.06;
-    out.hipX = dir > 0 ? 4 : -4;
+    out.lF1 = 0.46 + s * 0.38;
+    out.lB1 = -0.3 - s * 0.34;
+    out.lF2 = -0.82 - Math.max(0, c * dir) * 0.62;
+    out.lB2 = -0.22 - Math.max(0, -c * dir) * 0.8;
+    out.torso = (dir > 0 ? 0.3 : 0.08) + Math.abs(c) * 0.03;
+    out.head = dir > 0 ? -0.1 : 0;
+    out.aF1 += s * 0.14;
+    out.aB1 -= s * 0.16;
+    out.hipX = (dir > 0 ? 6 : -5) + c * 3;
+    out.wg += s * 0.1;
     return out;
   }
-  function runPose(phase, out) {
+  // Run / sprint: strong forward lean, big leg amplitude, pumping arms (sprint: even more).
+  function runPose(phase, out, sprint) {
     copyPose(out, STANCE);
     const s = Math.sin(phase);
-    const leg = (ph) => [0.35 + 0.9 * Math.sin(ph), -0.3 - 1.4 * Math.max(0, Math.cos(ph))];
+    const amp = sprint ? 1.15 : 1.0, lift = sprint ? 1.65 : 1.45;
+    const leg = (ph) => [0.38 + amp * Math.sin(ph), -0.25 - lift * Math.max(0, Math.cos(ph))];
     const f = leg(phase), b = leg(phase + Math.PI);
     out.lF1 = f[0]; out.lF2 = f[1];
     out.lB1 = b[0]; out.lB2 = b[1];
-    out.torso = 0.5;
-    out.head = -0.15;
-    out.aF1 = 0.6 - 0.9 * s; out.aF2 = 1.7;
-    out.aB1 = 0.6 + 0.9 * s; out.aB2 = 1.7;
+    out.torso = sprint ? 0.78 : 0.58;
+    out.head = sprint ? -0.42 : -0.3;
+    const arm = sprint ? 1.25 : 1.0;
+    out.aF1 = 0.55 - arm * s; out.aF2 = 1.5 + Math.max(0, s) * 0.5;
+    out.aB1 = 0.55 + arm * s; out.aB2 = 1.5 + Math.max(0, -s) * 0.5;
+    out.hipX = 8;
+    out.wg = -0.9;
     return out;
   }
 
@@ -251,10 +265,12 @@
       walkPose(f.walkPhase * f.walkDir, f.walkDir, target);
       name = f.walkDir > 0 ? 'walk' : 'backwalk';
       k = 16;
-    } else if (st === 'run') {
-      f.walkPhase += dt * 15;
-      runPose(f.walkPhase, target);
-      k = 20;
+    } else if (st === 'run' || st === 'sprint') {
+      const sprint = st === 'sprint';
+      f.walkPhase += dt * (sprint ? 19 : 16);
+      runPose(f.walkPhase, target, sprint);
+      name = st;
+      k = 24;
     } else if (st === 'crouch') {
       copyPose(target, POSES.crouch);
       target.torso += Math.sin(f.animTime * 2.3) * 0.02;
@@ -287,8 +303,10 @@
       copyPose(target, POSES.evade);
       k = 26;
     } else if (st === 'hitstun') {
-      const w = clamp(f.stun / 8, 0, 1);
-      lerpPose(target, POSES.stance, POSES[f.hitPose] || POSES.hitBody, w);
+      // light hits jerk the head / torso, heavy hits throw the whole body
+      const w = clamp(f.stun / 8, 0, 1) * clamp(0.45 + (f.hitPower || 0.5) * 0.7, 0.5, 1.15);
+      lerpPose(target, POSES.stance, POSES[f.hitPose] || POSES.hitBody, Math.min(1, w));
+      if (w > 1) { target.torso += (f.hitPose === 'hitBody' ? 0.2 : -0.2) * (w - 1) * 5; }
       name = 'hit:' + f.hitPose;
       k = 22;
     } else if (st === 'stagger') {
@@ -327,6 +345,43 @@
       direct = true;
     } else {
       idlePose(f.animTime, target);
+    }
+
+    // ---- procedural overlays (never change timing, only the look) ----
+    const grounded = f.grounded;
+    // momentum: lean into the direction of travel, lean back while braking
+    if (!direct && grounded && (st === 'idle' || st === 'walk' || st === 'crouch' || st === 'block')) {
+      const v = (f.vx * f.facing) / 1000;
+      target.torso += clamp(v, -0.6, 0.9) * 0.18;
+    }
+    // landing: knees give way for a moment (visual only, input is live)
+    if (f.landT > 0 && !direct && grounded) {
+      const w = clamp(f.landT / 10, 0, 1) * 0.75;
+      lerpPose(target, target, POSES.prejump, w);
+    }
+    // pivot: body turns first, head and weapon follow a beat later
+    if (f.turnT > 0 && !direct) {
+      const w = clamp(f.turnT / 7, 0, 1);
+      target.torso -= 0.35 * w;
+      target.head += 0.45 * w;
+      target.aF1 -= 0.5 * w; target.aB1 += 0.4 * w;
+      target.wg += 0.6 * w;
+      f.scaleX = Math.min(f.scaleX, 1 - 0.18 * w);
+    }
+    // attacks: anticipation pull-back, commit on the strike, follow-through after it
+    if (st === 'attack' && f.move && !f.move.air && !f.move.ranged) {
+      const m = f.move, pw = clamp(m.power || 0.5, 0.2, 1.2);
+      if (f.mt < m.startup) {
+        const u = f.mt / Math.max(1, m.startup);
+        const a = Math.sin(u * Math.PI) * 0.1 * pw;
+        target.torso -= a; target.hipX -= a * 60;
+      } else if (f.mt < m.startup + m.active) {
+        target.torso += 0.07 * pw; target.hipX += 6 * pw;
+      } else {
+        const u = (f.mt - m.startup - m.active) / Math.max(1, m.recovery);
+        const a = Math.max(0, 1 - u * 2.2) * 0.1 * pw;
+        target.torso += a; target.head += a * 0.8;
+      }
     }
 
     f.animName = name;

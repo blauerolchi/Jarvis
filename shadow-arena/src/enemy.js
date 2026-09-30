@@ -141,7 +141,7 @@
 
       if (this.mode === 'dummy' && this.dummy !== 'cpu') { this.updateDummy(p, dist); return; }
 
-      const canAct = me.isNeutral() || me.state === 'run';
+      const canAct = me.isNeutral() || me.state === 'run' || me.state === 'sprint';
       if (canAct || me.state === 'blockstun') this.react(p, dist);
 
       const [fwd, back] = this.keys();
@@ -336,7 +336,7 @@
       if (!plan) { this.enter('RECOVER', rand(4, 10)); return; }
       const step = plan.steps[plan.i];
       const prev = plan.i > 0 ? plan.steps[plan.i - 1] : null;
-      if (prev === 'dash' && (me.state === 'dash' || me.state === 'run')) c.hold.add(fwd);
+      if (prev === 'dash' && (me.isMoving())) c.hold.add(fwd);
       if (prev === 'jump' && (me.state === 'prejump' || me.state === 'air')) c.hold.add(fwd);
 
       if (!step) {
@@ -345,7 +345,7 @@
         return;
       }
       if (plan.i === 0) {
-        if (me.isNeutral() || me.state === 'run') {
+        if (me.isNeutral() || me.state === 'run' || me.state === 'sprint') {
           if (step[0] === 'd' && step !== 'dash') c.hold.add('down');
           this.doStep(step, fwd);
           plan.i++;
@@ -353,7 +353,7 @@
         return;
       }
       if (prev === 'dash') {
-        if (me.state === 'dash' || me.state === 'run') {
+        if (me.isMoving()) {
           if (dist < 330 || me.st > 10) { this.doStep(step, fwd); plan.i++; }
         } else if (me.isNeutral()) this.plan.i = plan.steps.length;
         return;

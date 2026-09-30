@@ -5,8 +5,8 @@ const fs = require('fs');
   const { browser, page, errors } = await openGame();
   const data = await page.evaluate(() => {
     const g = SA.game;
-    const moves = ['jab', 'jab2', 'heavy', 'finisher', 'kick', 'spinKick', 'lowKick', 'crouchJab', 'uppercut', 'dashPunch', 'slideKick', 'airPunch', 'flyingKick'];
-    const extra = ['idle', 'walk', 'crouch', 'block', 'hitHigh', 'hitBody', 'launched', 'down', 'getup', 'victory', 'defeat', 'stagger', 'evade'];
+    const moves = ['jab', 'jab2', 'heavy', 'finisher', 'kick', 'spinKick', 'lowKick', 'crouchJab', 'uppercut', 'dashPunch', 'slideKick', 'airPunch', 'flyingKick', 'sweep', 'lunge', 'backCounter', 'runStrike'];
+    const extra = ['idle', 'walk', 'run', 'sprint', 'crouch', 'block', 'hitHigh', 'hitBody', 'launched', 'down', 'getup', 'victory', 'defeat', 'stagger', 'evade', 'roll'];
     const cols = 6, cw = 300, ch = 330;
     const sheet = SA.makeCanvas(cols * cw, (moves.length + 3) * ch);
     const sc = sheet.getContext('2d');
@@ -43,9 +43,9 @@ const fs = require('fs');
       f.reset(0, 1); f.cancelMove();
       let state = st;
       if (st.startsWith('hit')) { state = 'hitstun'; f.hitPose = st; f.stun = 12; }
-      f.state = state; f.st = st === 'getup' ? 12 : 30; f.walkDir = 1;
+      f.state = state; f.st = st === 'getup' ? 12 : st === 'roll' ? 7 : 30; f.walkDir = 1;
       if (st === 'launched') { f.grounded = false; f.y = -150; f.airTime = 0.2; }
-      for (let k = 0; k < 40; k++) { if (st === 'getup') f.st = 12; SA.Anim.update(f, 1); }
+      for (let k = 0; k < 40; k++) { if (st === 'getup') f.st = 12; if (st === 'roll') f.st = 7; SA.Anim.update(f, 1); }
       SA.Anim.toWorld(f); f.updateHurtboxes();
       for (let k = 0; k < 30; k++) SA.Render.updateAccessories(f, 1 / 60, g.arena);
       drawCell(r, c, st);

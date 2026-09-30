@@ -46,7 +46,8 @@
 
     integrate(f, dt, game) {
       if (f.state === 'rushed') return;
-      if (!f.grounded) f.vy += SA.GRAVITY * (f.gravMul || 1) * dt;
+      // falling is a bit faster than rising: snappy, weighty jumps
+      if (!f.grounded) f.vy += SA.GRAVITY * (f.vy > 0 ? 1.18 : 1) * dt;
       f.x += f.vx * dt;
       f.y += f.vy * dt;
       if (!f.grounded) {

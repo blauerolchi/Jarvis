@@ -163,7 +163,7 @@
 
   function startAbility(f, target, id, game) {
     const M = MOVES[id];
-    if (!M || !(f.isNeutral() || f.state === 'run') || !f.grounded) return false;
+    if (!M || !(f.isNeutral() || f.state === 'run' || f.state === 'sprint') || !f.grounded) return false;
     const ab = (game.ai2 && game.ai2.me === f ? game.ai2.abilities : []).find((a) => a.id === id) || {};
     f.cancelMove();
     f.setState('bossmove');
