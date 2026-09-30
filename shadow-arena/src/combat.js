@@ -254,7 +254,15 @@
     check(a, b, game, atk) {
       atk = atk || a.activeHit();
       if (!atk || a.hitList.has(b) || !b.canBeHit(a)) return;
-      const hit = hurtRegion(atk.rect, b);
+      let hit = hurtRegion(atk.rect, b);
+      // close-range hitbox (forearm / hilt / shin) only counts in front of a grounded attacker,
+      // so point-blank attacks connect but nothing ever hits behind the fighter
+      if (!hit && atk.near) {
+        const dx = b.x - a.x;
+        const front = !a.grounded || Math.abs(dx) < 12 || Math.sign(dx) === a.facing;
+        // high attacks still go over a crouching opponent at point-blank range
+        if (front && !(atk.data.level === 'high' && b.isCrouching())) hit = hurtRegion(atk.near, b);
+      }
       if (!hit) return;
       a.hitList.add(b);
       const m = atk.data;
@@ -280,7 +288,12 @@
       b.setState('blockstun');
       b.stun = Math.max(4, Math.round((m.blockstun || 10) * (1 - bonus * 0.6)));
       b.vx = dir * m.kb * 0.75;
-      if (Math.abs(b.x) >= SA.WALL - 4) a.vx = -dir * m.kb * 0.6;
+      // both sides slide apart on block (heavier hits push more); in the corner the attacker takes it all
+      if (a.grounded) {
+        const heavy = (m.power || 0.5) >= 0.8;
+        a.vx = -dir * Math.max(m.kb * (heavy ? 0.45 : 0.3), heavy ? 260 : 170);
+        if (Math.abs(b.x) >= SA.WALL - 30) a.vx = -dir * Math.max(m.kb * 0.8, 340);
+      }
       a.moveContact = 'block';
       a.addEnergy(2);
       b.addEnergy(5);
@@ -379,8 +392,8 @@
           b.hitPose = hit.region === 'head' ? 'hitHigh' : hit.region === 'legs' ? 'hitLow' : 'hitBody';
           SA.Anim.lerpPose(b.pose, b.pose, SA.POSES[b.hitPose], 0.6);
         }
-        // pinned against the wall: the attacker gets pushed back instead
-        if (Math.abs(b.x) >= SA.WALL - 4 && Math.sign(b.x) === dir) a.vx = -dir * m.kb * 0.55;
+        // pinned against the wall: the attacker gets pushed back out of the corner instead
+        if (a.grounded && Math.abs(b.x) >= SA.WALL - 30 && Math.sign(b.x) === dir) a.vx = -dir * Math.max(m.kb * 0.8, 340);
       }
 
       a.addEnergy(dmg * 0.11 + 2);

@@ -13,6 +13,8 @@
     low: { res: 0.6, particles: 0.35, weather: 0.3, foreground: false, reflections: false, rays: false, ghosts: false, rims: 1 },
   };
 
+  const FACE_DEADZONE = 14;   // px the opponent must be behind before a fighter turns around
+
   class Game {
     constructor(canvas) {
       this.canvas = canvas;
@@ -555,11 +557,18 @@
       this.flash = Math.max(0, (this.flash || 0) - realDt * 4);
     }
 
+    // Turn to face the opponent once it is clearly behind (deadzone = no left/right flicker when the
+    // two stand on top of each other). Walking / idle turns play a short pivot, never block input.
     updateFacing(f, o) {
       if (!f.grounded) return;
-      if (!(f.isNeutral() || f.state === 'landing' || f.state === 'prejump' || f.state === 'getup')) return;
+      const st = f.state;
+      if (!(f.isNeutral() || st === 'landing' || st === 'prejump' || st === 'getup' || st === 'run')) return;
       const dx = o.x - f.x;
-      if (Math.abs(dx) > 8) f.facing = Math.sign(dx);
+      if (dx * f.facing >= -FACE_DEADZONE) return;
+      f.facing = -f.facing;
+      if (st === 'run') f.setState('walk');
+      f.turnT = 7;
+      if (st === 'walk' || st === 'run' || st === 'idle') SA.FX.dust(this.particles, f.x, 0, 0.45, f.facing);
     }
 
     // ---------- match flow ----------
@@ -844,30 +853,60 @@
       if (this.resultsMenu && m.t > 1.2) this.resultsMenu.draw(ctx, this.ui.t);
     }
 
+    // F2: movement collider (blue), hurtboxes (green), attack hitbox (red, close-range box dashed),
+    // projectiles (yellow), weapon ranges (orange ticks) and the distance readout.
     drawHitboxes(ctx) {
-      for (const f of [this.p1, this.p2]) {
+      const p1 = this.p1, p2 = this.p2;
+      for (const f of [p1, p2]) {
+        const b = f.body;
         ctx.lineWidth = 2;
-        ctx.strokeStyle = f.canBeHit() ? 'rgba(60,255,120,0.9)' : 'rgba(120,120,255,0.8)';
+        ctx.strokeStyle = b.pass ? 'rgba(80,160,255,0.35)' : 'rgba(80,160,255,0.95)';
+        ctx.fillStyle = 'rgba(80,160,255,0.08)';
+        ctx.fillRect(f.x - b.w / 2, f.y - b.h, b.w, b.h);
+        ctx.strokeRect(f.x - b.w / 2, f.y - b.h, b.w, b.h);
+        ctx.strokeStyle = f.canBeHit() ? 'rgba(60,255,120,0.9)' : 'rgba(150,150,150,0.7)';
         for (const k of ['head', 'torso', 'legs']) {
           const r = f.hurt[k];
           ctx.strokeRect(r.x, r.y, r.w, r.h);
         }
-        ctx.strokeStyle = 'rgba(80,160,255,0.6)';
-        ctx.strokeRect(f.x - 35, f.y - 20, 70, 20);
         const h = f.activeHit();
         if (h) {
-          ctx.fillStyle = 'rgba(255,40,40,0.35)';
+          ctx.fillStyle = 'rgba(255,40,40,0.3)';
           ctx.fillRect(h.rect.x, h.rect.y, h.rect.w, h.rect.h);
           ctx.strokeStyle = 'rgba(255,60,60,1)';
           ctx.strokeRect(h.rect.x, h.rect.y, h.rect.w, h.rect.h);
+          if (h.near) {
+            ctx.setLineDash([8, 6]);
+            ctx.strokeRect(h.near.x, h.near.y, h.near.w, h.near.h);
+            ctx.setLineDash([]);
+          }
+        }
+        // facing arrow
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y - b.h - 14); ctx.lineTo(f.x + f.facing * 40, f.y - b.h - 14);
+        ctx.lineTo(f.x + f.facing * 30, f.y - b.h - 22);
+        ctx.stroke();
+        // weapon ranges on the ground: min / optimal / max
+        const R = f.weapon && f.weapon.ranges;
+        if (R) {
+          ctx.strokeStyle = 'rgba(255,160,40,0.8)';
+          for (const [v, hgt] of [[R.min, 10], [R.opt, 22], [R.max, 14]]) {
+            const x = f.x + f.facing * v;
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, -hgt); ctx.stroke();
+          }
         }
       }
-      ctx.strokeStyle = 'rgba(255,200,60,0.9)';
+      ctx.strokeStyle = 'rgba(255,220,60,0.95)';
       for (const p of this.projectiles.pool) {
         if (!p.alive) continue;
         const r = this.projectiles.rect(p);
         ctx.strokeRect(r.x, r.y, r.w, r.h);
       }
+      const d = Math.abs(p2.x - p1.x), minD = SA.Physics.minDistance(p1, p2);
+      const mx = (p1.x + p2.x) / 2;
+      SA.text(ctx, `DIST ${Math.round(d)}  ·  MIN ${Math.round(minD)}  ·  FACING ${p1.facing > 0 ? '→' : '←'} ${p2.facing > 0 ? '→' : '←'}`, mx, 36,
+        { size: 20, weight: 800, spacing: 2, color: d < minD - 1 ? '#ff6060' : '#9fd8ff', align: 'center' });
     }
   }
 

@@ -537,6 +537,56 @@
   for (const id of Object.keys(SPECIAL_ITEMS)) SPECIAL_ITEMS[id].id = id;
   for (const id of Object.keys(COSMETICS)) COSMETICS[id].id = id;
 
+  // ---------- measured reach & weapon ranges ----------
+  // Solves each move's pose at the middle of its active window and measures how far in front of the
+  // fighter's centre the hitbox reaches (plus lunge travel and the target's half torso). The AI and the
+  // shop both use these real numbers instead of guesses.
+  const TARGET_HALF = 26;
+  function measureReach(m, wgeom) {
+    if (!m || !m.hit || !m.keys) return m && m.reach;
+    const A = SA.Anim;
+    const t = m.startup + m.active * 0.5;
+    const pose = A.P();
+    A.sampleKeys(m.keys, t, pose);
+    const S = A.createSkeleton();
+    A.solveLocal(pose, S, 1, wgeom);
+    const h = m.hit;
+    let far;
+    if (h.seg) {
+      const a = S[h.seg === 'B' ? 'handB' : 'handF'], tp = S[h.seg === 'B' ? 'tipB' : 'tip'];
+      far = Math.max(a.x, a.x + (tp.x - a.x) * 1.08) + (h.pad || 18);
+    } else {
+      far = S[h.joint].x + h.ox + h.w / 2;
+    }
+    let lunge = 0;
+    if (m.lunge) {
+      const k = m.friction || 9, dt = Math.max(0, t - m.lunge[0]) / 60;
+      lunge = m.lunge[1] * (1 - Math.exp(-k * dt)) / k;
+    }
+    return Math.round(far + lunge + TARGET_HALF);
+  }
+  function computeRanges() {
+    const contact = SA.Physics ? SA.Physics.BODY_W : 88;
+    for (const id of Object.keys(WEAPONS)) {
+      const w = WEAPONS[id], set = SA.WEAPON_SETS[id];
+      const seen = {};
+      for (const key in set) {
+        const m = SA.MOVES[set[key]];
+        if (m && !seen[m.id]) { seen[m.id] = 1; const r = measureReach(m, w.geom); if (r) m.reach = r; }
+      }
+      const light = SA.MOVES[set.light], heavy = SA.MOVES[set.heavy];
+      const max = Math.max(light.reach, heavy.reach);
+      // long weapons lose leverage up close (they still hit with the shaft / arm, just not ideally)
+      const long = (w.len || 0) >= 150;
+      w.ranges = {
+        min: Math.round(long ? Math.max(contact + 20, light.reach * 0.45) : contact),
+        opt: Math.round(Math.max(contact + 30, light.reach * 0.82)),
+        max: Math.round(max),
+      };
+    }
+  }
+  computeRanges();
+
   // human-readable input sequences of a weapon's named combos, e.g. [['J  J  K', 'FLURRY']]
   const KEY_OF = { light: 'J', heavy: 'K', kick: 'L', lightDown: 'S+J', heavyDown: 'S+K', heavyUp: 'W+K', dashLight: 'I→ J', airLight: 'air J' };
   function comboInputs(wid) {

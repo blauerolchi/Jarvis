@@ -65,6 +65,7 @@
     special: P({ torso: 0.2, head: 0.1, aF1: 0.3, aF2: 2.6, aB1: -0.2, aB2: 2.6, lF1: 0.75, lF2: -1.0, lB1: -0.55, lB2: -0.6 }),
     attention: P({ torso: 0, head: 0, aF1: 0.08, aF2: 0.12, aB1: -0.06, aB2: 0.12, lF1: 0.06, lF2: -0.02, lB1: -0.06, lB2: -0.02 }),
     bow: P({ torso: 0.8, head: 0.5, aF1: 0.35, aF2: 0.15, aB1: 0.25, aB2: 0.15, lF1: 0.05, lF2: -0.04, lB1: -0.08, lB2: -0.04 }),
+    roll: P({ torso: 1.3, head: 0.6, aF1: 1.2, aF2: 2.3, aB1: 1.0, aB2: 2.4, lF1: 2.1, lF2: -2.6, lB1: 1.8, lB2: -2.5 }),
     rushDash: P({ torso: 0.75, head: -0.2, aF1: 1.55, aF2: 0.1, aB1: -0.9, aB2: 0.4, lF1: 1.2, lF2: -1.0, lB1: -0.9, lB2: -0.3 }),
   };
 
@@ -275,6 +276,13 @@
       runPose(f.walkPhase += dt * 16, tmp);
       lerpPose(target, POSES.dash, tmp, 0.35);
       k = 24;
+    } else if (st === 'roll') {
+      // tucked ball rotating around the hip; ground snap keeps it on the floor
+      copyPose(target, POSES.roll);
+      const u = clamp(f.st / 22, 0, 1);
+      target.rot = (f.rollDir || 1) * u * SA.TAU;
+      copyPose(f.pose, target);
+      direct = true;
     } else if (st === 'evade') {
       copyPose(target, POSES.evade);
       k = 26;

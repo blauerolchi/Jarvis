@@ -1,12 +1,52 @@
 'use strict';
-/* Gravity, ground, walls and body separation (push boxes). */
+/*
+ * Gravity, ground, walls and body collision.
+ *
+ * Three separate volumes per fighter:
+ *   body collider  (fighter.body)    – simplified movement volume, keeps the two fighters apart
+ *   hurtboxes      (fighter.hurt)    – head / torso / legs, follow the skeleton, receive hits
+ *   attack hitbox  (activeHit())     – weapon / limb volumes that may reach into the opponent's space
+ *
+ * Body separation is resolved once per tick after both fighters moved:
+ *   overlap = minimumDistance - actualDistance
+ * The correction is split by who is walking into whom (the mover takes most of it), a fighter pinned
+ * at the wall never moves further out, and large overlaps (someone getting up inside the other) are
+ * resolved softly over a few frames so nothing snaps. A fighter whose feet are above the other's
+ * mid-body passes over it (cross-up), rolls pass under/through.
+ */
 (function (SA) {
-  const BODY_WIDTH = 70;
+  const { clamp } = SA.M;
+
+  const BODY_W = 108;         // collider width at scale 1, bulk 1
+  const BODY_H = 250;         // standing collider height
+  const CROUCH_H = 170;
+  const LYING_H = 70;
+  const MAX_STEP = 26;        // max correction per tick for deep overlaps (soft resolve, no snapping)
+  const OTHER_SHARE = 0.12;   // share of the correction the standing fighter takes when only one walks
+
+  // A fighter's movement collider (width/height in world px), cached per state.
+  function bodyOf(f) {
+    const s = f.look.scale, bulk = f.look.bulk || 1;
+    const b = f._body || (f._body = { w: 0, h: 0, pass: false });
+    b.w = BODY_W * s * (0.55 + 0.45 * bulk);
+    const st = f.state;
+    if (st === 'down' || st === 'ko') b.h = LYING_H * s;
+    else if (f.isCrouching() || st === 'roll' || st === 'slide') b.h = CROUCH_H * s;
+    else b.h = BODY_H * s;
+    // states that pass through the other body
+    b.pass = st === 'rushed' || st === 'ko' || (st === 'roll' && f.st < (f.rollThrough || 18)) || !!f.vanished;
+    return b;
+  }
 
   SA.Physics = {
+    BODY_W,
+    bodyOf,
+    minDistance(a, b) { return (bodyOf(a).w + bodyOf(b).w) / 2; },
+    pairSide: 0,
+
     integrate(f, dt, game) {
       if (f.state === 'rushed') return;
-      if (!f.grounded) f.vy += SA.GRAVITY * dt;
+      if (!f.grounded) f.vy += SA.GRAVITY * (f.gravMul || 1) * dt;
       f.x += f.vx * dt;
       f.y += f.vy * dt;
       if (!f.grounded) {
@@ -36,28 +76,54 @@
       }
     },
 
-    // Keeps two fighters from overlapping. Airborne fighters can pass over each other.
+    // Keeps the two bodies from overlapping. Returns the resolved overlap (for debug).
     separate(a, b) {
-      if (a.state === 'rushed' || b.state === 'rushed') return;
-      const lying = (f) => f.state === 'down' || f.state === 'ko';
-      if (lying(a) || lying(b)) return;
-      if (Math.abs(a.y - b.y) > 150) return;
+      const A = bodyOf(a), B = bodyOf(b);
       const dx = b.x - a.x;
+      if (Math.abs(dx) > 2) this.pairSide = Math.sign(dx);
+      if (A.pass || B.pass) return 0;
+      // vertical: whoever's feet are above the other's mid body sails over it
+      if (a.y < b.y - B.h * 0.5 || b.y < a.y - A.h * 0.5) return 0;
+
+      const minD = (A.w + B.w) / 2;
       const ad = Math.abs(dx);
-      const minD = BODY_WIDTH * ((a.look.bulk || 1) + (b.look.bulk || 1)) / 2;
-      if (ad >= minD) return;
-      const dir = ad > 0.01 ? Math.sign(dx) : (a.x < 0 ? 1 : -1);
-      const push = (minD - ad) / 2;
-      a.x -= dir * push;
-      b.x += dir * push;
-      // if one side is pinned by a wall, the other takes the full correction
-      for (const [f, o, s] of [[a, b, -dir], [b, a, dir]]) {
-        if (Math.abs(f.x) > SA.WALL) {
-          const over = Math.abs(f.x) - SA.WALL;
-          f.x = Math.sign(f.x) * SA.WALL;
-          o.x -= s * over;
-        }
+      const overlap = minD - ad;
+      if (overlap <= 0) return 0;
+
+      // direction a -> b. Directly on top of each other: keep the last known sides; a fighter
+      // landing from a jump keeps travelling the way it jumped.
+      let dir;
+      if (ad > 2) dir = Math.sign(dx);
+      else if (!a.grounded && Math.abs(a.vx) > 50) dir = Math.sign(a.vx);
+      else if (!b.grounded && Math.abs(b.vx) > 50) dir = -Math.sign(b.vx);
+      else dir = this.pairSide || (a.x < b.x ? 1 : -1);
+
+      // who is walking into whom
+      const va = Math.max(0, a.vx * dir), vb = Math.max(0, -b.vx * dir);
+      let wa, wb;
+      if (va + vb < 30) { wa = 0.5; wb = 0.5; }
+      else {
+        wa = va / (va + vb);
+        wa = clamp(wa, OTHER_SHARE, 1 - OTHER_SHARE);
+        wb = 1 - wa;
       }
+      const step = Math.min(overlap, MAX_STEP + Math.max(0, overlap - 90) * 0.5);
+      let ca = step * wa, cb = step * wb;
+
+      // wall: a pinned fighter can't be pushed further out; the other takes the rest
+      const aOut = a.x - dir * ca, bOut = b.x + dir * cb;
+      if (Math.abs(aOut) > SA.WALL) { const over = Math.abs(aOut) - SA.WALL; ca -= over; cb += over; }
+      if (Math.abs(bOut) > SA.WALL) { const over = Math.abs(bOut) - SA.WALL; cb -= over; ca += over; }
+      a.x -= dir * ca;
+      b.x += dir * cb;
+      a.x = clamp(a.x, -SA.WALL, SA.WALL);
+      b.x = clamp(b.x, -SA.WALL, SA.WALL);
+
+      // stop pushing into each other: remove the approach component of the velocities
+      // (the walk/dash code re-applies its own speed next tick, so this never feels sticky)
+      if (va > 0) a.vx -= dir * va;
+      if (vb > 0) b.vx += dir * vb;
+      return overlap;
     },
 
     // Invisible camera wall: fighters can't get further apart than the camera can show.

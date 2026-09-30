@@ -19,6 +19,9 @@
   const DASH_SPEED = 1250, RUN_SPEED = 700;
   const DASH_FRAMES = 14, EVADE_FRAMES = 18;
 
+  // combat roll: 26 frames, passes the enemy body for 18, fully invulnerable 2..12, then vulnerable
+  const ROLL = { frames: 26, speed: 980, through: 18, invuln: 12 };
+
   const NEUTRAL = { idle: 1, walk: 1, crouch: 1, block: 1 };
   const STUNNED = { hitstun: 1, launched: 1, stagger: 1, rushed: 1 };
 
@@ -40,6 +43,21 @@
     const keys = SA.MOVES[id].keys;
     return keys[keys.length - 3][1]; // the strike pose
   });
+
+  // root joint of a striking limb (used for the near/close-range hitbox)
+  const PARENT = { handF: 'sh', handB: 'sh', footF: 'hip', footB: 'hip' };
+  function segRect(x0, y0, x1, y1, pad) {
+    return { x: Math.min(x0, x1) - pad, y: Math.min(y0, y1) - pad, w: Math.abs(x1 - x0) + pad * 2, h: Math.abs(y1 - y0) + pad * 2 };
+  }
+  // the close-range box never reaches higher or lower than the attack itself (high attacks still whiff over crouchers)
+  function clipNear(near, rect) {
+    if (!near) return null;
+    const y1 = Math.min(near.y + near.h, rect.y + rect.h + 8);
+    const y0 = Math.max(near.y, rect.y - 8);
+    if (y1 <= y0) return null;
+    near.y = y0; near.h = y1 - y0;
+    return near;
+  }
 
   class Fighter {
     constructor(o) {
@@ -101,6 +119,7 @@
       this.ghosts = []; this.ghostTimer = 0;
       this.trail = [];
       this.fromRun = false;
+      this.turnT = 0; this.rollDir = 1; this.rollThrough = 0;
       if (this.rangedWeapon) this.rangedState = new SA.RangedState(this.rangedWeapon);
       this.startCombo();
       A.copyPose(this.pose, A.STANCE);
@@ -112,6 +131,8 @@
     }
 
     // ---------- queries ----------
+    // movement collider (separate from hurtboxes and attack hitboxes), see SA.Physics
+    get body() { return SA.Physics.bodyOf(this); }
     get phase() {
       const m = this.move;
       if (!m || this.state !== 'attack') return null;
@@ -213,19 +234,22 @@
       if (this.state === 'attack') {
         const m = this.move;
         if (!m || !m.hit || this.phase !== 'active') return null;
-        const h = m.hit, s = this.look.scale;
+        const h = m.hit, s = this.look.scale, S = this.skel;
         if (h.seg) {
-          // weapon hitbox: the blade from 25% to tip (+ a little), padded
-          const a = this.skel[h.seg === 'B' ? 'handB' : 'handF'], t = this.skel[h.seg === 'B' ? 'tipB' : 'tip'];
-          const x0 = a.x + (t.x - a.x) * 0.25, y0 = a.y + (t.y - a.y) * 0.25;
-          const x1 = a.x + (t.x - a.x) * 1.08, y1 = a.y + (t.y - a.y) * 1.08;
+          // weapon hitbox: the blade from the hand to the tip (+ a little), padded.
+          // near hitbox: arm + hilt, so an enemy standing right in front is never inside a dead zone
+          const B = h.seg === 'B';
+          const a = S[B ? 'handB' : 'handF'], t = S[B ? 'tipB' : 'tip'];
           const pad = (h.pad || 18) * s;
-          const rx = Math.min(x0, x1) - pad, ry = Math.min(y0, y1) - pad;
-          return { rect: { x: rx, y: ry, w: Math.abs(x1 - x0) + pad * 2, h: Math.abs(y1 - y0) + pad * 2 }, data: m };
+          const rect = segRect(a.x, a.y, a.x + (t.x - a.x) * 1.08, a.y + (t.y - a.y) * 1.08, pad);
+          return { rect, near: clipNear(segRect(S.sh.x, S.sh.y, a.x + (t.x - a.x) * 0.3, a.y + (t.y - a.y) * 0.3, 24 * s), rect), data: m };
         }
-        const j = this.skel[h.joint];
+        const j = S[h.joint];
         const cx = j.x + h.ox * this.facing * s, cy = j.y + h.oy * s;
-        return { rect: { x: cx - h.w * s / 2, y: cy - h.h * s / 2, w: h.w * s, h: h.h * s }, data: m };
+        const par = PARENT[h.joint];
+        const rect = { x: cx - h.w * s / 2, y: cy - h.h * s / 2, w: h.w * s, h: h.h * s };
+        // near hitbox: the whole striking limb (arm / leg) – a point-blank jab lands on the chest
+        return { rect, near: par ? clipNear(segRect(S[par].x, S[par].y, j.x, j.y, Math.min(h.w, h.h) * 0.45 * s), rect) : null, data: m };
       }
       if (this.state === 'special' && this.sp) return this.specialHit();
       if (this.state === 'bossmove' && this.bm) return SA.Bosses.moveHit(this);
@@ -326,6 +350,16 @@
           }
           break;
 
+        case 'roll': {
+          // tucked roll: passes through the enemy body and under high attacks, short vulnerable end
+          const R = ROLL;
+          const u = clamp(this.st / R.frames, 0, 1);
+          this.vx = this.facing * this.rollDir * R.speed * this.speedMul * (u < 0.7 ? 1 : 1 - (u - 0.7) / 0.3);
+          if (Math.floor(this.st) % 5 === 0 && this.st % 1 < ts) SA.FX.dust(game.particles, this.x, 0, 0.4, -this.facing * this.rollDir);
+          if (this.st >= R.frames) { this.vx *= 0.3; this.toNeutral(); }
+          break;
+        }
+
         case 'evade':
           this.vx = damp(this.vx, 0, 7, dt);
           this.spawnGhost(3);
@@ -400,7 +434,8 @@
       const down = c.held('down'), fwd = this.fwdHeld(), back = this.backHeld();
       if (this.tryAttacks()) return;
       if (c.consume('dash')) {
-        if (fwd) this.startDash(game); else this.startEvade(game);
+        if (down) this.startRoll(game, back ? -1 : 1);
+        else if (fwd) this.startDash(game); else this.startEvade(game);
         return;
       }
       if (c.consume('up')) { this.startPrejump(false); return; }
@@ -482,6 +517,15 @@
       this.vx = this.facing * DASH_SPEED * this.speedMul;
       SA.audio.play('dash');
       SA.FX.dust(game.particles, this.x - this.facing * 20, 0, 0.7, -this.facing);
+    }
+
+    startRoll(game, dir) {
+      this.setState('roll');
+      this.rollDir = dir;
+      this.rollThrough = ROLL.through;
+      this.invuln = ROLL.invuln;
+      SA.audio.play('dash', 0.8);
+      SA.FX.dust(game.particles, this.x, 0, 0.6, -this.facing * dir);
     }
 
     startEvade(game) {
@@ -939,6 +983,7 @@
       } else if (this.trail.length) {
         this.trail.shift();
       }
+      if (this.turnT > 0) this.turnT -= ts;
       for (const g of this.ghosts) g.life -= dt * 3.2;
       while (this.ghosts.length && this.ghosts[0].life <= 0) this.ghosts.shift();
 
