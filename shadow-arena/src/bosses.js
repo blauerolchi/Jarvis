@@ -663,6 +663,7 @@
           if (b.state !== 'hitstun') { bm.grabbed = null; toRecover(f, bm); }
         } else {
           f.vx = damp(f.vx, 0, 6, dt);
+          if ((tg.x - f.x) * f.facing - SA.Physics.minDistance(f, tg) < 10) f.vx = Math.min(0, f.vx * f.facing) * f.facing;
           if (bm.t >= 12) toRecover(f, bm);
         }
         break;
@@ -717,7 +718,9 @@
           SA.audio.play('whoosh_heavy', 0.9);
           SA.FX.slash(game.particles, f.x + f.facing * 90 * s, f.y - 150 * s, f.facing, '#ff8a2a');
         }
-        f.vx = f.facing * 620;
+        // walks forward with the swipes, but never through the victim
+        const gap = (tg.x - f.x) * f.facing - SA.Physics.minDistance(f, tg);
+        f.vx = f.facing * (gap > 30 ? 620 : gap > 0 ? 200 : 0);
         if (bm.t >= 32) toRecover(f, bm);
         break;
       }
