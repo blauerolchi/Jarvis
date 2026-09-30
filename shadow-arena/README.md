@@ -40,13 +40,13 @@ Alle Skripte sind klassische `<script>`-Dateien ohne ES-Module, weil Chrome Modu
 |---|---|
 | **A / D** (oder ← →) | Gehen. **Gedrückt halten** → nach kurzer Zeit Laufen, dann Sprinten |
 | **2× A / D antippen** | Quick Dash nach vorne bzw. Backstep |
-| **W** (oder ↑) | Springen · mit Richtung: weiter Sprung (Leap) |
+| **W** (oder ↑) | Springen · aus dem Lauf / Dash: **Front Flip** · mit Rückwärts: **Backflip** |
 | **S** (oder ↓) | Ducken |
 | **J** | Leichter Angriff |
 | **K** | Schwerer Angriff (mit Richtung: ↑ Aufwärts, ↓ Feger, → Vorstoß) |
 | **L** | Kick |
 | **U** | Blocken (kurz vor dem Treffer antippen = **Parry**) · **S + U** tiefer Block |
-| **I** | Dash (mit →) · Backstep (ohne Richtung / mit ←) · **Combat Roll** (mit ↓) |
+| **I** | Dash (mit →) · Backstep (ohne Richtung) · **Handspring / Flikflak** (mit ←) · **Combat Roll** (mit ↓) · in der Luft: **Air Dash** |
 | **O** | Werfen / Schießen (Fernkampf-Slot) · **P** Nachladen |
 | **SPACE** | Spezialangriff (bei 100 % Energie) |
 | **ESC** | Pause / Trainingsoptionen · **R** Position zurücksetzen (Training) |
@@ -68,20 +68,35 @@ Die Touch-Steuerung erscheint automatisch, sobald der Bildschirm berührt wird (
 
 Jeder Finger wird über seine `pointerId` verfolgt und per `setPointerCapture` festgehalten: Der Stick gehört genau dem Finger, der ihn berührt hat, auch wenn dieser aus dem Stickbereich rutscht. `pointerup`, `pointercancel`, `lostpointercapture`, App-Wechsel oder Fokusverlust setzen alles zurück, nichts bleibt hängen.
 
-### Bewegung & Kontext-Aktionen
+### Bewegung & Akrobatik
 
-| Eingabe | Aktion |
+| Eingabe | Move |
 |---|---|
-| Laufen/Sprinten + J | Running Attack (Flying Knee) |
-| Sprinten + ↓ + Angriff | Slide |
-| Dash + J / K | Dash-Angriff / Dash-Heavy |
+| Laufen/Sprinten + ↓ | **Slide** (tief, unter hohen Angriffen und Projektilen durch) · im Slide: J/L = Slide-Angriff, K = Uppercut, ↑ = Sprung |
+| Laufen / Dash + ↑ | **Front Flip** (Salto nach vorn, ab dem 8. Frame Angriff möglich = rotierender Slash) |
+| ← + ↑ oder Backstep + ↑ | **Backflip** (defensiv, ab der zweiten Hälfte Wurf / Angriff möglich) |
+| ← + Dash | **Handspring / Flikflak** (Hände auf den Boden, schnell zurück, kurz unverwundbar; direkt danach K = Konter) |
+| ↓ + Dash | **Combat Roll** (unter hohen Angriffen, durch den Gegner hindurch) · gegen Ende J / L / K = **Roll-Angriff** |
+| Dash in der Luft | **Air Dash** (einmal pro Sprung, Schwerkraft kurz aus, danach sofort Angriff möglich) |
+| Luft: J · L · K · ↓ + K/L | Aerial Slash · Flying Kick · Hammer Drop (Waffe: schwerer Luftschlag) · **Dive Kick** |
+| Laufen/Sprinten + J · Dash + J / K | Running Attack · Dash-Angriff / Dash-Heavy |
 | Backstep + K | Backstep-Konter (+20 % Schaden) |
-| ↓ + Dash | Combat Roll (rollt durch den Gegner hindurch, kurze Unverwundbarkeit) |
-| ↑ + Richtung | Leap (weiter, flacher Sprung) · in der Luft J / K / L: Aerial Slash, Jump Kick |
-| ↑ / ↓ / → + K | Aufwärts-Heavy (Anti-Air) · Feger (low) · Vorstoß |
-| ↓ + J / L | tiefer Angriff / Low Kick |
+| ↑ / ↓ / → + K | Aufwärts-Heavy (Launcher) · Feger (low) · Vorstoß |
 
-Richtungswechsel beim Laufen erzeugen eine kurze Drehung mit Fußrutscher, Landungen haben Gewicht (Knie federn, Staub), und alle Eingaben werden 150 ms gepuffert (auch Sprung und Dash), Cancel-Fenster erlauben Combos ohne Button-Mashing.
+**Wie sich Bewegung und Kampf verbinden:** Leichte Angriffe lassen sich in jeden anderen Angriff, in Dash und in einen Sprung canceln. Heavies nur nach einem Treffer. Ein Treffer lässt sich sofort in Dash, Roll oder Backstep canceln. Launcher (Uppercut, Spin Kick, Slide Kick) heben den Gegner an, danach geht es per Jump-Cancel in die Luft weiter. Jeder weitere Lufttreffer hebt weniger hoch und lässt schneller fallen (Juggle-Widerstand, keine Infinites). Ein Sprungangriff, der trifft, geht nach der Landung ohne Sperre weiter. Ein verfehlter kostet eine kurze Landung, aus der man nach 3 Frames trotzdem ausweichen kann.
+
+**Eingabepuffer:** Jeder Tastendruck wird 150 ms gespeichert, zusammen mit der Richtung, die in diesem Moment gehalten wurde. Ein Angriff, der kurz vor dem Ende der laufenden Animation gedrückt wird, kommt im nächsten gültigen Cancel-Fenster, und zwar mit der Richtung des Drucks. Ein interner Mobilitätswert verhindert Ausweich-Spam: Wer viele Ausweichbewegungen hintereinander macht, rollt etwas kürzer und erholt sich langsamer, eine sichtbare Stamina-Leiste gibt es nicht.
+
+### Combos (entstehen aus den Systemen, nichts ist gescriptet)
+
+| Combo | Eingaben |
+|---|---|
+| **MUMMY RUSH** | J → J → Dash (→ + I) → K |
+| **DESERT CYCLONE** | L → L (Spin Kick hebt an) → Sprung vorwärts → L |
+| **TOMB BREAKER** | ↓ + L → J (Uppercut) → Sprung → K |
+| **PHARAOH’S WRATH** | Dash → J → J → K (→ SPACE bei voller Energie) |
+| **SCARAB FLOW** | Roll (↓ + I) → J (Roll-Angriff) → Dash → L |
+| **SANDS OF DEATH** | Sprint → ↓ (Slide) → J (Slide Kick hebt an) → Sprung vorwärts → J |
 
 ---
 
@@ -198,6 +213,14 @@ Acht prozedurale ägyptische Arenen mit Himmel, Parallax-Ebenen, Boden, Vordergr
 
 Lokal in `localStorage`, versioniert (aktuell Version 3). Alte Spielstände werden automatisch migriert: alte Arena-IDs werden auf die neuen ägyptischen Arenen umgeschrieben, Coins, Level, Waffen, Loadout und Statistiken bleiben erhalten.
 
+## Flüssige Bewegung: wie es technisch funktioniert
+
+- **Simulation und Darstellung sind getrennt:** Gameplay, Physik und KI laufen in festen 60-Hz-Schritten. Gezeichnet wird mit der Bildrate des Geräts (60 / 90 / 120 / 144 Hz), und jedes Bild zeigt eine Interpolation zwischen den letzten beiden Simulationsschritten: Skelett, Bandagen, Kamera, Projektile und Partikel. Frame-Zeit-Schwankungen werden nicht mehr als Ruckeln sichtbar. Kurze Hänger werden auf maximal 3 Schritte begrenzt.
+- **Root Motion:** Dash, Backstep, Roll, Slide und Air Dash haben eigene Geschwindigkeitskurven (schneller Antritt, kurzer Peak, sauberes Auslaufen), Flips und Handspring sind echte physikalische Sprünge mit passender Körperdrehung.
+- **Animation:** Übergänge werden immer geblendet, nie hart gesetzt. Bei Angriffen führt der Rumpf, die Arme folgen minimal, die Waffe zuletzt. In den aktiven Frames stimmt die Pose exakt mit den Framedaten (Hitbox) überein. Dazu kommen Lean aus Geschwindigkeit und Bremsen, stabilisierter Kopf, Umdrehen über ~7 Frames statt Spiegeln in einem Bild und Gangzyklen nach zurückgelegter Strecke mit Foot-Locking (kein Schlittschuhlaufen). Angriffe aus einem Salto führen die Drehung zu Ende.
+- **Hitstop** friert nur die beiden Kämpfer ein (leicht ~17–33 ms, schwer ~67 ms, Götter bis ~100 ms). Partikel, Blitze und Kamera laufen weiter.
+- **Effekte:** Waffenspuren folgen der echten Klingenbahn, Nachbilder sind kurze Sand-Silhouetten (60–150 ms, höchstens 3).
+
 ## Grafik & Performance
 
 *Settings → GRAPHICS*: AUTO, HIGH, MEDIUM, LOW (interne Auflösung, Partikel, Wetter, Vordergrund, Spiegelungen, Lichtstrahlen, Nachbilder). AUTO senkt die Qualität automatisch bei dauerhaft niedrigen FPS. Partikel und Projektile kommen aus festen Pools, die Simulation läuft mit festen 60 Hz, statische Ebenen werden vorgerendert, Bandagen sind einfache Verlet-Ketten.
@@ -208,7 +231,7 @@ Lokal in `localStorage`, versioniert (aktuell Version 3). Alte Spielstände werd
 
 | Taste / Einstellung | Funktion |
 |---|---|
-| *Settings → DEBUG OVERLAY* | kompaktes Overlay auch auf dem Tablet: FPS, Zustand beider Kämpfer, Distanz, Mindestabstand, aktueller Angriff, KI-Intent |
+| *Settings → DEBUG OVERLAY* | Overlay auch auf dem Tablet: FPS, Frame-Zeit (aktuell / Maximum), Interpolations-Alpha, Zustand, Geschwindigkeit, Boden/Luft und Mobilität beider Kämpfer, aktueller Move mit Phase, Frame x/Startup+Active+Recovery, offenes Cancel-Fenster und Blend-Anteil, Distanz, Hitstop, KI-Intent |
 | **F1** | ausführliches Debug-Overlay (Zustände, Animation, Buffer, Hitstop …) |
 | **F2** | Hitboxen: **blau** Movement Collider, **grün** Hurtbox, **rot** Angriff (gestrichelt: Nah-Hitbox), **gelb** Projektile, **orange** Waffenreichweite, dazu Distanz / Mindestabstand / Blickrichtung |
 | **F3** | KI-Intent und Plan über dem Gegner |
@@ -257,10 +280,13 @@ Die Tests steuern das echte Spiel über Playwright in headless Chromium, Frame f
 
 ```bash
 NODE_PATH=$(npm root -g) node tests/collision.js   # Collider, Trennung, Cross-ups, Nah-Hitbox, Reichweiten
-NODE_PATH=$(npm root -g) node tests/movement.js    # Lauf/Sprint, Dash, Backstep, Roll, Leap, Slide, Buffer
+NODE_PATH=$(npm root -g) node tests/movement.js    # Lauf/Sprint, Dash, Backstep, Roll, Front Flip, Slide, Buffer
 NODE_PATH=$(npm root -g) node tests/touch.js       # echter Multitouch: fester Joystick, Zonen, Reset
 NODE_PATH=$(npm root -g) node tests/ai.js          # Intents, Spacing, Reaktionszeiten, Combos, Ecke
 NODE_PATH=$(npm root -g) node tests/bosses.js      # jede Götter-Fähigkeit trifft und hat einen Konter, Intro, Phasen
+NODE_PATH=$(npm root -g) node tests/smooth.js     # Abnahmetests A–G: keine Posen-/Positionssprünge, Übergänge ohne Idle, Interpolation, Frame-Zeiten
+NODE_PATH=$(npm root -g) node tests/combos.js     # die sechs Bewegungs-Combos mit echten Eingaben
+NODE_PATH=$(npm root -g) node tests/acrosheet.js out.png  # Bildfolge aller Akrobatik-Moves
 NODE_PATH=$(npm root -g) node tests/mechanics.js   # Framedaten, Blockhöhen, Parry, Combos, Specials
 NODE_PATH=$(npm root -g) node tests/expansion.js   # Migration, Shop, Waffen, Projektile, Arena-Run, alle Götter
 NODE_PATH=$(npm root -g) node tests/flow.js        # alle Menüs per Tastatur

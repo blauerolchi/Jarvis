@@ -22,7 +22,7 @@
       damage: 40, hitstun: 15, blockstun: 9, kb: 280, level: 'high',
       hit: { joint: 'handF', w: 64, h: 38, ox: 10, oy: 0 },
       lunge: [1, 260], hitstop: 3, shake: 0.1, sound: 'hit_light', whoosh: 'light', power: 0.35,
-      chain: { light: 'jab2', kick: 'kick', heavy: 'heavy' },
+      chain: { light: 'jab2', kick: 'kick', heavy: 'finisher' },
       keys: [
         [0, S],
         [2, P({ hipX: -3, torso: 0.08, aF1: 0.45, aF2: 2.2 })],
@@ -89,7 +89,8 @@
     },
     spinKick: {
       name: 'Spin Kick', startup: 13, active: 5, recovery: 22,
-      damage: 105, hitstun: 26, blockstun: 14, kb: 820, kbY: -560, knockdown: true, level: 'high',
+      // launches upward (not away): the opponent can be followed into the air (DESERT CYCLONE)
+      damage: 105, hitstun: 26, blockstun: 14, kb: 380, kbY: -1050, knockdown: true, level: 'high',
       hit: { joint: 'footB', w: 92, h: 70, ox: 14, oy: 0 },
       lunge: [4, 380], hitstop: 6, shake: 0.5, zoom: 0.06, sound: 'hit_heavy', whoosh: 'heavy', power: 1,
       spin: [0, 12],
@@ -189,6 +190,7 @@
       damage: 80, hitstun: 22, blockstun: 12, kb: 680, level: 'high', friction: 5,
       hit: { joint: 'handB', w: 84, h: 52, ox: 12, oy: 0 },
       lunge: [0, 980], hitstop: 5, shake: 0.3, zoom: 0.04, sound: 'hit_heavy', whoosh: 'heavy', power: 0.8,
+      chain: { light: 'jab', kick: 'kick' },
       keys: [
         [0, SA.POSES.dash],
         [3, P({ torso: 0.45, aB1: -0.3, aB2: 1.8, aF1: 1.0, aF2: 1.4, lF1: 1.0, lF2: -1.2, lB1: -0.7, lB2: -0.3 })],
@@ -199,7 +201,8 @@
     },
     slideKick: {
       name: 'Slide Kick', startup: 6, active: 12, recovery: 16, crouching: true,
-      damage: 70, hitstun: 22, blockstun: 10, kb: 420, kbY: -380, knockdown: true, level: 'low', friction: 3.2,
+      // sweeps the legs and pops the opponent up: slide attack -> jump -> air slash (SANDS OF DEATH)
+      damage: 70, hitstun: 22, blockstun: 10, kb: 300, kbY: -860, knockdown: true, level: 'low', friction: 3.2,
       hit: { joint: 'footF', w: 96, h: 46, ox: 16, oy: 0 },
       lunge: [0, 1080], hitstop: 4, shake: 0.3, sound: 'hit_kick', whoosh: 'medium', power: 0.7,
       keys: [
@@ -281,6 +284,15 @@
     { seq: ['crouchJab', 'lowKick', 'uppercut'], name: 'ROOT BREAKER' },
     { seq: ['uppercut', 'flyingKick'], name: 'SKY HUNTER' },
     { seq: ['uppercut', 'airPunch'], name: 'SKY HUNTER' },
+    // movement combos: they are not scripted, they come out of the cancel / movement systems
+    { seq: ['jab', 'jab2', 'slideKick'], name: 'MUMMY RUSH' },            // light, light, dash, heavy
+    { seq: ['kick', 'spinKick', 'flyingKick'], name: 'DESERT CYCLONE' },  // kick, kick, jump, air kick
+    { seq: ['lowKick', 'uppercut', 'airSmash'], name: 'TOMB BREAKER' },   // low, uppercut, jump, air heavy
+    { seq: ['dashPunch', 'jab', 'finisher'], name: 'PHARAOH\u2019S WRATH' },  // dash attack, light, heavy (+ special)
+    { seq: ['crouchJab', 'slideKick'], name: 'SCARAB FLOW' },             // roll, roll attack, dash, kick
+    { seq: ['slideKick', 'airPunch'], name: 'SANDS OF DEATH' },           // slide attack, jump, air slash
+    { seq: ['slideKick', 'flyingKick'], name: 'SANDS OF DEATH' },
+    { seq: ['slideKick', 'airSmash'], name: 'SANDS OF DEATH' },
   ];
 
   const { clamp } = SA.M;
