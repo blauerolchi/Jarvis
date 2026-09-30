@@ -14,8 +14,11 @@
 (function (SA) {
   const { clamp } = SA.M;
 
-  const STICK = { x: 270, y: 800, r: 150, knob: 66, dead: 0.2, zoneX: 900, zoneY: 300 };
-  const JUMP_ON = -0.55, JUMP_OFF = -0.35, DOWN_ON = 0.5, SIDE_ON = 0.3;
+  // FIXED joystick: the base never moves, only the knob follows the finger inside the radius.
+  // Response: 0–0.12 deadzone · 0.12–0.5 walk · 0.5–0.85 run · 0.85–1 sprint (see SA.Stick)
+  const STICK = { x: 270, y: 800, r: 150, knob: 66, dead: 0.12, zoneX: 900, zoneY: 300 };
+  const JUMP_ON = -0.55, JUMP_OFF = -0.35, DOWN_ON = 0.5, SIDE_ON = 0.12;
+  SA.Stick = { DEAD: 0.12, WALK: 0.5, RUN: 0.85 };
   const FLICK = 0.78, FLICK_MS = 290;
 
   const BUTTONS = [
@@ -86,14 +89,11 @@
       const b = this.buttonAt(x, y);
       if (b) { this.pressButton(b, id); return true; }
       if (x < STICK.zoneX * k + 120 && y > STICK.zoneY && this.stick.id === null) {
+        // the first finger in the joystick zone owns the stick until it lifts; the base stays put
         const s = this.stick;
         s.id = id;
-        // floating base: start where the thumb lands if it is far from the default spot
-        const baseX = STICK.x * k, baseY = SA.H - (SA.H - STICK.y) * k;
-        if (Math.hypot(x - baseX, y - baseY) > STICK.r * k * 1.1) {
-          s.bx = clamp(x, STICK.r * k * 0.8, STICK.zoneX * k);
-          s.by = clamp(y, SA.H * 0.45, SA.H - STICK.r * k * 0.6);
-        } else { s.bx = baseX; s.by = baseY; }
+        s.bx = STICK.x * k;
+        s.by = SA.H - (SA.H - STICK.y) * k;
         this.owned.set(id, 'stick');
         this.moveStick(x, y);
         return true;
@@ -157,10 +157,14 @@
         s.nx = (dx / (d || 1)) * m;
         s.ny = (dy / (d || 1)) * m;
       }
-      const side = s.nx > SIDE_ON ? 1 : s.nx < -SIDE_ON ? -1 : 0;
+      // raw horizontal deflection decides the direction: movement starts right after the deadzone
+      const hx = dx / R;
+      const side = hx > SIDE_ON ? 1 : hx < -SIDE_ON ? -1 : 0;
       V.delete('left'); V.delete('right');
       if (side > 0) V.add('right'); else if (side < 0) V.add('left');
-      this.input.analogX = side ? clamp((Math.abs(s.nx) - SIDE_ON) / 0.45, 0.45, 1) : 1;
+      // horizontal deflection in raw stick units (0..1): the fighter picks walk / run / sprint from it
+      s.mag = Math.min(1, Math.abs(hx));
+      this.input.analogX = side ? s.mag : 1;
 
       if (s.ny > DOWN_ON) V.add('down'); else V.delete('down');
       if (!s.up && s.ny < JUMP_ON) {
@@ -188,7 +192,7 @@
 
     resetStick() {
       const s = this.stick;
-      s.id = null; s.x = 0; s.y = 0; s.nx = 0; s.ny = 0; s.up = false; s.lastSide = 0;
+      s.id = null; s.x = 0; s.y = 0; s.nx = 0; s.ny = 0; s.mag = 0; s.up = false; s.lastSide = 0;
       const V = this.input.virtual;
       V.delete('left'); V.delete('right'); V.delete('up'); V.delete('down');
       this.input.analogX = 1;
@@ -222,7 +226,7 @@
       ctx.save();
       // joystick
       const s = this.stick;
-      const bx = s.id !== null ? s.bx : STICK.x * k, by = s.id !== null ? s.by : SA.H - (SA.H - STICK.y) * k;
+      const bx = STICK.x * k, by = SA.H - (SA.H - STICK.y) * k;   // fixed base
       const R = STICK.r * k;
       ctx.globalAlpha = s.id !== null ? 0.85 : 0.5;
       ctx.fillStyle = 'rgba(8,6,12,0.35)';
@@ -232,6 +236,11 @@
       ctx.stroke();
       ctx.strokeStyle = 'rgba(255,255,255,0.12)';
       ctx.beginPath(); ctx.arc(bx, by, R * STICK.dead + 4, 0, SA.TAU); ctx.stroke();
+      // sprint ring: pushing past it runs at full speed
+      ctx.setLineDash([6, 10]);
+      ctx.strokeStyle = s.mag >= SA.Stick.RUN ? 'rgba(255,214,140,0.55)' : 'rgba(255,255,255,0.1)';
+      ctx.beginPath(); ctx.arc(bx, by, R * SA.Stick.RUN, 0, SA.TAU); ctx.stroke();
+      ctx.setLineDash([]);
       // direction ticks
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       for (let i = 0; i < 4; i++) {

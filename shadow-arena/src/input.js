@@ -74,6 +74,7 @@
       window.addEventListener('pointermove', (e) => this.onMove(e), opts);
       window.addEventListener('pointerup', (e) => this.onUp(e, false), opts);
       window.addEventListener('pointercancel', (e) => this.onUp(e, true), opts);
+      window.addEventListener('lostpointercapture', (e) => { if (e.pointerType !== 'mouse') this.onUp(e, true); }, opts);
       window.addEventListener('wheel', (e) => { this.mouse.wheel += e.deltaY; }, { passive: true });
       window.addEventListener('contextmenu', (e) => e.preventDefault());
       // iOS/Android browser gestures
@@ -103,6 +104,8 @@
       }
       e.preventDefault();
       this.lastDevice = 'touch';
+      // capture the finger: moves / lifts outside the canvas still reach us (no stuck joystick)
+      try { if (e.target && e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
       if (this.touch && this.touch.down(e.pointerId, p.x, p.y)) return;
       this.pointers.set(e.pointerId, { x: p.x, y: p.y, sx: p.x, sy: p.y, t0: performance.now() });
       this.mouse.x = p.x; this.mouse.y = p.y; this.mouse.moved = true;

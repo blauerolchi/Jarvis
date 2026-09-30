@@ -66,6 +66,43 @@ require('fs').mkdirSync(out, { recursive: true });
   s = await st();
   check('stick right -> walk right', s.virtual === 'right' && s.x > -300, s);
 
+  // --- T5: fixed joystick. The base never moves, the knob stays inside the radius ---
+  const stickInfo = () => page.evaluate(() => { const t = SA.game.touch.stick; return { bx: t.bx, by: t.by, x: Math.round(t.x), y: Math.round(t.y), mag: +(t.mag || 0).toFixed(2), analog: +SA.game.input.analogX.toFixed(2) }; });
+  const base0 = await stickInfo();
+  await move(1, 820, 650);                        // drag far outside the ring
+  await wait(40);
+  const far = await stickInfo();
+  await move(1, 270 + 150 * 0.3, 800);            // 30 % deflection -> walk
+  await wait(30);
+  const walk = await stickInfo();
+  await move(1, 270 + 150 * 0.7, 800);            // 70 % -> run
+  await wait(30);
+  const run = await stickInfo();
+  await move(1, 270 + 150 * 0.95, 800);           // 95 % -> sprint
+  await wait(30);
+  const sprint = await stickInfo();
+  await move(1, 270 + 150 * 0.08, 800);           // inside the deadzone -> nothing
+  await wait(30);
+  const dead = await stickInfo();
+  const deadV = await page.evaluate(() => [...SA.game.input.virtual].join(','));
+  await up(1);
+  await wait(30);
+  // finger lands away from the base inside the zone: base still at its default spot
+  await down(1, 600, 900);
+  await wait(30);
+  const away = await stickInfo();
+  const r0 = Math.hypot(far.x, far.y);
+  check('T5 joystick base fixed, knob clamped to radius', far.bx === base0.bx && far.by === base0.by && away.bx === base0.bx && away.by === base0.by && r0 <= 151, { base0, far, away });
+  check('joystick zones: deadzone / walk / run / sprint', deadV === '' && walk.mag > 0.12 && walk.mag < 0.5 && run.mag >= 0.5 && run.mag < 0.85 && sprint.mag >= 0.85,
+    { dead, deadV, walk, run, sprint });
+  await up(1);
+  await wait(30);
+  const released = await page.evaluate(() => { const t = SA.game.touch.stick; return { id: t.id, x: t.x, y: t.y, v: [...SA.game.input.virtual].join(',') }; });
+  check('joystick resets on lift', released.id === null && released.x === 0 && released.y === 0 && released.v === '', released);
+  await down(1, 270, 800);
+  await move(1, 400, 800);
+  await wait(200);
+
   // --- stick right held + PUNCH simultaneously (second finger) ---
   await down(2, 1702, 858);
   await wait(50);
