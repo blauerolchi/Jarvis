@@ -89,7 +89,7 @@
     const b = BOSSES[id];
     const great = stage % SA.BALANCE.arena.greatBossEvery === 0;
     const sc = SA.EnemyGen.statScale(effStage);
-    const params = SA.EnemyGen.aiParams(effStage);
+    const params = SA.EnemyGen.aiParams(effStage, 'boss');
     if (b.parry) params.parry = Math.min(0.5, params.parry + b.parry);
     const look = {
       body: '#040306', back: '#17121c', accent: b.accent, trail: b.accent, spark: SA.M.shade(b.accent, 0.4),

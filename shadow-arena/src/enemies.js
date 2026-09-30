@@ -12,87 +12,141 @@
   const band = (color, n) => ({ anchor: 'head', color, windMul: 1, rope: [{ n: n || 7, seg: 11, w0: 7, w1: 2, at: [-17, -5] }, { n: (n || 7) - 1, seg: 10, w0: 6, w1: 2, at: [-17, 0] }] });
   const tail = () => ({ anchor: 'head', windMul: 1.2, rope: [{ n: 9, seg: 13, w0: 12, w1: 4, at: [-12, -16] }] });
   const coat = () => ({ anchor: 'hip', windMul: 0.6, rope: [{ n: 6, seg: 14, w0: 18, w1: 10, at: [-14, -12] }, { n: 6, seg: 13, w0: 16, w1: 8, at: [-6, -10] }] });
+  // loose bandage ends (mummy wraps) hanging from arms / hips
+  const wraps = (color, n) => ({ anchor: 'hip', color, windMul: 1.1, front: false,
+    rope: [{ n: n || 4, seg: 11, w0: 7, w1: 3, at: [-12, -60] }, { n: (n || 4) + 1, seg: 12, w0: 8, w1: 3, at: [6, -4] }] });
   const cape = (n) => ({ anchor: 'neck', windMul: 0.7, rope: [{ n: n || 8, seg: 16, w0: 26, w1: 14, at: [-10, 6] }, { n: (n || 8) - 1, seg: 15, w0: 22, w1: 10, at: [-2, 8] }] });
 
-  // weapons: [fromStage, weaponId]; ranged likewise. ai: personality profile for EnemyAI.
+  // Egyptian underworld roster. weapons: [fromStage, weaponId]; ranged likewise.
+  // from: first stage the archetype appears, weight: how common it is once unlocked (newer types are
+  // favoured for a while so the ladder keeps introducing new opponents).
+  // ai: behaviour profile — intents (strategy weights), mobility (which moves it uses), rangeBias
+  // (px added to the weapon's optimal range), combos (real sequences, see enemy.js).
   const ARCHETYPES = {
-    brawler: {
-      label: 'BRAWLER', nouns: ['Brawler', 'Bruiser', 'Pit Fighter', 'Iron Fist'], traits: ['Heavy Hitter', 'Tough'],
-      hp: 1.25, dmg: 1.12, speed: 0.92, scale: 1.05, bulk: 1.18,
-      weapons: [[1, 'fists'], [14, 'war_hammer'], [30, 'great_sword']], ranged: [],
-      acc: () => [{ type: 'topknot' }, sash('#0c0a0c', 6)],
-      ai: { aggression: 0.72, range: 215, blockMul: 1, dodgeMul: 0.5, jumpiness: 0.08,
-        weights: { jab: 2, kick: 1.6, heavy: 3, lowKick: 1, dashPunch: 1.4, slideKick: 0.5, jumpIn: 0.3, combo: 3, over: 0.8 } },
+    tomb_guard: {
+      label: 'TOMB GUARD', nouns: ['Tomb Guard', 'Grave Warden', 'Crypt Sentinel', 'Gate Keeper'], traits: ['Spear + Shield', 'Defensive'],
+      hp: 1.1, dmg: 0.95, speed: 0.92, scale: 1.02, bulk: 1.08, armor: 0.06, from: 1, weight: 1,
+      weapons: [[1, 'spear'], [18, 'frost_spear']], ranged: [],
+      look: { kind: 'undead', skin: '#2a2622', wrap: '#6d6152', metal: '#7d6a45', eye: '#6fe8d8' },
+      acc: (c) => [{ type: 'shield', color: '#5c4a2c', rim: '#c9a55a' }, { type: 'nemes', color: '#3b3226', stripe: '#8a7650' }, SA.EnemyGen.wraps(c, 3)],
+      ai: { aggression: 0.5, blockMul: 1.4, dodgeMul: 0.5, rangeBias: 40,
+        intents: { pressure: 0.6, keepDistance: 1.8, bait: 0.5, defend: 1.4, combo: 0.6, reposition: 1 },
+        mobility: { dash: 0.15, backstep: 0.55, roll: 0.05, jump: 0.05, slide: 0.05, run: 0.3 },
+        combos: [['light', 'light'], ['fheavy'], ['guard', 'light', 'heavy'], ['dlight', 'uheavy'], ['kick', 'light']],
+        weights: { jab: 3, kick: 1.2, heavy: 1.4, lowKick: 1, over: 0.8 } },
     },
-    assassin: {
-      label: 'ASSASSIN', nouns: ['Assassin', 'Knife Dancer', 'Cutthroat', 'Night Blade'], traits: ['Fast', 'Dash Combos'],
-      hp: 0.82, dmg: 0.95, speed: 1.14, scale: 0.97, bulk: 0.94,
-      weapons: [[1, 'fists'], [6, 'dual_blades'], [27, 'shadow_blades']], ranged: [[12, 'throwing_knife']],
-      acc: (c) => [band(c, 9)],
-      ai: { aggression: 0.86, range: 190, blockMul: 0.7, dodgeMul: 1.8, jumpiness: 0.22,
-        weights: { jab: 3, kick: 1.2, heavy: 0.8, lowKick: 1.4, dashPunch: 2.6, slideKick: 1.6, jumpIn: 1, combo: 4, over: 0.4 } },
+    desert_bandit: {
+      label: 'DESERT BANDIT', nouns: ['Desert Bandit', 'Dune Raider', 'Sand Thief', 'Caravan Cutthroat'], traits: ['Dual Blades', 'Fast'],
+      hp: 0.9, dmg: 0.95, speed: 1.1, scale: 0.98, bulk: 0.95, from: 4, weight: 1,
+      weapons: [[1, 'dual_blades'], [27, 'shadow_blades']], ranged: [[9, 'throwing_knife']],
+      look: { kind: 'human', skin: '#3a2618', wrap: '#b58e5a', metal: '#b0a27a', eye: '#ffcf6a' },
+      acc: (c) => [{ type: 'turban', color: '#c9a36a', tail: true }, SA.EnemyGen.sash('#6a2a1a', 6)],
+      ai: { aggression: 0.8, blockMul: 0.7, dodgeMul: 1.3, rangeBias: -40,
+        intents: { pressure: 1.4, keepDistance: 0.2, bait: 0.4, defend: 0.4, combo: 1.4, reposition: 1 },
+        mobility: { dash: 0.8, backstep: 0.5, roll: 0.5, jump: 0.4, slide: 0.6, run: 0.9 },
+        combos: [['light', 'light', 'dash', 'kick'], ['light', 'light', 'light', 'light'], ['dash', 'light', 'light'], ['dkick', 'light'], ['light', 'wait:8', 'fheavy']],
+        weights: { jab: 3, kick: 1.2, heavy: 0.8, lowKick: 1.4, over: 0.4 } },
     },
-    swordsman: {
-      label: 'SWORDSMAN', nouns: ['Swordsman', 'Blade Master', 'Wandering Ronin', 'Duelist'], traits: ['Long Reach', 'Parries'],
-      hp: 1.0, dmg: 1.02, speed: 1, scale: 1.02, bulk: 1.02, parry: 0.1,
-      weapons: [[1, 'wood_staff'], [4, 'katana'], [22, 'flame_katana'], [34, 'shadow_katana']], ranged: [],
-      acc: (c) => [{ type: 'hat' }, sash('#0b090b', 7)],
-      ai: { aggression: 0.62, range: 240, blockMul: 1.2, dodgeMul: 0.8, jumpiness: 0.1,
-        weights: { jab: 3, kick: 1.4, heavy: 1.6, lowKick: 1.2, dashPunch: 1, slideKick: 0.5, jumpIn: 0.5, combo: 3, over: 1.2 } },
+    desert_archer: {
+      label: 'DESERT ARCHER', nouns: ['Desert Archer', 'Dune Hunter', 'Sand Bowman', 'Sun Marksman'], traits: ['Bow', 'Keeps Distance'],
+      hp: 0.85, dmg: 0.95, speed: 1.05, scale: 0.98, bulk: 0.94, from: 6, weight: 0.8,
+      weapons: [[1, 'fists'], [12, 'wood_staff']], ranged: [[1, 'crossbow']],
+      look: { kind: 'human', skin: '#3a2618', wrap: '#a88a5a', metal: '#9a8a60', eye: '#ffe08a' },
+      acc: (c) => [{ type: 'turban', color: '#8a6a3a' }, { type: 'quiver', color: '#4a3220' }],
+      ai: { aggression: 0.45, blockMul: 0.8, dodgeMul: 1.4, rangeBias: 240, keepAway: true, rangedMul: 2.6,
+        intents: { pressure: 0.3, keepDistance: 2, bait: 0.3, defend: 0.6, combo: 0.4, ranged: 2.6, reposition: 1.3 },
+        mobility: { dash: 0.2, backstep: 1, roll: 0.5, jump: 0.35, slide: 0.1, run: 0.6 },
+        combos: [['light', 'kick'], ['back', 'ranged'], ['kick', 'fheavy']],
+        weights: { jab: 2, kick: 1.8, heavy: 0.6, lowKick: 1, over: 0.3 } },
     },
-    tank: {
-      label: 'TANK', nouns: ['Juggernaut', 'Stone Guard', 'Iron Wall', 'Bulwark'], traits: ['Armored', 'Slow'],
-      hp: 1.6, dmg: 1.15, speed: 0.82, scale: 1.1, bulk: 1.32, armor: 0.15, superArmor: 0.5,
-      weapons: [[1, 'fists'], [10, 'great_sword'], [15, 'war_hammer']], ranged: [],
-      acc: () => [{ type: 'helmet' }],
-      ai: { aggression: 0.58, range: 230, blockMul: 1.3, dodgeMul: 0.2, jumpiness: 0.02,
-        weights: { jab: 1.4, kick: 1.2, heavy: 3.2, lowKick: 0.8, dashPunch: 0.8, slideKick: 0.2, jumpIn: 0.1, combo: 2.2, over: 1.4 } },
+    royal_guard: {
+      label: 'ROYAL GUARD', nouns: ['Royal Guard', 'Pharaoh\'s Shield', 'Gilded Sentinel', 'Throne Warden'], traits: ['Gold Armor', 'Strong Guard'],
+      hp: 1.2, dmg: 1, speed: 0.96, scale: 1.04, bulk: 1.1, armor: 0.12, parry: 0.12, from: 7, weight: 0.9,
+      weapons: [[1, 'spear'], [12, 'katana'], [24, 'frost_spear']], ranged: [],
+      look: { kind: 'human', skin: '#2e1e14', wrap: '#1c1a24', metal: '#d8b25a', eye: '#ffe7a0' },
+      acc: (c) => [{ type: 'nemes', color: '#caa24e', stripe: '#1f3f8a' }, { type: 'collar', color: '#d8b25a', gem: '#2f6fd8' }, { type: 'kilt', color: '#e8dcc0' }],
+      ai: { aggression: 0.55, blockMul: 1.6, dodgeMul: 0.6, rangeBias: 10,
+        intents: { pressure: 0.7, keepDistance: 1, bait: 0.6, defend: 1.6, combo: 0.8, reposition: 1 },
+        mobility: { dash: 0.3, backstep: 0.6, roll: 0.15, jump: 0.1, slide: 0.1, run: 0.5 },
+        combos: [['guard', 'light', 'heavy'], ['guard', 'fheavy'], ['light', 'light'], ['kick', 'fheavy'], ['dlight', 'heavy']],
+        weights: { jab: 2.5, kick: 1.4, heavy: 1.6, lowKick: 1.2, over: 1.2 } },
     },
-    ranger: {
-      label: 'RANGER', nouns: ['Ranger', 'Kunai Thrower', 'Wind Hunter', 'Scout'], traits: ['Throwables', 'Keeps Distance'],
-      hp: 0.9, dmg: 0.95, speed: 1.06, scale: 0.98, bulk: 0.96,
-      weapons: [[1, 'wood_staff'], [8, 'spear'], [18, 'frost_spear']], ranged: [[1, 'shuriken'], [6, 'throwing_knife'], [9, 'kunai'], [20, 'boomerang_blade'], [25, 'explosive_kunai']],
-      acc: (c) => [{ type: 'hood' }, tail()],
-      ai: { aggression: 0.5, range: 420, blockMul: 0.9, dodgeMul: 1.3, jumpiness: 0.2, keepAway: true, rangedMul: 2.4, rangedMin: 280,
-        weights: { jab: 2, kick: 1.8, heavy: 1, lowKick: 1.2, dashPunch: 0.6, slideKick: 0.8, jumpIn: 0.6, combo: 2, over: 0.5 } },
+    scarab_warrior: {
+      label: 'SCARAB WARRIOR', nouns: ['Scarab Warrior', 'Beetle Knight', 'Shell Brute', 'Dung Colossus'], traits: ['Beetle Armor', 'Tank'],
+      hp: 1.6, dmg: 1.12, speed: 0.82, scale: 1.12, bulk: 1.35, armor: 0.18, superArmor: 0.55, from: 5, weight: 0.8,
+      weapons: [[1, 'fists'], [10, 'war_hammer'], [28, 'thunder_hammer']], ranged: [],
+      look: { kind: 'beast', skin: '#161a1a', wrap: '#233a36', metal: '#2f6f62', eye: '#7cffd0' },
+      acc: (c) => [{ type: 'scarabShell', color: '#1f3f3a', rim: '#58c8a8' }, { type: 'mandibles', color: '#1a2a28' }],
+      ai: { aggression: 0.62, blockMul: 1.1, dodgeMul: 0.2, rangeBias: 0,
+        intents: { pressure: 1.3, keepDistance: 0.2, bait: 0.2, defend: 0.8, combo: 0.8, reposition: 0.6 },
+        mobility: { dash: 0.15, backstep: 0.1, roll: 0, jump: 0.02, slide: 0, run: 0.35 },
+        combos: [['heavy'], ['light', 'heavy'], ['fheavy'], ['kick', 'heavy'], ['dheavy']],
+        weights: { jab: 1.4, kick: 1.2, heavy: 3.2, lowKick: 0.8, over: 1.4 } },
     },
-    gunner: {
-      label: 'GUNNER', nouns: ['Gunslinger', 'Street Shooter', 'Hired Gun', 'Deadeye'], traits: ['Firearms', 'Weak Up Close'],
-      hp: 0.88, dmg: 0.95, speed: 1.02, scale: 1, bulk: 1, minStage: 12,
-      weapons: [[1, 'fists'], [25, 'electric_baton']], ranged: [[12, 'pistol'], [18, 'revolver'], [22, 'shotgun'], [35, 'energy_pistol']],
-      acc: (c) => [coat()],
-      ai: { aggression: 0.5, range: 480, blockMul: 0.8, dodgeMul: 1.1, jumpiness: 0.08, keepAway: true, rangedMul: 2.2, rangedMin: 320,
-        weights: { jab: 2, kick: 1.5, heavy: 0.8, lowKick: 1, dashPunch: 0.5, slideKick: 0.5, jumpIn: 0.3, combo: 1.6, over: 0.3 } },
+    anubis_acolyte: {
+      label: 'ANUBIS ACOLYTE', nouns: ['Anubis Acolyte', 'Jackal Priest', 'Death Cultist', 'Soul Reaper'], traits: ['Khopesh', 'Aggressive Combos'],
+      hp: 1.0, dmg: 1.05, speed: 1.02, scale: 1.02, bulk: 1.0, from: 8, weight: 1,
+      weapons: [[1, 'katana'], [22, 'flame_katana'], [30, 'shadow_katana']], ranged: [],
+      look: { kind: 'human', skin: '#141014', wrap: '#1a1418', metal: '#c9a24e', eye: '#ffb13a' },
+      acc: (c) => [{ type: 'jackalMask', color: '#0c0a0e', trim: '#c9a24e' }, { type: 'kilt', color: '#2a1d14' }, SA.EnemyGen.sash('#7a1a1a', 5)],
+      ai: { aggression: 0.86, blockMul: 0.9, dodgeMul: 0.9, rangeBias: -10,
+        intents: { pressure: 1.5, keepDistance: 0.3, bait: 0.5, defend: 0.5, combo: 1.6, reposition: 1 },
+        mobility: { dash: 0.6, backstep: 0.45, roll: 0.3, jump: 0.3, slide: 0.3, run: 0.8 },
+        combos: [['light', 'light', 'heavy'], ['light', 'light', 'dash', 'kick'], ['fheavy', 'light'], ['light', 'wait:9', 'heavy'], ['dlight', 'uheavy'], ['light', 'light', 'light']],
+        weights: { jab: 3, kick: 1.4, heavy: 1.6, lowKick: 1.2, over: 1.2 } },
     },
-    monk: {
-      label: 'MONK', nouns: ['Monk', 'Iron Monk', 'Silent Monk', 'Temple Guardian'], traits: ['Fast Combos', 'Dodges'],
-      hp: 0.95, dmg: 0.95, speed: 1.08, scale: 0.98, bulk: 0.98,
-      weapons: [[1, 'fists'], [7, 'bo_staff']], ranged: [],
-      acc: () => [{ type: 'topknot' }, sash('#3a1a10', 6)],
-      ai: { aggression: 0.7, range: 210, blockMul: 1, dodgeMul: 1.7, jumpiness: 0.25,
-        weights: { jab: 3, kick: 3, heavy: 1, lowKick: 2, dashPunch: 1, slideKick: 1, jumpIn: 1.2, combo: 4, over: 0.6 } },
+    jackal_assassin: {
+      label: 'JACKAL ASSASSIN', nouns: ['Jackal Assassin', 'Night Jackal', 'Tomb Stalker', 'Sand Shade'], traits: ['Very Fast', 'Dash Strikes'],
+      hp: 0.82, dmg: 0.98, speed: 1.16, scale: 0.97, bulk: 0.9, from: 11, weight: 1.1,
+      weapons: [[1, 'dual_blades'], [27, 'shadow_blades']], ranged: [[14, 'throwing_knife']],
+      look: { kind: 'beast', skin: '#0c0a0c', wrap: '#1a1418', metal: '#8a7a5a', eye: '#ff4a3a' },
+      acc: (c) => [{ type: 'jackalHead', color: '#0a080a', ears: true }, SA.EnemyGen.band('#2a1a14', 6)],
+      ai: { aggression: 0.92, blockMul: 0.7, dodgeMul: 1.8, rangeBias: -60,
+        intents: { pressure: 1.6, keepDistance: 0.1, bait: 0.8, defend: 0.3, combo: 1.5, reposition: 1.2 },
+        mobility: { dash: 1, backstep: 0.9, roll: 0.75, jump: 0.6, slide: 0.8, run: 1 },
+        combos: [['light', 'light', 'dash', 'kick'], ['dash', 'light', 'light', 'heavy'], ['back', 'dash', 'light'], ['jump', 'kick', 'light'], ['dkick', 'light', 'light']],
+        weights: { jab: 3, kick: 1.3, heavy: 0.8, lowKick: 1.6, over: 0.5 } },
     },
-    berserker: {
-      label: 'BERSERKER', nouns: ['Berserker', 'Blood Rager', 'Wild One', 'Ravager'], traits: ['Rage at Low HP', 'Reckless'],
-      hp: 1.15, dmg: 1.1, speed: 1, scale: 1.06, bulk: 1.15, minStage: 3,
-      weapons: [[1, 'fists'], [10, 'great_sword'], [20, 'scythe']], ranged: [],
-      acc: () => [{ type: 'horns' }, tail()],
-      ai: { aggression: 0.9, range: 220, blockMul: 0.5, dodgeMul: 0.6, jumpiness: 0.15, rage: true,
-        weights: { jab: 2, kick: 1.5, heavy: 2.6, lowKick: 1, dashPunch: 2, slideKick: 1, jumpIn: 0.6, combo: 3.5, over: 1 } },
+    serpent_priest: {
+      label: 'SERPENT PRIEST', nouns: ['Serpent Priest', 'Cobra Mystic', 'Venom Oracle', 'Apep Cultist'], traits: ['Poison Magic', 'Keeps Distance'],
+      hp: 0.88, dmg: 1, speed: 0.98, scale: 1.0, bulk: 0.95, from: 11, weight: 0.9,
+      weapons: [[1, 'wood_staff'], [9, 'bo_staff'], [25, 'electric_baton']], ranged: [[1, 'venom_orb']],
+      look: { kind: 'human', skin: '#1e241a', wrap: '#1f3a2a', metal: '#b89a4a', eye: '#8fff6a' },
+      acc: (c) => [{ type: 'cobraHood', color: '#1d3a26', scale: '#9ad86a' }, { type: 'robe', color: '#16261c' }],
+      ai: { aggression: 0.5, blockMul: 0.9, dodgeMul: 1.3, rangeBias: 140, keepAway: true, rangedMul: 2.2,
+        intents: { pressure: 0.4, keepDistance: 1.8, bait: 0.4, defend: 0.7, combo: 0.5, ranged: 2.3, reposition: 1.2 },
+        mobility: { dash: 0.3, backstep: 0.8, roll: 0.4, jump: 0.2, slide: 0.1, run: 0.6 },
+        combos: [['light', 'kick'], ['back', 'ranged'], ['light', 'fheavy'], ['dlight', 'ranged']],
+        weights: { jab: 2, kick: 1.6, heavy: 1, lowKick: 1, over: 0.8 } },
     },
-    shadow: {
-      label: 'SHADOW', nouns: ['Phantom', 'Umbral Stalker', 'Shade', 'Void Walker'], traits: ['Teleports', 'Dash Strikes'],
-      hp: 0.9, dmg: 1.02, speed: 1.1, scale: 1, bulk: 0.98, minStage: 8,
-      weapons: [[1, 'fists'], [8, 'katana'], [20, 'dual_blades'], [30, 'shadow_katana']], ranged: [[15, 'shuriken']],
-      acc: (c) => [{ type: 'hood' }, cape(7)],
-      abilities: [{ id: 'teleport', cd: 7, min: 260, chance: 0.4 }],
-      ai: { aggression: 0.75, range: 230, blockMul: 0.9, dodgeMul: 1.4, jumpiness: 0.15,
-        weights: { jab: 2.5, kick: 1.5, heavy: 1.4, lowKick: 1.2, dashPunch: 2.2, slideKick: 1, jumpIn: 0.6, combo: 3.5, over: 0.8 } },
+    cursed_mummy: {
+      label: 'CURSED MUMMY', nouns: ['Cursed Mummy', 'Restless Dead', 'Wrapped Horror', 'Hollow Pharaoh'], traits: ['Unpredictable', 'Relentless'],
+      hp: 1.1, dmg: 1.05, speed: 1.0, scale: 1.02, bulk: 1.0, from: 14, weight: 0.9,
+      weapons: [[1, 'fists'], [18, 'scythe']], ranged: [],
+      look: { kind: 'mummy', skin: '#1a1612', wrap: '#8a7a5e', metal: '#6a5a3a', eye: '#9dff5a' },
+      acc: (c) => [SA.EnemyGen.wraps('#8a7a5e', 5)],
+      ai: { aggression: 0.8, blockMul: 0.6, dodgeMul: 1, rangeBias: 0, erratic: true,
+        intents: { pressure: 1.3, keepDistance: 0.5, bait: 0.6, defend: 0.5, combo: 1.2, reposition: 1 },
+        mobility: { dash: 0.5, backstep: 0.5, roll: 0.5, jump: 0.5, slide: 0.4, run: 0.6 },
+        combos: [['light', 'heavy'], ['kick', 'kick'], ['jump', 'kick'], ['dheavy'], ['light', 'wait:14', 'fheavy'], ['roll', 'uheavy'], ['dkick', 'dkick', 'uheavy']],
+        weights: { jab: 2, kick: 2, heavy: 2, lowKick: 1.5, over: 1.2 } },
+    },
+    tomb_executioner: {
+      label: 'TOMB EXECUTIONER', nouns: ['Tomb Executioner', 'Headsman', 'Doom Bearer', 'Gate Breaker'], traits: ['Two-Handed', 'Slow + Heavy'],
+      hp: 1.45, dmg: 1.2, speed: 0.85, scale: 1.15, bulk: 1.25, superArmor: 0.5, from: 16, weight: 0.8,
+      weapons: [[1, 'great_sword'], [26, 'executioner_axe']], ranged: [],
+      look: { kind: 'human', skin: '#1e1612', wrap: '#141014', metal: '#6a5a4a', eye: '#ff6a2a' },
+      acc: (c) => [{ type: 'execHood', color: '#0e0c0e' }, { type: 'kilt', color: '#1c1410' }],
+      ai: { aggression: 0.6, blockMul: 1, dodgeMul: 0.2, rangeBias: 20,
+        intents: { pressure: 1.1, keepDistance: 0.6, bait: 0.5, defend: 0.7, combo: 0.6, reposition: 0.8 },
+        mobility: { dash: 0.2, backstep: 0.1, roll: 0, jump: 0.05, slide: 0, run: 0.4 },
+        combos: [['heavy'], ['fheavy'], ['light', 'heavy'], ['dheavy'], ['uheavy'], ['light', 'wait:12', 'heavy']],
+        weights: { jab: 1.5, kick: 1, heavy: 3, lowKick: 0.8, over: 1.6 } },
     },
   };
 
-  const PREFIX = ['Night', 'Crimson', 'Iron', 'Silent', 'Storm', 'Ash', 'Frost', 'Void', 'Jade', 'Ember', 'Grey', 'Hollow', 'Thorn', 'Blood', 'Moon'];
-  const ACCENTS = ['#ff4a3a', '#ffb347', '#35f0ff', '#7cff6b', '#c07bff', '#ff5dc0', '#5fa8ff', '#ffe066', '#ff7a2a', '#8fe3ff'];
+  const PREFIX = ['Sand', 'Ash', 'Dune', 'Obsidian', 'Gilded', 'Hollow', 'Cursed', 'Night', 'Sun-Burnt', 'Jackal', 'Lapis', 'Bone', 'Ember', 'Silent', 'Moon'];
+  const ACCENTS = ['#e8b64a', '#35d6c6', '#ff8a3a', '#4a7cff', '#9dff5a', '#ff4a3a', '#d8c08a', '#6fe8ff', '#c07bff', '#ffd27a'];
 
   const MODIFIERS = {
     aggressive: { label: 'AGGRESSIVE', apply(d) { d.params.aggression *= 1.25; d.params.think = d.params.think.map((v) => v * 0.75); } },
@@ -103,6 +157,19 @@
     parry_master: { label: 'PARRY MASTER', apply(d) { d.params.parry = Math.min(0.55, d.params.parry + 0.25); d.params.block = Math.min(0.9, d.params.block + 0.1); } },
     shadow_step: { label: 'SHADOW STEP', extreme: true, apply(d) { if (!d.abilities.some((a) => a.id === 'teleport')) d.abilities.push({ id: 'teleport', cd: 6, min: 240, chance: 0.45 }); } },
   };
+
+  // Stage gates: 1–3 only tomb guards, then new types join; a freshly unlocked type is favoured for a while.
+  function pickArchetype(stage, rng) {
+    const ids = Object.keys(ARCHETYPES).filter((k) => stage >= ARCHETYPES[k].from);
+    const w = ids.map((k) => {
+      const a = ARCHETYPES[k];
+      const age = stage - a.from;
+      return a.weight * (age < 6 ? 1.8 : 1);
+    });
+    let r = rng() * w.reduce((x, y) => x + y, 0);
+    for (let i = 0; i < ids.length; i++) { r -= w[i]; if (r <= 0) return ids[i]; }
+    return ids[ids.length - 1];
+  }
 
   function pickGated(list, stage, rng) {
     const ok = list.filter((e) => stage >= e[0]);
@@ -115,15 +182,20 @@
   }
 
   // AI parameters for an (effective) stage — a continuous difficulty curve.
-  function aiParams(s) {
+  // Reaction time depends on the enemy tier (frames at 60 fps): normal 200–400 ms, elite 140–250 ms,
+  // boss 100–220 ms — later stages move toward the fast end. Bosses are hard through their moves,
+  // not through perfect reactions.
+  function aiParams(s, kind) {
     const E = B.enemyScaling;
     const t = B.stageT(s);
     const L = (k, pow) => lerp(E[k][0], E[k][1], pow ? Math.pow(t, pow) : t);
+    const react = E.reactByKind[kind || 'normal'] || E.reactByKind.normal;
     return {
-      label: 'STAGE', react: L('react'), block: L('block'), lowRead: L('lowRead'), parry: L('parry', 1.6), dodge: L('dodge'),
+      label: 'STAGE', react: lerp(react[0], react[1], t), block: L('block'), lowRead: L('lowRead'), parry: L('parry', 1.6), dodge: L('dodge'),
       punish: L('punish'), antiAir: L('antiAir'), comboDepth: Math.floor(L('comboDepth')), comboChance: L('comboChance'),
       think: [L('thinkMin'), L('thinkMax')], aggression: L('aggression'), mistakes: L('mistakes'), spacing: L('spacing'),
       safe: t > 0.5, guard: L('guard'), anticipate: L('anticipate'), special: L('special'), ranged: L('ranged'),
+      quality: L('quality'), mobility: L('mobility'), bait: L('bait'), variety: L('variety'),
     };
   }
 
@@ -153,20 +225,19 @@
     return {
       body: '#050508', back: SA.M.shade('#16161f', (rng() - 0.5) * 0.3), accent, trail: accent, spark: SA.M.shade(accent, 0.4),
       eye: accent, eyeCore: '#ffffff', scale: arch.scale * (0.98 + rng() * 0.05), bulk: arch.bulk, victory: rng() < 0.5 ? 1 : 2,
-      visor: arch === ARCHETYPES.gunner && rng() < 0.6,
+      visor: false,
       accessories: arch.acc(SA.M.shade(accent, -0.2)),
     };
   }
 
-  function generate(stage, difficulty, seed, forceBoss) {
+  function generate(stage, difficulty, seed, forceBoss, forceArch) {
     const rng = SA.M.seeded((seed || 1) * 7919 + stage * 131);
     const kind = forceBoss ? 'boss' : stageKind(stage);
     const effStage = Math.max(1, stage + (B.arena.difficultyOffset[difficulty] || 0) +
       (kind === 'elite' ? B.enemyScaling.eliteStageBonus : kind === 'boss' ? B.enemyScaling.bossStageBonus : 0));
     if (kind === 'boss') return SA.Bosses.generate(stage, effStage, difficulty, rng);
 
-    const pool = Object.keys(ARCHETYPES).filter((k) => stage >= (ARCHETYPES[k].minStage || 1));
-    const archId = pool[Math.floor(rng() * pool.length)];
+    const archId = forceArch && ARCHETYPES[forceArch] ? forceArch : pickArchetype(stage, rng);
     const arch = ARCHETYPES[archId];
     const sc = statScale(effStage);
     const accent = ACCENTS[Math.floor(rng() * ACCENTS.length)];
@@ -183,7 +254,7 @@
       },
       look: makeLook(arch, accent, rng),
       ai: Object.assign({}, arch.ai, { weights: Object.assign({}, arch.ai.weights) }),
-      params: aiParams(effStage),
+      params: aiParams(effStage, kind),
       abilities: (arch.abilities || []).map((a) => Object.assign({}, a)),
       traits: arch.traits.slice(),
       modifiers: [],
@@ -193,7 +264,7 @@
     if (!d.ranged && stage > 15 && rng() < 0.25) d.ranged = stage > 25 ? 'kunai' : 'shuriken';
     const W = SA.WEAPONS[d.weapon];
     if (W && W.special) d.special = W.special;
-    else if (arch === ARCHETYPES.monk || arch === ARCHETYPES.assassin) d.special = 'storm';
+    else if (arch === ARCHETYPES.jackal_assassin || arch === ARCHETYPES.desert_bandit) d.special = 'storm';
 
     // elite modifiers (never several extreme ones early)
     const E = B.elites;
@@ -234,5 +305,5 @@
 
   SA.ARCHETYPES = ARCHETYPES;
   SA.ELITE_MODIFIERS = MODIFIERS;
-  SA.EnemyGen = { generate, createFighter, aiParams, statScale, stageKind, arenaFor, makeLook, cape, band, coat, tail, sash };
+  SA.EnemyGen = { generate, createFighter, aiParams, statScale, stageKind, arenaFor, makeLook, pickArchetype, cape, band, coat, tail, sash, wraps };
 })(window.SA);

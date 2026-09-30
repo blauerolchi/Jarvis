@@ -108,7 +108,14 @@
         wa = clamp(wa, OTHER_SHARE, 1 - OTHER_SHARE);
         wb = 1 - wa;
       }
-      const step = Math.min(overlap, MAX_STEP + Math.max(0, overlap - 90) * 0.5);
+      // nobody stands on a lying fighter: the one on its feet steps off completely, right away
+      const lyingA = a.state === 'down', lyingB = b.state === 'down';
+      if (lyingA !== lyingB) { wa = lyingA ? 0 : 1; wb = 1 - wa; }
+      // soft resolve only for overlaps that already existed last frame (getting up inside someone);
+      // overlap created by this frame's movement (dashes, rushes, landings) is removed completely
+      const prevOverlap = minD - Math.abs((b.prevX === undefined ? b.x : b.prevX) - (a.prevX === undefined ? a.x : a.prevX));
+      const soft = prevOverlap > 2 && lyingA === lyingB;
+      const step = soft ? Math.min(overlap, MAX_STEP + Math.max(0, overlap - 90) * 0.5) : overlap;
       let ca = step * wa, cb = step * wb;
 
       // wall: a pinned fighter can't be pushed further out; the other takes the rest

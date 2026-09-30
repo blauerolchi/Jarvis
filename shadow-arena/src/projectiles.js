@@ -73,11 +73,11 @@
         this.spawn({
           type: pr.type, owner: f, x: hand.x + f.facing * 18, y: hand.y, vx, vy, grav: pr.grav,
           life: pr.life || (pr.returns ? pr.life : 1.4), size: pr.size, spin: pr.type === 'shuriken' ? 30 : pr.type === 'boomerang' ? 22 : 0,
-          explode: pr.explode, returns: pr.returns, sourceId: def.id,
+          explode: pr.explode, returns: pr.returns, sourceId: def.id, color: pr.color,
           data: { id: def.id, damage: Math.round(pr.dmg * (f.damageMul || 1)), hitstun: pr.hitstun || SA.BALANCE.ranged.projectileHitstun,
             blockstun: 10, kb: pr.kb || 150, level: 'mid', hitstop: pr.type === 'bullet' || pr.type === 'bolt' ? 4 : 3,
             shake: pr.type === 'pellet' ? 0.08 : 0.14, sound: pr.type === 'bullet' || pr.type === 'pellet' || pr.type === 'bolt' ? 'hit_bullet' : 'hit_light',
-            power: pr.type === 'bolt' ? 0.7 : 0.4, projectile: true },
+            power: pr.type === 'bolt' ? 0.7 : 0.4, projectile: true, element: def.element || null },
         });
       }
       if (def.kind === 'gun') {

@@ -358,6 +358,10 @@
       proj: { type: 'energy', speed: 2100, dmg: 44, hitstun: 18, kb: 260, size: 22 },
       desc: 'No ammo: cools down between shots instead of reloading.' },
     // enemy / boss only
+    venom_orb: { name: 'Venom Orb', type: 'throwable', kind: 'throw', rarity: 'rare', price: 0, levelRequired: 99, hidden: true,
+      charges: 3, recharge: 1.7, startup: 10, recovery: 14, air: false, element: 'fire', sound: 'energy',
+      proj: { type: 'energy', speed: 1250, dmg: 30, hitstun: 16, kb: 220, size: 24, color: '#8fff6a', poison: true },
+      desc: 'Serpent magic: a slow green orb that poisons on hit.' },
     rocket_pod: { name: 'Rocket Pod', type: 'firearm', kind: 'gun', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
       magazine: 3, reload: 3, startup: 14, recovery: 16, recoil: 60, sound: 'rocket',
       proj: { type: 'rocket', speed: 900, aim: true, grav: 900, dmg: 30, hitstun: 18, kb: 300, size: 24, explode: { r: 170, dmg: 50 } } },

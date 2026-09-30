@@ -24,7 +24,12 @@
       hp: { base: 0.78, perStage: 0.011, max: 3.2 },        // multiplier on archetype HP
       damage: { base: 0.8, perStage: 0.005, max: 1.9 },
       speed: { perStage: 0.0016, max: 0.16 },
-      react: [27, 8],
+      react: [24, 12],             // legacy (FIGHT mode curve); ARENA uses reactByKind
+      reactByKind: { normal: [24, 12], elite: [15, 8.5], boss: [13, 6] },
+      quality: [0.2, 0.95],         // how often the AI takes the best intent instead of a loose pick
+      mobility: [0.4, 1.1],         // dash / roll / backstep / jump-in / slide usage
+      bait: [0.0, 0.75],            // baits and frame traps
+      variety: [0.35, 1],           // avoids repeating the same combo / intent
       block: [0.1, 0.8],
       lowRead: [0.2, 0.85],
       parry: [0, 0.3],

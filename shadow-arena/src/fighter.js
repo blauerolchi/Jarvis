@@ -391,7 +391,13 @@
           const u = clamp(this.st / R.frames, 0, 1);
           this.vx = this.facing * this.rollDir * R.speed * this.speedMul * (u < 0.7 ? 1 : 1 - (u - 0.7) / 0.3);
           if (Math.floor(this.st) % 5 === 0 && this.st % 1 < ts) SA.FX.dust(game.particles, this.x, 0, 0.4, -this.facing * this.rollDir);
-          if (this.st >= R.frames) { this.vx *= 0.3; this.toNeutral(); }
+          // never come out of a roll inside the opponent: keep passing through until clear
+          const o = game.p1 === this ? game.p2 : game.p1;
+          if (o && this.st >= this.rollThrough - 1 && this.st < R.frames + 8 && Math.abs(o.x - this.x) < SA.Physics.minDistance(this, o)) {
+            this.rollThrough = this.st + 2;
+            if (u >= 0.7) this.vx = this.facing * this.rollDir * R.speed * 0.45 * this.speedMul;
+          }
+          if (this.st >= R.frames && this.st >= this.rollThrough) { this.vx *= 0.3; this.toNeutral(); }
           break;
         }
 
