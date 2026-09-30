@@ -274,10 +274,11 @@
 
     block(a, b, m, hit, game) {
       const dir = SA.M.sign(b.x - a.x || a.facing);
-      const chip = Math.round(m.damage * 0.1);
+      const bonus = (b.weapon && b.weapon.blockBonus) || 0;
+      const chip = Math.round(m.damage * 0.1 * (1 - bonus));
       b.hp = Math.max(1, b.hp - chip);
       b.setState('blockstun');
-      b.stun = m.blockstun;
+      b.stun = Math.max(4, Math.round((m.blockstun || 10) * (1 - bonus * 0.6)));
       b.vx = dir * m.kb * 0.75;
       if (Math.abs(b.x) >= SA.WALL - 4) a.vx = -dir * m.kb * 0.6;
       a.moveContact = 'block';
@@ -287,7 +288,9 @@
       b.hitShake = b.hitShakeMax = Math.max(2, (m.hitstop || 3) - 1);
       game.shake(m.shake * 0.4);
       SA.FX.block(game.particles, hit.x, hit.y, dir, m.power || 0.5);
-      SA.audio.play('block', m.power || 0.5);
+      const metal = (a.weapon && a.weapon.geom) || (b.weapon && b.weapon.geom);
+      SA.audio.play(metal ? 'block_metal' : 'block', m.power || 0.5);
+      if (b.isPlayer) SA.Device.vibrate(10);
       game.onBlock(a, b, m);
     },
 
@@ -322,7 +325,7 @@
     // Applies damage + reaction. opts.keepState: scripted special hits keep the victim locked.
     applyHit(a, b, m, hit, game, opts) {
       opts = opts || {};
-      const dir = SA.M.sign(b.x - a.x || a.facing);
+      const dir = opts.dir || SA.M.sign(b.x - a.x || a.facing);
       const counter = b.state === 'attack' && b.phase === 'startup';
       const punish = (b.state === 'attack' && b.phase === 'recovery' && !b.moveContact) ||
         b.state === 'stagger' || b.state === 'landing' || (b.state === 'special' && b.sp && /whiff|blocked/.test(b.sp.phase));
@@ -336,6 +339,8 @@
       else if (hit.region === 'legs') dmg *= 0.92;
       if (counter) dmg *= 1.2;
       if (!opts.noScale) dmg *= comboScale(a.combo.hits);
+      if (b.armor) dmg *= 1 - b.armor;
+      if (b.shieldT > 0) dmg *= 0.3;
       dmg = Math.max(1, Math.round(dmg));
       if (opts.minHp !== undefined) dmg = Math.min(dmg, Math.max(0, b.hp - opts.minHp));
       b.hp = Math.max(0, b.hp - dmg);
@@ -348,6 +353,13 @@
       a.moveContact = 'hit';
 
       const ko = b.hp <= 0;
+      // super armor: wind-ups of heavy attacks (and armored enemies) absorb weaker hits without flinching
+      const armored = !ko && !opts.keepState && b.isArmored && b.isArmored(m);
+      if (armored) {
+        opts.keepState = true;
+        game.label('ARMOR', hit.x, hit.y - 60, '#c9d3e0', b, 0.8);
+        SA.FX.block(game.particles, hit.x, hit.y, dir, 0.4);
+      }
       if (!opts.keepState) {
         b.cancelMove();
         const airborne = !b.grounded || b.state === 'launched';
@@ -373,6 +385,7 @@
 
       a.addEnergy(dmg * 0.11 + 2);
       b.addEnergy(dmg * 0.07);
+      this.applyElement(a, b, m, hit, game);
 
       let stop = (m.hitstop || 3) + (counter ? 2 : 0);
       if (ko) stop = 12;
@@ -385,13 +398,42 @@
       if (counter && (m.power || 0) >= 0.8) game.slowMo(0.45, 0.2);
       if ((m.power || 0) >= 0.8 || ko) game.impactFlash(ko ? 0.35 : 0.12 + (counter ? 0.08 : 0));
       const power = clamp((m.power || 0.5) + (counter ? 0.2 : 0) + (ko ? 0.6 : 0), 0, 1.6);
-      SA.FX.hit(game.particles, hit.x, hit.y, dir, power, a.look.spark || '#ffd08a');
+      SA.FX.hit(game.particles, hit.x, hit.y, dir, power, SA.Combat.sparkColor(a, m));
       SA.audio.play(m.sound || 'hit_light', power);
+      if (a.isPlayer || b.isPlayer) {
+        if (a.isBoss && power >= 0.9) SA.Device.vibrate([25, 20, 35]);
+        else SA.Device.vibrate(power >= 0.8 || ko ? 30 : 15);
+      }
 
       game.onHit(a, b, dmg, m, hit, { counter, punish, ko });
       if (counter) game.label('COUNTER', hit.x, hit.y - 70, '#ff6b5b', a);
       else if (punish) game.label('PUNISH', hit.x, hit.y - 70, '#ffb347', a);
       return dmg;
+    },
+
+    sparkColor(a, m) {
+      const el = m.element || (m.projectile ? null : a.weapon && a.weapon.element);
+      if (el === 'fire') return '#ff8a2a';
+      if (el === 'frost') return '#8fe3ff';
+      if (el === 'shock') return '#9fd0ff';
+      if (el === 'shadow') return '#b58cff';
+      return a.look.spark || '#ffd08a';
+    },
+
+    // Weapon elements: small, fair status effects.
+    applyElement(a, b, m, hit, game) {
+      const W = SA.BALANCE.weapons;
+      const el = m.element;
+      if (m.stunProc || (el === 'shock' && Math.random() < W.elementProc.shock)) {
+        if (b.state === 'hitstun') b.stun += W.shockStun;
+        SA.FX.shock(game.particles, hit.x, hit.y);
+        game.label('STUN', hit.x, hit.y - 110, '#9fd0ff', b, 0.8);
+      }
+      if (el === 'frost' && Math.random() < W.elementProc.frost) {
+        b.slowT = W.frostSlow.seconds;
+        game.label('CHILL', hit.x, hit.y - 110, '#8fe3ff', b, 0.8);
+      }
+      if (el === 'fire') b.burnT = W.burn.seconds;
     },
   };
 })(window.SA);

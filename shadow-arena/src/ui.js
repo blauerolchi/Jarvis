@@ -168,6 +168,70 @@
     }
   }
 
+  // Big touch-friendly cards laid out in a grid (main menu).
+  class CardMenu {
+    constructor(cards, o) {
+      this.cards = cards;
+      this.index = 0;
+      this.o = Object.assign({ x: 120, y: 420, w: 500, h: 104, gapX: 30, gapY: 18 }, o || {});
+      this.rects = [];
+    }
+    rect(c) {
+      const o = this.o;
+      return { x: o.x + c.col * (o.w + o.gapX), y: o.y + c.row * (o.h + o.gapY), w: o.w, h: o.h };
+    }
+    find(col, row) { return this.cards.findIndex((c) => c.col === col && c.row === row); }
+    handle(presses, mouse) {
+      const cur = this.cards[this.index];
+      const go = (i) => { if (i >= 0 && i !== this.index) { this.index = i; SA.audio.play('ui_move'); } };
+      for (const a of presses) {
+        if (a === 'up') go(this.find(cur.col, cur.row - 1));
+        else if (a === 'down') go(this.find(cur.col, cur.row + 1));
+        else if (a === 'left') go(this.find(cur.col - 1, cur.row));
+        else if (a === 'right') go(this.find(cur.col + 1, cur.row));
+        else if (a === 'confirm' || a === 'light' || a === 'special') { SA.audio.play('ui_ok'); this.cards[this.index].action(); return true; }
+      }
+      if (mouse && (mouse.moved || mouse.clicked)) {
+        for (let i = 0; i < this.cards.length; i++) {
+          const r = this.rect(this.cards[i]);
+          if (mouse.x >= r.x && mouse.x <= r.x + r.w && mouse.y >= r.y && mouse.y <= r.y + r.h) {
+            go(i);
+            if (mouse.clicked) { SA.audio.play('ui_ok'); this.cards[i].action(); return true; }
+          }
+        }
+      }
+      return false;
+    }
+    draw(ctx, t) {
+      this.cards.forEach((c, i) => {
+        const r = this.rect(c), sel = i === this.index;
+        const lift = sel ? -4 : 0;
+        ctx.save();
+        skewRect(ctx, r.x, r.y + lift, r.w, r.h, 16);
+        if (sel) {
+          const g = ctx.createLinearGradient(r.x, 0, r.x + r.w, 0);
+          g.addColorStop(0, 'rgba(215,38,61,0.95)');
+          g.addColorStop(1, 'rgba(120,14,30,0.75)');
+          ctx.fillStyle = g;
+        } else ctx.fillStyle = 'rgba(10,6,12,0.66)';
+        ctx.fill();
+        ctx.strokeStyle = sel ? 'rgba(255,220,210,0.8)' : 'rgba(255,255,255,0.14)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = sel ? '#ffffff' : c.accent || ACCENT;
+        ctx.fillRect(r.x + 16, r.y + lift + 18, 5, r.h - 36);
+        ctx.restore();
+        text(ctx, c.label, r.x + 40, r.y + lift + r.h * 0.4, { size: 36, weight: 900, spacing: 7, color: sel ? '#fff' : 'rgba(240,232,224,0.9)' });
+        const sub = typeof c.sub === 'function' ? c.sub() : c.sub;
+        if (sub) text(ctx, sub, r.x + 42, r.y + lift + r.h * 0.74, { size: 17, weight: 600, spacing: 3, color: sel ? 'rgba(255,240,235,0.9)' : 'rgba(255,255,255,0.5)' });
+        if (c.badge) {
+          const b = c.badge();
+          if (b) text(ctx, b, r.x + r.w - 20, r.y + lift + r.h * 0.4, { size: 20, weight: 800, spacing: 2, color: GOLD, align: 'right' });
+        }
+      });
+    }
+  }
+
   class UI {
     constructor(game) {
       this.game = game;
@@ -196,43 +260,52 @@
         g.applySettings();
         SA.Save.save();
       };
+      const P = () => S().progression;
+      const onOff = (key) => ({ value: () => (S().settings[key] ? 'ON' : 'OFF'), left: () => this.toggle(key), right: () => this.toggle(key) });
 
       this.menus = {
-        main: new Menu([
-          { label: 'FIGHT', action: () => this.go('select') },
-          { label: 'TRAINING', action: () => g.startTraining() },
-          { label: 'SETTINGS', action: () => this.go('settings') },
-          { label: 'CONTROLS', action: () => this.go('controls') },
-          { label: 'STATISTICS', action: () => this.go('stats') },
-        ], { x: 170, y: 560, spacing: 74, size: 42, width: 440 }),
+        main: new CardMenu([
+          { label: 'ARENA', col: 0, row: 0, action: () => SA.ArenaMode.start(g),
+            sub: () => (P().bestStage ? `BEST STAGE ${P().bestStage}  ·  ${P().bossKills} BOSSES` : 'ENDLESS STAGES · BOSSES · REWARDS') },
+          { label: 'FIGHT', col: 1, row: 0, action: () => this.go('select'), sub: 'BEST OF 3 · CLASSIC DUELS' },
+          { label: 'SHOP', col: 0, row: 1, action: () => this.go('shop'), sub: 'WEAPONS · RANGED · SPECIALS', badge: () => SA.Save.data.player.coins + ' ¤' },
+          { label: 'LOADOUT', col: 1, row: 1, action: () => this.go('loadout'),
+            sub: () => { const e = SA.Save.equipped; return (SA.WEAPONS[e.primary] || SA.WEAPONS.fists).name.toUpperCase() + (e.ranged ? ' + ' + SA.RANGED[e.ranged].name.toUpperCase() : ''); } },
+          { label: 'TRAINING', col: 0, row: 2, action: () => g.startTraining(), sub: 'PRACTICE · HITBOXES · COMBOS' },
+          { label: 'PROFILE', col: 1, row: 2, action: () => this.go('profile'), sub: () => `LEVEL ${S().player.level}  ·  ${S().statistics.wins} WINS` },
+          { label: 'SETTINGS', col: 0, row: 3, action: () => this.go('settings'), sub: 'AUDIO · GRAPHICS · TOUCH' },
+          { label: 'CONTROLS', col: 1, row: 3, action: () => this.go('controls'), sub: 'KEYBOARD · TOUCH · COMBOS' },
+        ], { x: 120, y: 452, w: 520, h: 104, gapX: 34, gapY: streamGap() }),
 
         settings: new Menu([
-          { label: 'DIFFICULTY', value: () => SA.DIFFICULTY[S().difficulty].label,
-            left: () => { S().difficulty = cycle(diffs, S().difficulty, -1); SA.Save.save(); },
-            right: () => { S().difficulty = cycle(diffs, S().difficulty, 1); SA.Save.save(); } },
-          { label: 'SPECIAL MOVE', value: () => SA.SPECIALS[S().special].name,
-            left: () => this.cycleSpecial(-1), right: () => this.cycleSpecial(1) },
+          { label: 'DIFFICULTY', value: () => SA.DIFFICULTY[P().difficulty].label,
+            left: () => { P().difficulty = cycle(diffs, P().difficulty, -1); SA.Save.save(); },
+            right: () => { P().difficulty = cycle(diffs, P().difficulty, 1); SA.Save.save(); } },
           { label: 'MASTER VOLUME', value: () => pct(S().settings.master), left: () => vol('master', -0.1), right: () => vol('master', 0.1) },
           { label: 'MUSIC VOLUME', value: () => pct(S().settings.music), left: () => vol('music', -0.1), right: () => vol('music', 0.1) },
           { label: 'SFX VOLUME', value: () => pct(S().settings.sfx), left: () => vol('sfx', -0.1), right: () => vol('sfx', 0.1) },
-          { label: 'SCREEN SHAKE', value: () => (S().settings.shake ? 'ON' : 'OFF'),
-            left: () => this.toggle('shake'), right: () => this.toggle('shake') },
-          { label: 'DAMAGE NUMBERS', value: () => (S().settings.damageNumbers ? 'ON' : 'OFF'),
-            left: () => this.toggle('damageNumbers'), right: () => this.toggle('damageNumbers') },
-          { label: 'RENDER QUALITY', value: () => S().settings.quality.toUpperCase(),
-            left: () => this.cycleQuality(-1), right: () => this.cycleQuality(1) },
-          { label: () => (this.confirmReset ? 'PRESS AGAIN TO CONFIRM' : 'RESET PROGRESS'), action: () => {
-            if (this.confirmReset) { SA.Save.resetStats(); this.confirmReset = false; this.toast('PROGRESS RESET'); }
+          { label: 'GRAPHICS', value: () => S().settings.graphics.toUpperCase(), left: () => this.cycleGraphics(-1), right: () => this.cycleGraphics(1) },
+          Object.assign({ label: 'SCREEN SHAKE' }, onOff('shake')),
+          Object.assign({ label: 'DAMAGE NUMBERS' }, onOff('damageNumbers')),
+          Object.assign({ label: 'VIBRATION' }, onOff('vibration')),
+          { label: 'TOUCH CONTROLS', value: () => S().settings.touchControls.toUpperCase(),
+            left: () => { S().settings.touchControls = cycle(['auto', 'on', 'off'], S().settings.touchControls, -1); SA.Save.save(); },
+            right: () => { S().settings.touchControls = cycle(['auto', 'on', 'off'], S().settings.touchControls, 1); SA.Save.save(); } },
+          { label: 'TOUCH BUTTON SIZE', value: () => ({ 0.85: 'SMALL', 1: 'MEDIUM', 1.15: 'LARGE' })[S().settings.touchSize] || 'MEDIUM',
+            left: () => { S().settings.touchSize = cycle([0.85, 1, 1.15], S().settings.touchSize, -1); SA.Save.save(); },
+            right: () => { S().settings.touchSize = cycle([0.85, 1, 1.15], S().settings.touchSize, 1); SA.Save.save(); } },
+          { label: () => (SA.Device.isFullscreen ? 'EXIT FULLSCREEN' : 'FULLSCREEN'), action: () => SA.Device.toggleFullscreen() },
+          { label: () => (this.confirmReset ? 'TAP AGAIN TO ERASE ALL PROGRESS' : 'RESET PROGRESS'), action: () => {
+            if (this.confirmReset) { SA.Save.resetProgress(); this.confirmReset = false; this.toast('PROGRESS RESET'); g.applySettings(); }
             else this.confirmReset = true;
           } },
           { label: 'BACK', action: () => this.go('main') },
-        ], { x: 170, y: 310, spacing: 60, size: 34, width: 900, onBack: () => this.go('main') }),
+        ], { x: 170, y: 290, spacing: 56, size: 32, width: 960, onBack: () => this.go('main') }),
 
         controls: new Menu([{ label: 'BACK', action: () => this.go('main') }],
-          { x: 170, y: 990, spacing: 60, size: 34, width: 260, onBack: () => this.go('main') }),
-        stats: new Menu([{ label: 'BACK', action: () => this.go('main') }],
-          { x: 170, y: 990, spacing: 60, size: 34, width: 260, onBack: () => this.go('main') }),
+          { x: 170, y: 1000, spacing: 60, size: 34, width: 260, onBack: () => this.go('main') }),
       };
+      function streamGap() { return 18; }
     }
 
     toggle(key) {
@@ -242,31 +315,32 @@
       this.game.applySettings();
     }
 
-    cycleQuality(d) {
+    cycleGraphics(d) {
       const q = ['auto', 'high', 'medium', 'low'];
-      const s = SA.Save.data.settings;
-      s.quality = q[(q.indexOf(s.quality) + d + q.length) % q.length];
-      if (s.quality === 'auto') this.game.setRenderScale(1);
+      const st = SA.Save.data.settings;
+      st.graphics = q[(q.indexOf(st.graphics) + d + q.length) % q.length];
       SA.Save.save();
-      this.game.applySettings();
+      this.game.applySettings(true);
     }
 
     cycleSpecial(d) {
-      const S = SA.Save.data;
+      const inv = SA.Save.data.inventory;
       const all = Object.keys(SA.SPECIALS);
-      let i = all.indexOf(S.special);
+      let i = all.indexOf(inv.equipped.special);
       for (let k = 0; k < all.length; k++) {
         i = (i + d + all.length) % all.length;
-        if (S.unlockedSpecials.indexOf(all[i]) >= 0) break;
+        if (SA.Save.owns(all[i])) break;
       }
-      S.special = all[i];
+      inv.equipped.special = all[i];
       SA.Save.save();
     }
 
     go(screen) {
+      if (screen === 'stats') screen = 'profile';
       this.screen = screen;
       this.confirmReset = false;
       if (screen === 'select') this.prepareSelect();
+      if (this['enter_' + screen]) this['enter_' + screen]();
       const m = this.menus[screen];
       if (m) { m.hl = null; }
     }
@@ -277,7 +351,7 @@
 
     // ---------- fight select ----------
     prepareSelect() {
-      const S = SA.Save.data;
+      const S = SA.Save.data.progression;
       this.selArena = Math.max(0, SA.ARENA_ORDER.indexOf(S.lastArena));
       this.selectRow = 3;
       for (const id of SA.ARENA_ORDER) if (!this.thumbs[id]) this.thumbs[id] = this.renderThumb(id);
@@ -317,15 +391,16 @@
     }
 
     selectInput(presses, mouse) {
-      const S = SA.Save.data;
+      const S = SA.Save.data.progression;
       const n = SA.ARENA_ORDER.length;
       const rows = 4;
       const change = (d) => {
         if (this.selectRow === 0) { this.selArena = (this.selArena + d + n) % n; }
+        else if (this.selectRow === 2) this.cycleSpecial(d);
         else if (this.selectRow === 1) {
           const diffs = ['easy', 'normal', 'hard'];
           S.difficulty = diffs[(diffs.indexOf(S.difficulty) + d + 3) % 3];
-        } else if (this.selectRow === 2) this.cycleSpecial(d);
+        }
         SA.audio.play('ui_move');
       };
       const start = () => {
@@ -364,6 +439,11 @@
 
     menuInput(presses, mouse) {
       if (this.screen === 'select') { this.selectInput(presses, mouse); return; }
+      if (this[this.screen + 'Input']) { this[this.screen + 'Input'](presses, mouse); return; }
+      if (this.screen === 'main' && SA.Device.canFullscreen && mouse && mouse.clicked && this.fsRect) {
+        const r = this.fsRect;
+        if (mouse.x >= r.x && mouse.x <= r.x + r.w && mouse.y >= r.y && mouse.y <= r.y + r.h) { SA.Device.toggleFullscreen(); return; }
+      }
       const m = this.menus[this.screen];
       if (m) m.handle(presses, mouse);
     }
@@ -436,9 +516,10 @@
       this.drawBar(ctx, g.p2, 1);
 
       // timer / mode
+      const touch = g.input.touchActive;
       if (g.mode === 'training') {
         text(ctx, 'TRAINING', W / 2, 84, { size: 30, weight: 800, spacing: 8, color: GOLD, align: 'center' });
-        text(ctx, 'ESC  OPTIONS   ·   R  RESET   ·   F2  HITBOXES', W / 2, H - 36, { size: 20, weight: 600, spacing: 3, color: 'rgba(255,255,255,0.55)', align: 'center' });
+        if (!touch) text(ctx, 'ESC  OPTIONS   ·   R  RESET   ·   F2  HITBOXES', W / 2, H - 36, { size: 20, weight: 600, spacing: 3, color: 'rgba(255,255,255,0.55)', align: 'center' });
       } else {
         const tt = Math.max(0, Math.ceil(m.timer));
         const low = tt <= 10 && m.phase === 'fight';
@@ -454,8 +535,8 @@
         ctx.restore();
         const pulse = low ? 1 + 0.08 * Math.max(0, Math.sin(this.t * 10)) : 1;
         text(ctx, String(tt), W / 2, 90, { size: Math.round(56 * pulse), weight: 800, color: low ? '#ff5a4a' : '#ffffff', align: 'center' });
-        // round pips
-        for (let side = 0; side < 2; side++) {
+        // round pips (classic fight only)
+        for (let side = 0; side < 2 && g.mode === 'fight'; side++) {
           for (let i = 0; i < 2; i++) {
             const x = side === 0 ? W / 2 - 110 - i * 34 : W / 2 + 110 + i * 34;
             const won = m.wins[side] > i;
@@ -477,12 +558,13 @@
             }
           }
         }
-        text(ctx, `ROUND ${m.round}`, W / 2, 172, { size: 18, weight: 700, spacing: 6, color: 'rgba(255,255,255,0.55)', align: 'center' });
+        if (g.mode === 'arena') this.drawArenaInfo(ctx);
+        else text(ctx, `ROUND ${m.round}`, W / 2, 172, { size: 18, weight: 700, spacing: 6, color: 'rgba(255,255,255,0.55)', align: 'center' });
       }
 
       this.drawEnergy(ctx, g.p1, 0);
       this.drawEnergy(ctx, g.p2, 1);
-      if (g.mode === 'fight' && m.round === 1 && SA.Save.data.stats.fights < 3 && m.phase !== 'matchEnd') {
+      if (!touch && g.mode === 'fight' && m.round === 1 && SA.Save.data.statistics.fights < 3 && m.phase !== 'matchEnd') {
         const a = clamp(Math.min(m.t / 0.5, (9 - m.t) / 1), 0, 1);
         if (a > 0) text(ctx, 'J  PUNCH   ·   K  HEAVY   ·   L  KICK   ·   U  BLOCK / PARRY   ·   I  DASH   ·   SPACE  SPECIAL', W / 2, H - 118,
           { size: 19, weight: 700, spacing: 3, color: 'rgba(255,255,255,0.7)', align: 'center', alpha: a });
@@ -526,6 +608,13 @@
       ctx.fillRect(fx - skew, y, fillW + skew * 2, bh);
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       ctx.fillRect(fx - skew, y + 3, fillW + skew * 2, 3);
+      if (f.def && f.def.phases) {
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        for (const ph of f.def.phases.slice(1)) {
+          const px = side === 0 ? x + bw * ph.at : x + bw - bw * ph.at;
+          ctx.fillRect(px - 2, y, 4, bh);
+        }
+      }
       ctx.restore();
 
       const nameX = side === 0 ? x + 4 : x + bw - 4;
@@ -540,7 +629,9 @@
     }
 
     drawEnergy(ctx, f, side) {
-      const bw = 520, bh = 16, y = H - 70, skew = 10;
+      // on touch the bottom belongs to the controls: energy moves under the health bars
+      const touch = this.game.input.touchActive;
+      const bw = touch ? 420 : 520, bh = 16, y = touch ? 128 : H - 70, skew = 10;
       const x = side === 0 ? 100 : W - 100 - bw;
       const e = clamp(f.energy / 100, 0, 1);
       const full = e >= 1;
@@ -572,7 +663,7 @@
       const align = side === 0 ? 'left' : 'right';
       const lx = side === 0 ? x : x + bw;
       const special = SA.SPECIALS[f.specialId] ? SA.SPECIALS[f.specialId].name : '';
-      if (full && f.isPlayer) text(ctx, `${special}  READY  ·  SPACE`, lx, y - 20, { size: 19, weight: 800, spacing: 4, color: '#e6d6ff', align });
+      if (full && f.isPlayer) text(ctx, `${special}  READY  ·  ${touch ? 'TAP SPECIAL' : 'SPACE'}`, lx, y - 20, { size: 19, weight: 800, spacing: 4, color: '#e6d6ff', align });
       else text(ctx, `ENERGY  ·  ${special}`, lx, y - 20, { size: 16, weight: 700, spacing: 4, color: 'rgba(230,214,255,0.55)', align });
     }
 
@@ -677,29 +768,35 @@
         ctx.fillRect(0, 0, W, H);
       }
       if (scr === 'main') {
-        this.drawTitle(ctx, 160, 250);
-        text(ctx, 'A SILHOUETTE FIGHTING GAME', 170, 440, { size: 20, weight: 600, spacing: 9, color: 'rgba(255,255,255,0.55)' });
+        this.drawTitle(ctx, 140, 205, 0.86);
+        text(ctx, 'A SILHOUETTE FIGHTING GAME', 150, 375, { size: 18, weight: 600, spacing: 9, color: 'rgba(255,255,255,0.55)' });
         this.menus.main.draw(ctx, t);
-        const st = SA.Save.data.stats;
-        text(ctx, `W ${st.wins}   ·   L ${st.losses}   ·   ${SA.DIFFICULTY[SA.Save.data.difficulty].label}`, 170, H - 60, { size: 18, weight: 600, spacing: 5, color: 'rgba(255,255,255,0.45)' });
-        text(ctx, 'W / S  SELECT    ·    ENTER / J  CONFIRM    ·    ESC  BACK', W - 80, H - 60, { size: 16, weight: 600, spacing: 4, color: 'rgba(255,255,255,0.4)', align: 'right' });
+        const touch = this.game.input.touchActive;
+        text(ctx, touch ? 'TAP A CARD TO START' : 'ARROWS / WASD  SELECT    ·    ENTER / J  CONFIRM    ·    ESC  BACK', 150, H - 36,
+          { size: 15, weight: 600, spacing: 4, color: 'rgba(255,255,255,0.4)' });
+        if (SA.Device.canFullscreen) {
+          const r = this.fsRect = { x: W - 330, y: H - 110, w: 250, h: 70 };
+          ctx.save();
+          skewRect(ctx, r.x, r.y, r.w, r.h, 12);
+          ctx.fillStyle = 'rgba(10,6,12,0.7)'; ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+          ctx.restore();
+          text(ctx, SA.Device.isFullscreen ? 'EXIT FULLSCREEN' : 'FULLSCREEN', r.x + r.w / 2 + 6, r.y + r.h / 2, { size: 19, weight: 800, spacing: 3, color: '#fff', align: 'center' });
+        }
       } else if (scr === 'settings') {
         this.header(ctx, 'SETTINGS');
         this.menus.settings.draw(ctx, t);
-        const sp = SA.SPECIALS[SA.Save.data.special];
-        text(ctx, sp.desc, 170, 950, { size: 20, weight: 500, spacing: 2, color: 'rgba(255,255,255,0.5)' });
-        text(ctx, `Unlocked specials: ${SA.Save.data.unlockedSpecials.length} / ${Object.keys(SA.SPECIALS).length}`, 170, 985, { size: 18, weight: 500, spacing: 2, color: 'rgba(255,255,255,0.4)' });
+        text(ctx, 'GRAPHICS: HIGH = all effects · MEDIUM = fewer particles · LOW = best for older tablets. Combat speed never changes.', 170, 1040, { size: 17, weight: 500, spacing: 1, color: 'rgba(255,255,255,0.45)' });
       } else if (scr === 'controls') {
         this.header(ctx, 'CONTROLS');
         this.drawControls(ctx, 170, 300);
         this.menus.controls.draw(ctx, t);
-      } else if (scr === 'stats') {
-        this.header(ctx, 'STATISTICS');
-        this.drawStats(ctx);
-        this.menus.stats.draw(ctx, t);
       } else if (scr === 'select') {
         this.drawSelect(ctx);
+      } else if (this['draw_' + scr]) {
+        this['draw_' + scr](ctx);
       }
+      if (scr !== 'select') this.drawPlayerChip(ctx);
       this.drawNotices(ctx);
     }
 
@@ -709,114 +806,90 @@
       ctx.fillRect(172, 240, 110, 4);
     }
 
-    drawControls(ctx, x, y) {
+    drawControls(ctx, x, y, weaponId) {
       const rows = [
         ['A / D', 'Move (← →)'], ['W', 'Jump (+ direction)'], ['S', 'Crouch'],
-        ['J', 'Light punch'], ['K', 'Heavy punch'], ['L', 'Kick'],
+        ['J', 'Light attack'], ['K', 'Heavy attack'], ['L', 'Kick'],
         ['U', 'Block  (tap right before a hit = PARRY)'], ['S + U', 'Low block'],
-        ['I', 'Dash forward (with →) · Evade back'], ['SPACE', 'Special attack (full energy)'],
-        ['ESC', 'Pause'],
+        ['I', 'Dash forward (with →) · Evade back'], ['O', 'Throw / Shoot (ranged slot)'],
+        ['P', 'Reload (firearms)'], ['SPACE', 'Special attack (full energy)'], ['ESC', 'Pause'],
       ];
       rows.forEach(([k, d], i) => {
-        const yy = y + i * 50;
+        const yy = y + i * 44;
         ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        skewRect(ctx, x, yy - 19, 140, 38, 8);
+        skewRect(ctx, x, yy - 17, 140, 34, 8);
         ctx.fill();
-        text(ctx, k, x + 74, yy, { size: 20, weight: 800, spacing: 3, color: GOLD, align: 'center' });
-        text(ctx, d, x + 170, yy, { size: 22, weight: 600, spacing: 1, color: 'rgba(255,255,255,0.85)' });
+        text(ctx, k, x + 74, yy, { size: 19, weight: 800, spacing: 3, color: GOLD, align: 'center' });
+        text(ctx, d, x + 170, yy, { size: 21, weight: 600, spacing: 1, color: 'rgba(255,255,255,0.85)' });
       });
       const cx = x + 870;
-      text(ctx, 'SPECIAL INPUTS', cx, y, { size: 22, weight: 800, spacing: 6, color: '#ff5d6c' });
+      text(ctx, 'CONTEXT ACTIONS', cx, y, { size: 22, weight: 800, spacing: 6, color: '#ff5d6c' });
       const moves = [
-        ['S + J', 'Crouch punch'], ['S + K', 'Uppercut (anti-air, launches)'], ['S + L', 'Low kick (block low!)'],
-        ['W then J / L', 'Air punch / Flying kick (overhead)'], ['I→ then J', 'Dash punch'], ['I→ then K / L', 'Slide kick (low, knockdown)'],
+        ['S + J / L', 'Low attack (block low!)'], ['S + K', 'Launcher / uppercut (anti-air)'],
+        ['W + K', 'Overhead / rising heavy'], ['in air + J / K', 'Jump attack (overhead)'],
+        ['I→ then J / K', 'Dash attack'], ['in air + O', 'Air throw'],
       ];
       moves.forEach(([k, d], i) => {
-        text(ctx, k, cx, y + 44 + i * 40, { size: 20, weight: 800, spacing: 2, color: GOLD });
-        text(ctx, d, cx + 190, y + 44 + i * 40, { size: 20, weight: 500, color: 'rgba(255,255,255,0.8)' });
+        text(ctx, k, cx, y + 42 + i * 38, { size: 19, weight: 800, spacing: 2, color: GOLD });
+        text(ctx, d, cx + 200, y + 42 + i * 38, { size: 19, weight: 500, color: 'rgba(255,255,255,0.8)' });
       });
-      text(ctx, 'COMBOS', cx, y + 320, { size: 22, weight: 800, spacing: 6, color: '#ff5d6c' });
-      const combos = [
+      const wCombos = weaponId && SA.Items.comboInputs(weaponId);
+      text(ctx, wCombos ? SA.Items.get(weaponId).name.toUpperCase() + ' COMBOS' : 'FIST COMBOS', cx, y + 300, { size: 22, weight: 800, spacing: 6, color: '#ff5d6c' });
+      const combos = wCombos || [
         ['J  J  K', 'Twin Dragon Palm'], ['J  L  L', 'Crescent Chain'], ['S+L  J', 'Rising Dragon'],
-        ['S+J  L  J', 'Root Breaker'], ['S+K  W  L', 'Sky Hunter (juggle)'],
+        ['S+K  W  L', 'Sky Hunter (juggle)'],
       ];
       combos.forEach(([k, d], i) => {
-        text(ctx, k, cx, y + 364 + i * 40, { size: 20, weight: 800, spacing: 2, color: GOLD });
-        text(ctx, d, cx + 190, y + 364 + i * 40, { size: 20, weight: 500, color: 'rgba(255,255,255,0.8)' });
+        text(ctx, k, cx, y + 342 + i * 38, { size: 19, weight: 800, spacing: 2, color: GOLD });
+        text(ctx, d, cx + 200, y + 342 + i * 38, { size: 19, weight: 500, color: 'rgba(255,255,255,0.8)' });
       });
-      text(ctx, 'DEBUG  ·  F1 overlay   F2 hitboxes   F3 AI state   F4 FPS', x, y + 600, { size: 18, weight: 600, spacing: 3, color: 'rgba(255,255,255,0.45)' });
-    }
-
-    drawStats(ctx) {
-      const s = SA.Save.data.stats, S = SA.Save.data;
-      const rate = s.fights ? Math.round((s.wins / s.fights) * 100) + '%' : '-';
-      const rows = [
-        ['FIGHTS', s.fights], ['VICTORIES', s.wins], ['DEFEATS', s.losses], ['WIN RATE', rate],
-        ['ROUNDS WON', s.roundsWon], ['K.O.s', s.kos], ['PERFECT ROUNDS', s.perfects], ['PARRIES', s.parries],
-        ['HIGHEST COMBO', s.maxCombo + ' HITS'], ['BIGGEST COMBO DAMAGE', s.maxDamage], ['SPECIALS LANDED', s.specialsLanded],
-        ['TOTAL DAMAGE DEALT', s.totalDamage],
-      ];
-      rows.forEach(([k, v], i) => {
-        const col = i % 2, row = Math.floor(i / 2);
-        const x = 170 + col * 760, y = 320 + row * 78;
-        text(ctx, k, x, y, { size: 20, weight: 700, spacing: 5, color: 'rgba(255,255,255,0.55)' });
-        text(ctx, String(v), x + 640, y, { size: 36, weight: 800, color: '#f4ede4', align: 'right' });
-        ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        ctx.fillRect(x, y + 28, 640, 2);
-      });
-      const arenas = SA.ARENA_ORDER.map((id) => (S.unlockedArenas.indexOf(id) >= 0 ? SA.ARENAS[id].name : 'LOCKED')).join('   ·   ');
-      text(ctx, 'ARENAS  ' + arenas, 170, 820, { size: 18, weight: 600, spacing: 3, color: 'rgba(255,255,255,0.45)' });
-      const sp = Object.keys(SA.SPECIALS).map((id) => (S.unlockedSpecials.indexOf(id) >= 0 ? SA.SPECIALS[id].name : 'LOCKED')).join('   ·   ');
-      text(ctx, 'SPECIALS  ' + sp, 170, 856, { size: 18, weight: 600, spacing: 3, color: 'rgba(255,255,255,0.45)' });
+      text(ctx, 'Every weapon has its own chains — see MOVE LIST in the pause menu.', cx, y + 506, { size: 17, weight: 500, color: 'rgba(255,255,255,0.55)' });
+      text(ctx, 'TOUCH  ·  left stick: move · up = jump · down = crouch · flick twice = dash  ·  right: buttons (hold BLOCK)', x, y + 610, { size: 18, weight: 600, spacing: 2, color: 'rgba(255,255,255,0.6)' });
+      text(ctx, 'DEBUG  ·  F1 overlay  F2 hitboxes  F3 AI  F4 FPS   ·   DEV  F5 +1000 coins  F6 +1 level  F7 next stage  F8 boss', x, y + 648, { size: 16, weight: 600, spacing: 2, color: 'rgba(255,255,255,0.42)' });
     }
 
     drawSelect(ctx) {
-      const S = SA.Save.data;
+      const S = SA.Save.data.progression, inv = SA.Save.data.inventory;
       this.header(ctx, 'CHOOSE YOUR BATTLE');
       this.selRects = [];
-      const n = SA.ARENA_ORDER.length;
-      const cw = 400, ch = 225, gap = 30;
-      const x0 = W / 2 - (n * cw + (n - 1) * gap) / 2;
-      const y0 = 300;
+      const n = SA.ARENA_ORDER.length, perRow = 4;
+      const cw = 360, ch = 202, gap = 26;
+      const x0 = W / 2 - (perRow * cw + (perRow - 1) * gap) / 2;
+      const y0 = 272;
       SA.ARENA_ORDER.forEach((id, i) => {
-        const x = x0 + i * (cw + gap);
+        const x = x0 + (i % perRow) * (cw + gap), y = y0 + Math.floor(i / perRow) * (ch + 58);
         const sel = i === this.selArena;
         const locked = S.unlockedArenas.indexOf(id) < 0;
-        const lift = sel ? -12 : 0;
+        const lift = sel ? -8 : 0;
         ctx.fillStyle = '#000';
-        ctx.fillRect(x, y0 + lift, cw, ch);
+        ctx.fillRect(x, y + lift, cw, ch);
         ctx.save();
-        ctx.globalAlpha = locked ? 0.35 : sel ? 1 : 0.7;
-        if (this.thumbs[id]) ctx.drawImage(this.thumbs[id], x, y0 + lift, cw, ch);
+        ctx.globalAlpha = locked ? 0.3 : sel ? 1 : 0.7;
+        if (this.thumbs[id]) ctx.drawImage(this.thumbs[id], x, y + lift, cw, ch);
         ctx.restore();
         ctx.strokeStyle = sel ? (this.selectRow === 0 ? '#ffffff' : GOLD) : 'rgba(255,255,255,0.2)';
         ctx.lineWidth = sel ? 4 : 2;
-        ctx.strokeRect(x, y0 + lift, cw, ch);
-        if (locked) {
-          text(ctx, 'LOCKED', x + cw / 2, y0 + lift + ch / 2 - 10, { size: 30, weight: 900, spacing: 8, color: '#ffffff', align: 'center' });
-          const prev = SA.ARENAS[SA.ARENA_ORDER[i - 1]];
-          text(ctx, `WIN AT ${prev ? prev.name : ''}`, x + cw / 2, y0 + lift + ch / 2 + 26, { size: 15, weight: 700, spacing: 3, color: 'rgba(255,255,255,0.7)', align: 'center' });
-        }
+        ctx.strokeRect(x, y + lift, cw, ch);
         const def = SA.ARENAS[id];
-        text(ctx, def.name, x + 4, y0 + ch + 36, { size: 22, weight: 800, spacing: 4, color: sel ? '#fff' : 'rgba(255,255,255,0.6)' });
-        text(ctx, locked ? '???' : 'VS ' + SA.CHARACTERS[def.opponent].name, x + 4, y0 + ch + 66, { size: 17, weight: 700, spacing: 4, color: sel ? GOLD : 'rgba(233,194,122,0.5)' });
-        this.selRects.push({ x, y: y0 - 12, w: cw, h: ch + 90, arena: i });
+        if (locked) {
+          text(ctx, 'LOCKED', x + cw / 2, y + lift + ch / 2 - 12, { size: 28, weight: 900, spacing: 8, color: '#ffffff', align: 'center' });
+          text(ctx, i < 4 ? `WIN AT ${SA.ARENAS[SA.ARENA_ORDER[i - 1]].name}` : 'REACH IT IN ARENA MODE', x + cw / 2, y + lift + ch / 2 + 22, { size: 14, weight: 700, spacing: 2, color: 'rgba(255,255,255,0.7)', align: 'center' });
+        }
+        text(ctx, def.name, x + 4, y + ch + 24, { size: 19, weight: 800, spacing: 3, color: sel ? '#fff' : 'rgba(255,255,255,0.6)' });
+        text(ctx, locked ? '???' : 'VS ' + SA.CHARACTERS[def.opponent].name, x + cw - 4, y + ch + 24, { size: 15, weight: 700, spacing: 3, color: sel ? GOLD : 'rgba(233,194,122,0.5)', align: 'right' });
+        this.selRects.push({ x, y: y - 8, w: cw, h: ch + 40, arena: i });
       });
 
       const def = SA.ARENAS[SA.ARENA_ORDER[this.selArena]];
-      const opp = SA.CHARACTERS[def.opponent];
       const locked = S.unlockedArenas.indexOf(def.id) < 0;
-      text(ctx, locked ? 'LOCKED ARENA' : `${opp.name}  —  ${opp.title.toUpperCase()}`, W / 2, 680, { size: 26, weight: 800, spacing: 6, color: '#ffffff', align: 'center' });
-      text(ctx, locked ? 'Win on the previous arena to unlock.' : def.sub, W / 2, 716, { size: 20, weight: 500, spacing: 2, color: 'rgba(255,255,255,0.55)', align: 'center' });
-
       const rows = [
         ['ARENA', def.name],
         ['DIFFICULTY', SA.DIFFICULTY[S.difficulty].label],
-        ['SPECIAL', SA.SPECIALS[S.special].name],
-        ['START FIGHT', null],
+        ['SPECIAL', SA.SPECIALS[inv.equipped.special].name],
+        [locked ? 'LOCKED' : 'START FIGHT', null],
       ];
       rows.forEach(([k, v], r) => {
-        const y = 790 + r * 58;
+        const y = 824 + r * 58;
         const sel = this.selectRow === r;
         if (sel) brush(ctx, W / 2 - 360, y - 26, 720, 52, ACCENT, 0.8);
         if (v === null) {
@@ -827,7 +900,6 @@
         }
         this.selRects.push({ x: W / 2 - 360, y: y - 28, w: 720, h: 56, row: r });
       });
-      text(ctx, '← →  CHANGE    ·    ↑ ↓  ROW    ·    ENTER  FIGHT    ·    ESC  BACK', W / 2, H - 40, { size: 16, weight: 600, spacing: 4, color: 'rgba(255,255,255,0.4)', align: 'center' });
     }
 
     drawNotices(ctx) {
@@ -886,5 +958,10 @@
   }
 
   UI.Menu = Menu;
+  UI.CardMenu = CardMenu;
+  UI.skewRect = skewRect;
+  UI.brush = brush;
+  UI.ACCENT = ACCENT;
+  UI.GOLD = GOLD;
   SA.UI = UI;
 })(window.SA);

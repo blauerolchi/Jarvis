@@ -113,9 +113,45 @@ window.SA = window.SA || {};
     return c;
   };
 
+  // lighten (amt > 0) or darken (amt < 0) a #rrggbb color
+  SA.M.shade = function (hex, amt) {
+    const n = parseInt(hex.slice(1), 16);
+    const f = (v) => Math.max(0, Math.min(255, Math.round(amt >= 0 ? v + (255 - v) * amt : v * (1 + amt))));
+    const r = f((n >> 16) & 255), g = f((n >> 8) & 255), b = f(n & 255);
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+  };
+
   SA.rgba = function (hex, a) {
     const n = parseInt(hex.slice(1), 16);
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  };
+
+  // Device helpers: touch detection, fullscreen, orientation, haptics.
+  SA.Device = {
+    isTouch: ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0,
+    get isPortrait() { return window.innerHeight > window.innerWidth * 1.05; },
+    get isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
+    get canFullscreen() {
+      const d = document.documentElement;
+      return !!(d.requestFullscreen || d.webkitRequestFullscreen);
+    },
+    toggleFullscreen() {
+      try {
+        if (this.isFullscreen) {
+          (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+          return;
+        }
+        const d = document.documentElement;
+        const req = d.requestFullscreen || d.webkitRequestFullscreen;
+        const p = req.call(d, { navigationUI: 'hide' });
+        const lock = () => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch (e) { /* unsupported */ } };
+        if (p && p.then) p.then(lock).catch(() => {}); else lock();
+      } catch (e) { /* fullscreen not available (e.g. inside an iframe) */ }
+    },
+    vibrate(pattern) {
+      if (!SA.Save || !SA.Save.data.settings.vibration) return;
+      try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { /* not supported */ }
+    },
   };
 
   SA.FONT = '"Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif';

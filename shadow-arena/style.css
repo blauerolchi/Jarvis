@@ -3,26 +3,68 @@ html, body {
   height: 100%;
   background: #000;
   overflow: hidden;
+  /* no browser gestures, selection or callouts while playing */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
 }
 
 #stage {
   position: fixed;
   inset: 0;
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   display: flex;
   align-items: center;
   justify-content: center;
   background: radial-gradient(ellipse at center, #120a10 0%, #000 70%);
+  touch-action: none;
 }
 
-/* 16:9 letterboxed, always fully visible */
+/* the canvas is sized from JS (keeps 16:9 inside the safe area, letterboxed on 16:10) */
 #game {
   display: block;
   width: min(100vw, calc(100vh * 16 / 9));
   height: min(100vh, calc(100vw * 9 / 16));
   outline: none;
   cursor: default;
-  image-rendering: auto;
+  touch-action: none;
   box-shadow: 0 0 80px rgba(0, 0, 0, 0.8);
+}
+
+#rotate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: #070407;
+  color: #efe6da;
+  font: 600 20px/1.4 "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+}
+#rotate .rotate-icon {
+  width: 64px;
+  height: 104px;
+  border: 5px solid #d7263d;
+  border-radius: 12px;
+  animation: turn 1.8s ease-in-out infinite;
+}
+@keyframes turn { 0%, 30% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) and (pointer: coarse) {
+  #rotate { display: flex; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #rotate .rotate-icon { animation: none; transform: rotate(-90deg); }
 }
 
 #boot-error {

@@ -238,6 +238,106 @@
           this.taiko(this.ctx.currentTime + 0.12, 0.8);
           this.noise({ filter: 'highpass', f: 2000, g: 0.2, dur: 0.3, rev: 0.6 });
           break;
+        case 'whoosh_blade':
+          this.noise({ filter: 'bandpass', f: 1400 * v, f2: 4200, q: 2.2, g: 0.16, dur: 0.12, attack: 0.02 });
+          this.tone({ f: 2400 * v, f2: 1800, dur: 0.1, g: 0.02, type: 'sine' });
+          break;
+        case 'hit_blade':
+          this.noise({ filter: 'highpass', f: 2600, f2: 5200, g: 0.4, dur: 0.1 });
+          this.tone({ f: 140 * v, f2: 60, dur: 0.12, g: 0.5 });
+          this.tone({ f: 2900 * v, dur: 0.18, g: 0.05, type: 'triangle', rev: 0.3 });
+          break;
+        case 'hit_shock':
+          this.tone({ f: 150 * v, f2: 60, dur: 0.14, g: 0.6 });
+          this.noise({ filter: 'bandpass', f: 3000, q: 4, g: 0.35, dur: 0.2 });
+          this.tone({ f: 60, dur: 0.18, g: 0.12, type: 'sawtooth', lp: 3000 });
+          break;
+        case 'hit_bullet':
+          this.tone({ f: 220 * v, f2: 80, dur: 0.08, g: 0.45 });
+          this.noise({ filter: 'highpass', f: 3000, g: 0.25, dur: 0.05 });
+          break;
+        case 'block_metal':
+          [1, 2.76, 5.4].forEach((m, i) => this.tone({ f: 620 * m * v, dur: 0.35 - i * 0.08, g: 0.08 / (i + 1), type: 'triangle', rev: 0.3 }));
+          this.noise({ filter: 'highpass', f: 3500, g: 0.3, dur: 0.05 });
+          this.tone({ f: 110, f2: 70, dur: 0.08, g: 0.25 });
+          break;
+        case 'draw':
+          this.noise({ filter: 'bandpass', f: 900, f2: 5000, q: 3, g: 0.2, dur: 0.3, attack: 0.1 });
+          this.tone({ f: 3100, dur: 0.6, g: 0.05, type: 'sine', rev: 0.6, t: this.ctx.currentTime + 0.25 });
+          break;
+        case 'throw':
+          this.noise({ filter: 'bandpass', f: 1600 * v, f2: 3200, q: 2, g: 0.12, dur: 0.08 });
+          break;
+        case 'gunshot':
+          this.noise({ f: 5000, f2: 400, g: 0.7, dur: 0.14 });
+          this.tone({ f: 160, f2: 45, dur: 0.14, g: 0.7 });
+          this.noise({ f: 900, g: 0.12, dur: 0.4, rev: 0.5 });
+          break;
+        case 'revolver':
+          this.noise({ f: 4000, f2: 250, g: 0.9, dur: 0.22 });
+          this.tone({ f: 120, f2: 35, dur: 0.25, g: 0.9 });
+          this.noise({ f: 700, g: 0.2, dur: 0.6, rev: 0.7 });
+          break;
+        case 'shotgun':
+          this.noise({ f: 3000, f2: 150, g: 1, dur: 0.3 });
+          this.tone({ f: 90, f2: 30, dur: 0.3, g: 1 });
+          this.noise({ f: 600, g: 0.25, dur: 0.7, rev: 0.7 });
+          break;
+        case 'crossbow':
+          this.tone({ f: 330, f2: 120, dur: 0.12, g: 0.25, type: 'triangle' });
+          this.noise({ filter: 'bandpass', f: 1200, f2: 3000, q: 2, g: 0.18, dur: 0.12 });
+          break;
+        case 'energy':
+          this.tone({ f: 1400, f2: 300, dur: 0.22, g: 0.18, type: 'sawtooth', lp: 3000, lp2: 600 });
+          this.tone({ f: 700, f2: 150, dur: 0.25, g: 0.12, type: 'square', lp: 1500 });
+          break;
+        case 'rocket':
+          this.noise({ filter: 'bandpass', f: 400, f2: 1800, q: 1, g: 0.3, dur: 0.5, attack: 0.05 });
+          break;
+        case 'explosion':
+          this.tone({ f: 90, f2: 28, dur: 0.8, g: 1, rev: 0.4 });
+          this.noise({ f: 1400, f2: 80, g: 0.9, dur: 0.9, rev: 0.5 });
+          break;
+        case 'boss_impact':
+          this.tone({ f: 70, f2: 22, dur: 1, g: 1 * p, rev: 0.5 });
+          this.noise({ f: 900, f2: 60, g: 0.8 * p, dur: 0.8, rev: 0.6 });
+          this.tone({ f: 190, f2: 60, dur: 0.3, g: 0.3 * p, type: 'triangle' });
+          break;
+        case 'reload':
+          this.noise({ filter: 'highpass', f: 2500, g: 0.25, dur: 0.03 });
+          this.noise({ filter: 'highpass', f: 1800, g: 0.2, dur: 0.04, t: this.ctx.currentTime + 0.09 * p });
+          this.tone({ f: 900, dur: 0.05, g: 0.05, type: 'square', lp: 2000, t: this.ctx.currentTime + 0.09 * p });
+          break;
+        case 'empty':
+          this.noise({ filter: 'highpass', f: 3000, g: 0.2, dur: 0.02 });
+          break;
+        case 'shield':
+          this.tone({ f: 300, f2: 900, dur: 0.5, g: 0.18, type: 'sawtooth', lp: 1800, rev: 0.5 });
+          this.tone({ f: 1200, dur: 0.6, g: 0.06, type: 'sine', rev: 0.6 });
+          break;
+        case 'teleport':
+          this.noise({ filter: 'bandpass', f: 4000, f2: 300, q: 3, g: 0.25, dur: 0.3 });
+          this.tone({ f: 1600, f2: 200, dur: 0.3, g: 0.1, type: 'sine', rev: 0.5 });
+          break;
+        case 'charge_up':
+          this.tone({ f: 120, f2: 480, dur: 0.4, g: 0.15, type: 'sawtooth', lp: 1200, rev: 0.3 });
+          break;
+        case 'roar':
+          this.tone({ f: 70, f2: 45, dur: 1.2, g: 0.6, type: 'sawtooth', lp: 500, lp2: 200, rev: 0.6 });
+          this.noise({ filter: 'bandpass', f: 300, q: 1.5, g: 0.5, dur: 1.1, attack: 0.1, rev: 0.5 });
+          this.gong(0.4, 55);
+          break;
+        case 'coin':
+          [1318, 1760, 2093].forEach((f, i) => this.tone({ f, dur: 0.25, g: 0.1, type: 'square', lp: 5000, t: this.ctx.currentTime + i * 0.07 }));
+          break;
+        case 'levelup':
+          [523, 659, 784, 1047, 1318].forEach((f, i) => this.tone({ f, dur: 0.5, g: 0.13, type: 'triangle', t: this.ctx.currentTime + i * 0.08, rev: 0.6 }));
+          this.gong(0.3, 196);
+          break;
+        case 'purchase':
+          [784, 1175].forEach((f, i) => this.tone({ f, dur: 0.3, g: 0.12, type: 'triangle', t: this.ctx.currentTime + i * 0.08, rev: 0.4 }));
+          this.noise({ filter: 'highpass', f: 4000, g: 0.1, dur: 0.1 });
+          break;
         case 'ui_move':
           this.tone({ f: 880, dur: 0.05, g: 0.06, type: 'triangle' });
           break;
@@ -338,6 +438,7 @@
         bamboo: { bpm: 84, taiko: true, root: 130.81, wave: 'sine', density: 0.26 },
         neon: { bpm: 110, taiko: true, root: 110, wave: 'square', density: 0.34, synth: true },
         ruins: { bpm: 116, taiko: true, root: 123.47, wave: 'sawtooth', density: 0.3 },
+        boss: { bpm: 128, taiko: true, root: 98, wave: 'sawtooth', density: 0.36, synth: true },
       }[style] || { bpm: 96, taiko: true, root: 146.83, wave: 'triangle', density: 0.3 };
       const scale = [0, 3, 5, 7, 10, 12, 15, 17];
       const m = this.music = { style, cfg, step: 0, next: ctx.currentTime + 0.1, bar: 0, nodes: [], intensity: 1 };

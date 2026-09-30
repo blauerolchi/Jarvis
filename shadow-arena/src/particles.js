@@ -6,6 +6,8 @@
 (function (SA) {
   const { rand } = SA.M;
 
+  const DUMMY = { alive: false };
+
   class ParticleSystem {
     constructor(max) {
       this.pool = [];
@@ -15,6 +17,9 @@
     }
 
     spawn(p) {
+      // graphics preset: thin out decorative particles, never gameplay text
+      const q = SA.GFX ? SA.GFX.particles : 1;
+      if (q < 1 && p.type !== 'text' && Math.random() > q) return DUMMY;
       const pool = this.pool;
       let o = null;
       for (let i = 0; i < pool.length; i++) {
@@ -257,6 +262,75 @@
       for (let r = 0; r < 4; r++) ps.spawn({ type: 'ring', x, y, size: 300 + r * 160, life: 0.5 + r * 0.15, color: r % 2 ? '#ff3b3b' : '#ffffff', len: 12, rot: 1 });
       for (let i = 0; i < 24; i++) {
         ps.spawn({ type: 'ray', x, y, rot: rand(0, SA.TAU), size: rand(300, 600), life: 0.45, color: '#ffffff', len: 6 });
+      }
+    },
+
+    muzzle(ps, x, y, dir, color) {
+      ps.spawn({ type: 'flash', x, y, size: 90, life: 0.08, color: '#fff4dc' });
+      ps.spawn({ type: 'flash', x: x + dir * 20, y, size: 120, life: 0.1, color, alpha: 0.7 });
+      for (let i = 0; i < 7; i++) {
+        const a = (dir > 0 ? 0 : Math.PI) + rand(-0.35, 0.35);
+        ps.spawn({ type: 'spark', x, y, vx: Math.cos(a) * rand(600, 1400), vy: Math.sin(a) * rand(600, 1400), drag: 9, life: rand(0.06, 0.14), size: 3, color });
+      }
+      ps.spawn({ type: 'dust', x, y, vx: dir * 80, vy: -40, drag: 2, life: 0.5, size: 22, color: '#9a9aa2', add: false, alpha: 0.5 });
+    },
+
+    projectileTrail(ps, x, y, color, type) {
+      ps.spawn({ type: type === 'rocket' ? 'dust' : 'glow', x, y, vx: rand(-30, 30), vy: rand(-30, 30), drag: 2, life: type === 'rocket' ? 0.5 : 0.25,
+        size: type === 'rocket' ? 18 : 12, color: type === 'rocket' ? '#8a8a90' : color, add: type !== 'rocket', alpha: 0.7, front: true });
+    },
+
+    spark(ps, x, y, color) {
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + rand(-1, 1);
+        ps.spawn({ type: 'spark', x, y, vx: Math.cos(a) * rand(200, 500), vy: Math.sin(a) * rand(200, 500), drag: 6, grav: 900, life: rand(0.1, 0.25), size: 2.5, color });
+      }
+    },
+
+    explosion(ps, x, y, r) {
+      ps.spawn({ type: 'flash', x, y, size: r * 1.8, life: 0.25, color: '#fff0c8' });
+      ps.spawn({ type: 'flash', x, y, size: r * 2.6, life: 0.4, color: '#ff7a2a', alpha: 0.7 });
+      ps.spawn({ type: 'ring', x, y, size: r * 1.4, life: 0.35, color: '#ffd08a', len: 10, rot: 1 });
+      for (let i = 0; i < 22; i++) {
+        const a = rand(0, SA.TAU), sp = rand(300, 1100);
+        ps.spawn({ type: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 200, drag: 5, grav: 900, life: rand(0.2, 0.45), size: rand(2, 5), color: i % 2 ? '#ffd08a' : '#ff5a1a' });
+      }
+      for (let i = 0; i < 10; i++) {
+        ps.spawn({ type: 'dust', x: x + rand(-r / 2, r / 2), y: y + rand(-r / 3, r / 3), vx: rand(-120, 120), vy: -rand(40, 160), drag: 2, life: rand(0.6, 1.1), size: rand(40, 70), color: '#3a3232', add: false, alpha: 0.7 });
+      }
+    },
+
+    shock(ps, x, y) {
+      for (let i = 0; i < 6; i++) {
+        const a = rand(0, SA.TAU);
+        ps.spawn({ type: 'ray', x, y, rot: a, size: rand(80, 150), life: 0.18, color: '#bfe6ff', len: 3 });
+      }
+      ps.spawn({ type: 'flash', x, y, size: 110, life: 0.15, color: '#9fd0ff' });
+    },
+
+    burn(ps, x, y) {
+      for (let i = 0; i < 2; i++) {
+        ps.spawn({ type: 'glow', x: x + rand(-30, 30), y: y + rand(-60, 40), vx: rand(-20, 20), vy: -rand(80, 180), drag: 1, life: rand(0.3, 0.6), size: rand(8, 14), color: '#ff7a2a' });
+      }
+    },
+
+    telegraph(ps, f, color) {
+      const x = f.skel.head.x, y = f.skel.head.y;
+      ps.spawn({ type: 'flash', x, y, size: 140, life: 0.35, color });
+      ps.spawn({ type: 'ring', x: f.x, y: f.y - 150, size: 260, life: 0.45, color, len: 6, rot: 1.2 });
+    },
+
+    smoke(ps, x, y, color) {
+      for (let i = 0; i < 16; i++) {
+        ps.spawn({ type: 'dust', x: x + rand(-50, 50), y: y - rand(0, 300), vx: rand(-160, 160), vy: -rand(20, 120), drag: 2, life: rand(0.5, 0.9), size: rand(30, 60), color: '#1a1420', add: false, alpha: 0.8 });
+      }
+      ps.spawn({ type: 'flash', x, y: y - 150, size: 260, life: 0.3, color, alpha: 0.6 });
+    },
+
+    coinBurst(ps, x, y, n) {
+      for (let i = 0; i < n; i++) {
+        const a = -Math.PI / 2 + rand(-1.2, 1.2), sp = rand(300, 900);
+        ps.spawn({ type: 'glow', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, grav: 1400, drag: 1, life: rand(0.6, 1), size: rand(8, 14), color: '#ffd23f', world: true });
       }
     },
 

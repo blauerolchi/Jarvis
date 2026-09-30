@@ -3,8 +3,12 @@
  * Fighter: state machine, movement and move execution.
  * Driven only through its Controller (held actions + buffered presses), for both human and AI.
  *
- * States: idle walk crouch block | prejump air landing | dash run evade | attack special
- *         hitstun blockstun stagger launched down getup rushed | victory defeat ko
+ * States: idle walk crouch block | prejump air landing | dash run evade | attack special bossmove
+ *         hitstun blockstun stagger launched down getup rushed | victory defeat ko intro
+ *
+ * The moveset comes from the equipped weapon (SA.WEAPON_SETS), so the same state machine runs
+ * fists, katana, spear, hammer … Context actions: down + attack = low attack, up + heavy =
+ * overhead, attack while dashing = dash attack, attack in the air = air attack.
  */
 (function (SA) {
   const { clamp, damp, lerp } = SA.M;
@@ -21,6 +25,8 @@
   SA.SPECIALS = {
     rush: { id: 'rush', name: 'SHADOW RUSH', desc: 'Lightning dash into a five-strike flurry and a crushing finisher.' },
     storm: { id: 'storm', name: 'CRESCENT STORM', desc: 'Rising whirlwind of kicks. Great anti-air, launches the enemy.' },
+    slash: { id: 'slash', name: 'SHADOW SLASH', desc: 'A lunging cut that releases a crescent of shadow across the arena.' },
+    quake: { id: 'quake', name: 'EARTHSHAKER', desc: 'Leap and slam the ground: shockwaves travel both ways.' },
   };
 
   const RUSH_DASH = { id: 'rush', damage: 30, hitstun: 30, blockstun: 24, kb: 120, level: 'mid', hitstop: 4, shake: 0.3, sound: 'hit_heavy', power: 0.8, unparryable: true };
@@ -28,6 +34,7 @@
   const RUSH_FINAL = { id: 'rush', damage: 90, hitstun: 30, kb: 1350, kbY: -950, knockdown: true, level: 'mid', hitstop: 9, shake: 0.85, zoom: 0.1, sound: 'hit_special', power: 1.4 };
   const STORM_HIT = { id: 'storm', damage: 40, hitstun: 30, blockstun: 14, kb: 40, kbY: -1250, knockdown: true, level: 'mid', hitstop: 3, shake: 0.25, sound: 'hit_kick', power: 0.7 };
   const STORM_FINAL = { id: 'storm', damage: 75, hitstun: 30, blockstun: 16, kb: 950, kbY: -700, knockdown: true, level: 'mid', hitstop: 8, shake: 0.7, zoom: 0.08, sound: 'hit_special', power: 1.3 };
+  const QUAKE_HIT = { id: 'quake', damage: 80, hitstun: 30, blockstun: 18, kb: 650, kbY: -760, knockdown: true, level: 'mid', hitstop: 8, shake: 0.8, zoom: 0.08, sound: 'hit_special', power: 1.3, unparryable: true };
 
   const RUSH_POSES = ['jab', 'kick', 'jab2', 'heavy', 'lowKick'].map((id) => {
     const keys = SA.MOVES[id].keys;
@@ -42,8 +49,11 @@
       this.isPlayer = !!o.isPlayer;
       this.maxHp = o.maxHp || 1000;
       this.damageMul = o.damageMul || 1;
-      this.speedMul = o.speedMul || 1;
+      this.baseSpeed = o.speedMul || 1;
+      this.speedMul = this.baseSpeed;
       this.specialId = o.special || 'rush';
+      this.armor = o.armor || 0;            // damage reduction (0..0.5)
+      this.superArmor = o.superArmor || 0;  // hits with less power than this don't flinch
       this.pose = A.P();
       this.entryPose = A.P();
       this.local = A.createSkeleton();
@@ -52,7 +62,19 @@
       this.hitList = new Set();
       this.combo = { hits: 0, damage: 0, seq: [], timer: 0, name: null };
       this.accessories = null;
+      this.energy = 0;
+      this.setLoadout({ weapon: o.weapon || 'fists', ranged: o.ranged || null });
       this.reset(0, 1);
+    }
+
+    setLoadout(l) {
+      const w = SA.WEAPONS[l.weapon] || SA.WEAPONS.fists;
+      this.weapon = w;
+      this.moveset = SA.WEAPON_SETS[w.id];
+      this.wgeom = w.geom;
+      this.rangedWeapon = l.ranged ? SA.RANGED[l.ranged] || null : null;
+      this.rangedState = this.rangedWeapon ? new SA.RangedState(this.rangedWeapon) : null;
+      if (l.special) this.specialId = l.special;
     }
 
     reset(x, facing) {
@@ -63,7 +85,7 @@
       this.hp = this.maxHp;
       this.state = 'idle'; this.st = 0;
       this.move = null; this.mt = 0; this.animKeys = null;
-      this.moveContact = null; this.lunged = false; this.whooshed = false;
+      this.moveContact = null; this.lunged = false; this.whooshed = false; this.fired = false; this.effectDone = false;
       this.hitList.clear();
       this.stun = 0; this.invuln = 0;
       this.parryAge = 99; this.parryLock = 0;
@@ -74,13 +96,15 @@
       this.animTime = Math.random() * 10;
       this.spin = null; this.spinScale = 1; this.scaleX = 1; this.scaleY = 1;
       this.hitPose = 'hitBody';
-      this.sp = null;
+      this.sp = null; this.bm = null;
+      this.slowT = 0; this.burnT = 0; this.burnAcc = 0; this.shieldT = 0; this.vanished = false;
       this.ghosts = []; this.ghostTimer = 0;
       this.trail = [];
       this.fromRun = false;
+      if (this.rangedWeapon) this.rangedState = new SA.RangedState(this.rangedWeapon);
       this.startCombo();
       A.copyPose(this.pose, A.STANCE);
-      A.solveLocal(this.pose, this.local, this.look.bulk);
+      A.solveLocal(this.pose, this.local, this.look.bulk, this.wgeom);
       A.toWorld(this);
       this.updateHurtboxes();
       if (this.ctrl) this.ctrl.clear();
@@ -104,17 +128,29 @@
         (this.state === 'attack' && this.move && this.move.crouching);
     }
     canBeHit(attacker) {
-      if (this.invuln > 0) return false;
+      if (this.invuln > 0 || this.vanished) return false;
       const s = this.state;
       if (s === 'down' || s === 'getup' || s === 'ko' || s === 'victory' || s === 'defeat' || s === 'rushed') return false;
       if (s === 'launched' && this.juggle >= 3 && !(attacker && attacker.state === 'special')) return false;
       return true;
+    }
+    // Heavy wind-ups and armored enemies absorb weaker hits without flinching.
+    isArmored(m) {
+      const power = m.power || 0.5;
+      if (m.knockdown && power >= 0.9) return false;
+      if (this.state === 'attack' && this.move && this.move.armor) {
+        const [a, b] = this.move.armor;
+        if (this.mt >= a && this.mt <= b && power < 1.05) return true;
+      }
+      if (this.state === 'bossmove' && this.bm && this.bm.armored) return power < 1.2;
+      return this.superArmor > 0 && power < this.superArmor && (this.isNeutral() || this.state === 'attack');
     }
 
     setState(s) {
       this.state = s;
       this.st = 0;
       if (s !== 'attack' && s !== 'special') { this.spin = null; }
+      if (s !== 'bossmove') this.vanished = false;
     }
     setAnim(keys) {
       A.copyPose(this.entryPose, this.pose);
@@ -126,6 +162,8 @@
       this.animKeys = null;
       this.spin = null;
       this.sp = null;
+      this.bm = null;
+      this.vanished = false;
     }
     toNeutral() {
       this.cancelMove();
@@ -146,6 +184,7 @@
 
     startMove(id) {
       const m = SA.MOVES[id];
+      if (!m) return;
       A.copyPose(this.entryPose, this.pose);
       this.move = m;
       this.animKeys = m.keys;
@@ -156,8 +195,11 @@
       this.moveContact = null;
       this.lunged = false;
       this.whooshed = false;
+      this.fired = false;
+      this.effectDone = false;
       this.trail.length = 0;
       if (m.air) this.airAttackUsed = true;
+      if (m.reload) SA.audio.play('reload');
     }
 
     cancelOpen() {
@@ -171,11 +213,22 @@
       if (this.state === 'attack') {
         const m = this.move;
         if (!m || !m.hit || this.phase !== 'active') return null;
-        const h = m.hit, j = this.skel[h.joint], s = this.look.scale;
+        const h = m.hit, s = this.look.scale;
+        if (h.seg) {
+          // weapon hitbox: the blade from 25% to tip (+ a little), padded
+          const a = this.skel[h.seg === 'B' ? 'handB' : 'handF'], t = this.skel[h.seg === 'B' ? 'tipB' : 'tip'];
+          const x0 = a.x + (t.x - a.x) * 0.25, y0 = a.y + (t.y - a.y) * 0.25;
+          const x1 = a.x + (t.x - a.x) * 1.08, y1 = a.y + (t.y - a.y) * 1.08;
+          const pad = (h.pad || 18) * s;
+          const rx = Math.min(x0, x1) - pad, ry = Math.min(y0, y1) - pad;
+          return { rect: { x: rx, y: ry, w: Math.abs(x1 - x0) + pad * 2, h: Math.abs(y1 - y0) + pad * 2 }, data: m };
+        }
+        const j = this.skel[h.joint];
         const cx = j.x + h.ox * this.facing * s, cy = j.y + h.oy * s;
         return { rect: { x: cx - h.w * s / 2, y: cy - h.h * s / 2, w: h.w * s, h: h.h * s }, data: m };
       }
       if (this.state === 'special' && this.sp) return this.specialHit();
+      if (this.state === 'bossmove' && this.bm) return SA.Bosses.moveHit(this);
       return null;
     }
 
@@ -193,6 +246,7 @@
         this.parryLock = 24;
       }
       if (!this.grounded) this.airTime += dt;
+      this.updateStatus(dt, game);
 
       if (game.fightLocked && (this.isNeutral() || this.state === 'run' || this.state === 'dash')) {
         if (this.state !== 'idle') this.setState('idle');
@@ -205,8 +259,27 @@
       c.tick(ts);
     }
 
+    updateStatus(dt, game) {
+      const W = SA.BALANCE.weapons;
+      if (this.slowT > 0) this.slowT -= dt;
+      if (this.shieldT > 0) this.shieldT -= dt;
+      if (this.burnT > 0) {
+        this.burnT -= dt;
+        this.burnAcc += W.burn.dps * dt;
+        if (this.burnAcc >= 4) {
+          const d = Math.floor(this.burnAcc);
+          this.burnAcc -= d;
+          if (this.hp > 1 && !this.infiniteHpLock) this.hp = Math.max(1, this.hp - d);
+          SA.FX.burn(game.particles, this.skel.hip.x, this.skel.hip.y - 60);
+        }
+      }
+      this.speedMul = this.baseSpeed * (this.slowT > 0 ? W.frostSlow.factor : 1) * (this.rageSpeed || 1);
+      if (this.rangedState) this.rangedState.tick(dt);
+    }
+
     updateState(ts, dt, game) {
       const c = this.ctrl;
+      const ms = this.moveset;
       switch (this.state) {
         case 'idle': case 'walk': case 'crouch': case 'block':
           this.updateNeutral(dt, game);
@@ -214,13 +287,16 @@
 
         case 'prejump':
           this.vx = damp(this.vx, this.fromRun ? this.vx : 0, 20, dt);
+          // up + heavy: cancel the jump into the overhead / uppercut
+          if (!this.fromRun && c.consume('heavy')) { this.startMove(ms.heavyUp); break; }
           if (this.st >= 2) this.doJump(game);
           break;
 
         case 'air':
           if (!this.airAttackUsed) {
-            if (c.consume('light')) this.startMove('airPunch');
-            else if (c.consume('kick') || c.consume('heavy')) this.startMove('flyingKick');
+            if (c.consume('light')) this.startMove(ms.airLight);
+            else if (c.consume('kick') || c.consume('heavy')) this.startMove(ms.airHeavy);
+            else if (c.consume('ranged')) this.tryRanged();
           }
           break;
 
@@ -233,7 +309,7 @@
         case 'dash': {
           const u = clamp(this.st / DASH_FRAMES, 0, 1);
           this.vx = this.facing * lerp(DASH_SPEED, RUN_SPEED, u) * this.speedMul;
-          this.spawnGhost(3);
+          this.spawnGhost(this.weapon.element === 'shadow' ? 2 : 3);
           if (this.runActions(game)) break;
           if (this.st >= DASH_FRAMES) this.setState(this.fwdHeld() ? 'run' : 'idle');
           break;
@@ -263,6 +339,10 @@
 
         case 'special':
           this.updateSpecial(ts, dt, game);
+          break;
+
+        case 'bossmove':
+          SA.Bosses.updateMove(this, ts, dt, game);
           break;
 
         case 'hitstun':
@@ -337,7 +417,7 @@
         const dir = fwd ? 1 : -1;
         if (this.state !== 'walk') this.setState('walk');
         this.walkDir = dir;
-        const speed = (dir > 0 ? WALK_FWD : WALK_BACK) * this.speedMul;
+        const speed = (dir > 0 ? WALK_FWD : WALK_BACK) * this.speedMul * (c.analog || 1);
         this.vx = damp(this.vx, this.facing * dir * speed, 42, dt);
       } else {
         if (this.state !== 'idle') this.setState('idle');
@@ -345,26 +425,53 @@
       }
     }
 
-    // Attack inputs from neutral. S modifies punches/kicks into crouching versions.
+    // Attack inputs from neutral. Held directions turn buttons into context attacks.
     tryAttacks() {
-      const c = this.ctrl;
-      const down = c.held('down');
+      const c = this.ctrl, ms = this.moveset;
+      const down = c.held('down'), up = c.held('up');
       if (c.has('special')) {
         c.consume('special');
         if (this.energy >= 100) { this.startSpecial(); return true; }
         SA.audio.play('denied');
       }
-      if (c.consume('light')) { this.startMove(down ? 'crouchJab' : 'jab'); return true; }
-      if (c.consume('heavy')) { this.startMove(down ? 'uppercut' : 'heavy'); return true; }
-      if (c.consume('kick')) { this.startMove(down ? 'lowKick' : 'kick'); return true; }
+      if (c.consume('ranged') && this.tryRanged()) return true;
+      if (c.consume('reload') && this.tryReload()) return true;
+      if (c.consume('light')) { this.startMove(down ? ms.lightDown : ms.light); return true; }
+      if (c.consume('heavy')) {
+        if (up && !down) c.consume('up');
+        this.startMove(down ? ms.heavyDown : up ? ms.heavyUp : ms.heavy);
+        return true;
+      }
+      if (c.consume('kick')) { this.startMove(down ? ms.kickDown : ms.kick); return true; }
       return false;
     }
 
+    tryRanged() {
+      const r = this.rangedWeapon, rs = this.rangedState;
+      if (!r) return false;
+      if (!this.grounded) {
+        if (r.kind === 'throw' && r.air && rs.ready() && !this.airAttackUsed) { this.startMove(r.id + ':air'); return true; }
+        return false;
+      }
+      if (rs.ready()) { this.startMove(r.id + ':fire'); return true; }
+      if (r.magazine) { this.startMove(r.id + ':reload'); return true; }
+      SA.audio.play('empty');
+      return false;
+    }
+
+    tryReload() {
+      const r = this.rangedWeapon, rs = this.rangedState;
+      if (!r || !r.magazine || rs.ammo >= r.magazine || !this.grounded) return false;
+      this.startMove(r.id + ':reload');
+      return true;
+    }
+
     runActions(game) {
-      const c = this.ctrl;
-      if (c.consume('light')) { this.startMove('dashPunch'); return true; }
-      if (c.consume('kick') || c.consume('heavy')) { this.startMove('slideKick'); return true; }
+      const c = this.ctrl, ms = this.moveset;
+      if (c.consume('light')) { this.startMove(ms.dashLight); return true; }
+      if (c.consume('kick') || c.consume('heavy')) { this.startMove(ms.dashHeavy); return true; }
       if (c.has('special') && this.energy >= 100) { c.consume('special'); this.startSpecial(); return true; }
+      if (c.consume('ranged') && this.tryRanged()) return true;
       if (c.consume('up')) { this.startPrejump(true); return true; }
       if (c.held('block')) { this.setState('block'); this.crouchBlock = c.held('down'); return true; }
       return false;
@@ -416,15 +523,51 @@
           if (Math.sign(this.vx) !== Math.sign(v) || Math.abs(this.vx) < Math.abs(v)) this.vx = v;
         }
       }
-      if (!this.whooshed && this.mt >= m.startup - 3) {
+      if (!this.whooshed && m.whoosh && this.mt >= m.startup - 3) {
         this.whooshed = true;
-        SA.audio.play('whoosh_' + (m.whoosh || 'light'));
+        SA.audio.play('whoosh_' + m.whoosh);
+      }
+      // ranged: spawn the projectile on the release frame
+      if (m.ranged && !this.fired && this.mt >= m.startup) {
+        this.fired = true;
+        const rs = this.rangedState;
+        if (rs && rs.ready()) {
+          rs.use();
+          if (this.rangedWeapon.proj.returns) rs.out = true;
+          game.projectiles.fire(this, this.rangedWeapon, game);
+        }
+      }
+      if (m.reload && this.mt >= m.total - 1 && !this.fired) {
+        this.fired = true;
+        if (this.rangedState) this.rangedState.ammo = this.rangedWeapon.magazine;
+        SA.audio.play('reload', 1.3);
+      }
+      // weapon effects (hammer slam shockwave)
+      if (m.effect === 'shockwave' && !this.effectDone && this.mt >= m.startup) {
+        this.effectDone = true;
+        const tip = this.skel.tip;
+        game.projectiles.shockwave(this, tip.x, this.facing, { dmg: Math.round(34 * (this.damageMul || 1)), color: this.weapon.element === 'shock' ? '#9fd0ff' : '#ffcf8a' });
+        SA.FX.dust(game.particles, tip.x, 0, 1.2, 0);
+        game.shake(0.3);
+        SA.audio.play('boss_impact', 0.6);
+      }
+      if (m.armor && this.mt >= m.armor[0] && this.mt <= m.armor[1] && Math.floor(this.mt) % 4 === 0) {
+        SA.FX.aura(game.particles, this.x, this.y, '#c9d3e0');
       }
       if (this.grounded) this.vx = damp(this.vx, 0, m.friction || 9, dt);
 
       if (m.chain && this.cancelOpen()) {
         for (const key in m.chain) {
-          if (c.consume(key)) { this.startMove(m.chain[key]); return; }
+          if (c.consume(key)) {
+            // down + light inside a string still gives the low variant for fists
+            this.startMove(m.chain[key]);
+            return;
+          }
+        }
+        if (c.has('ranged') && this.moveContact === 'hit' && this.rangedWeapon && this.rangedWeapon.kind === 'throw' && this.rangedState.ready()) {
+          c.consume('ranged');
+          this.startMove(this.rangedWeapon.id + ':fire');   // shuriken combo extension
+          return;
         }
       }
       if (this.moveContact === 'hit' && this.energy >= 100 && c.has('special')) {
@@ -472,11 +615,15 @@
           }
           break;
         case 'special':
+          if (this.sp && this.sp.id === 'quake' && this.sp.phase === 'leap') { this.quakeSlam(game); break; }
           this.cancelMove();
           this.setState('landing');
           this.stun = 18;
           SA.FX.dust(game.particles, this.x, 0, 0.8, 0);
           SA.audio.play('land', 0.7);
+          break;
+        case 'bossmove':
+          SA.Bosses.onLand(this, game);
           break;
         case 'hitstun': case 'stagger':
           this.setState('down');
@@ -503,6 +650,8 @@
       sp.t += ts;
       this.mt += ts;
       if (sp.id === 'rush') this.updateRush(sp, ts, dt, game);
+      else if (sp.id === 'slash') this.updateSlash(sp, ts, dt, game);
+      else if (sp.id === 'quake') this.updateQuake(sp, ts, dt, game);
       else this.updateStorm(sp, ts, dt, game);
     }
 
@@ -630,6 +779,91 @@
       }
     }
 
+    // Shadow Slash: lunging cut that releases a crescent wave.
+    updateSlash(sp, ts, dt, game) {
+      const tpl = SA.MOVES['katana:a1'].keys;
+      switch (sp.phase) {
+        case 'charge':
+          this.vx = damp(this.vx, 0, 20, dt);
+          if (sp.t < 1.1) this.setAnim([[0, SA.POSES.special], [8, tpl[1][1]]]);
+          if (sp.t >= 9) {
+            sp.phase = 'cut'; sp.t = 0;
+            this.setAnim([[0, tpl[1][1]], [3, tpl[2][1]], [10, tpl[3][1]]]);
+            this.vx = this.facing * 1500 * this.speedMul;
+            SA.audio.play('draw');
+          }
+          break;
+        case 'cut':
+          this.vx = damp(this.vx, 0, 6, dt);
+          this.spawnGhost(2);
+          if (!sp.finished && sp.t >= 3) {
+            sp.finished = true;
+            const color = this.weapon.element === 'fire' ? '#ff7a2a' : this.weapon.element === 'frost' ? '#8fe3ff' : '#b58cff';
+            game.projectiles.wave(this, this.x + this.facing * 90, this.y - 170, this.facing, {
+              speed: 1900, w: 130, h: 250, color, life: 0.8,
+              data: { damage: Math.round(95 * (this.damageMul || 1)), hitstun: 28, blockstun: 18, kb: 820, kbY: -620, knockdown: true, level: 'mid', unparryable: true, element: this.weapon.element },
+            });
+            game.shake(0.35);
+            SA.audio.play('hit_special', 0.6);
+          }
+          if (sp.t >= 12) { sp.phase = 'end'; sp.t = 0; this.setAnim([[0, this.pose], [20, SA.POSES.stance]]); }
+          break;
+        case 'end':
+          this.vx = damp(this.vx, 0, 8, dt);
+          if (sp.t >= 20) this.toNeutral();
+          break;
+      }
+    }
+
+    // Earthshaker: leap, slam, shockwaves both ways.
+    updateQuake(sp, ts, dt, game) {
+      switch (sp.phase) {
+        case 'charge':
+          this.vx = damp(this.vx, 0, 20, dt);
+          if (sp.t >= 7) {
+            sp.phase = 'leap'; sp.t = 0;
+            this.grounded = false;
+            this.y = -1;
+            this.vy = -1150;
+            this.vx = this.facing * 420 * this.speedMul;
+            const w = SA.WEAPON_STYLES.heavy && SA.MOVES['war_hammer:hv'];
+            this.setAnim([[0, SA.POSES.jump], [10, w ? w.keys[1][1] : SA.POSES.jump]]);
+            SA.audio.play('whoosh_heavy', 1.2);
+          }
+          break;
+        case 'leap':
+          this.spawnGhost(3);
+          if (this.vy > 200 && !sp.falling) {
+            sp.falling = true;
+            const w = SA.MOVES['war_hammer:hv'];
+            if (w) this.setAnim([[0, this.pose], [6, w.keys[2][1]]]);
+          }
+          break;
+        case 'slam':
+          this.vx = damp(this.vx, 0, 12, dt);
+          if (sp.t >= 26) this.toNeutral();
+          break;
+      }
+    }
+
+    quakeSlam(game) {
+      const sp = this.sp;
+      sp.phase = 'slam'; sp.t = 0;
+      this.hitList.clear();
+      const w = SA.MOVES['war_hammer:hv'];
+      if (w) this.setAnim([[0, w.keys[2][1]], [8, w.keys[3][1]], [26, SA.POSES.stance]]);
+      const color = this.weapon.element === 'shock' ? '#9fd0ff' : '#ffcf8a';
+      const dmg = Math.round(46 * (this.damageMul || 1));
+      game.projectiles.shockwave(this, this.x + this.facing * 60, this.facing, { dmg, speed: 1100, life: 0.8, color });
+      game.projectiles.shockwave(this, this.x - this.facing * 60, -this.facing, { dmg: Math.round(dmg * 0.7), speed: 900, life: 0.6, color });
+      SA.FX.dust(game.particles, this.x, 0, 2, 0);
+      SA.FX.ko(game.particles, this.x, -20);
+      game.shake(0.8);
+      game.camera.punch(0.1);
+      SA.audio.play('boss_impact');
+      SA.Device.vibrate(this.isPlayer ? 30 : 0);
+    }
+
     specialHit() {
       const sp = this.sp;
       const s = this.look.scale;
@@ -653,11 +887,19 @@
           },
         };
       }
+      if (sp.id === 'quake' && sp.phase === 'slam' && sp.t < 5) {
+        return {
+          rect: { x: this.x - 190 * s, y: this.y - 200 * s, w: 380 * s, h: 200 * s },
+          data: QUAKE_HIT,
+          onContact: (b, result, game) => { if (result === 'hit') game.onSpecialLanded(this); },
+        };
+      }
       return null;
     }
 
     // ---------- visuals bookkeeping ----------
     spawnGhost(interval, force) {
+      if (SA.GFX && !SA.GFX.ghosts && !force) return;
       this.ghostTimer++;
       if (!force && (interval <= 0 || this.ghostTimer % interval !== 0)) return;
       const pts = {};

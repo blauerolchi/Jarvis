@@ -677,6 +677,7 @@
 
   SA.ARENA_ORDER = ['temple', 'bamboo', 'neon', 'ruins'];
   SA.ARENAS = DEFS;
+  SA.ArenaPaint = { ridge, mistBand, roof, pagoda, hall, torii, pine, stoneLantern, bamboo, glowAt, neonText, LW, LH, GY, GW, GH };
 
   // ---------- runtime ----------
   class Arena {
@@ -849,7 +850,7 @@
     drawLiveLights(ctx, cam) {
       const id = this.id;
       ctx.globalCompositeOperation = 'lighter';
-      if (id === 'ruins') {
+      if (this.fires || this.farFires) {
         let f = this.xf(cam, 0.4);
         (this.fires || []).forEach(([x, y], i) => {
           const fl = 0.55 + 0.25 * Math.sin(this.t * 9 + i * 2.1) + 0.2 * Math.sin(this.t * 23 + i);
@@ -863,7 +864,7 @@
           ctx.globalAlpha = 0.4 + 0.2 * Math.sin(this.t * 5 + i);
           ctx.drawImage(SA.glowSprite('#ff4a10'), f.cx + x * f.z - s, f.gy + y * f.z - s, s * 2, s * 2);
         });
-      } else if (id === 'neon') {
+      } else if (this.signs) {
         const f = this.xf(cam, 0.1);
         (this.antennas || []).forEach(([x, y], i) => {
           if (Math.sin(this.t * 3 + i * 1.7) > 0.6) {
@@ -898,7 +899,7 @@
             ctx.drawImage(SA.glowSprite(s.color), m.cx + s.x * m.z - r, m.gy - 520 * m.z - r, r * 2, r * 2);
           }
         }
-      } else if (id === 'temple' && this.sun) {
+      } else if (this.sun && (!SA.GFX || SA.GFX.rays)) {
         // soft god rays from the sun
         ctx.globalAlpha = 0.05;
         ctx.fillStyle = '#ffd08a';
@@ -918,7 +919,7 @@
     // world space (camera applied): ground plane + neon reflections
     drawGround(ctx, cam) {
       ctx.drawImage(this.groundCanvas, -GW / 2, 0, GW, GH);
-      if (this.id === 'neon' && this.signs) {
+      if (this.signs) {
         // neon reflections streak down the wet street
         const m = this.xf(cam, 0.35);
         const z = cam.viewZoom();
@@ -940,7 +941,7 @@
     // screen space, in front of fighters
     drawFront(ctx, cam) {
       this.drawWeather(ctx, cam, true);
-      if (this.fg) this.drawLayer(ctx, this.fg, cam);
+      if (this.fg && (!SA.GFX || SA.GFX.foreground)) this.drawLayer(ctx, this.fg, cam);
       SA.resetTransform(ctx);
       ctx.drawImage(this.overlay, 0, 0, SA.W, SA.H);
     }
@@ -949,7 +950,8 @@
     initWeather() {
       const w = this.def.weather;
       this.weather = [];
-      const n = { leaves: 46, fireflies: 40, rain: 320, embers: 90 }[w] || 0;
+      const base = { leaves: 46, fireflies: 40, rain: 320, embers: 90, snow: 180, dust: 60, data: 70 }[w] || 0;
+      const n = Math.round(base * ((SA.GFX && SA.GFX.weather) || 1));
       for (let i = 0; i < n; i++) this.weather.push(this.newParticle(w, true));
     }
 
@@ -970,6 +972,20 @@
       } else if (type === 'fireflies') {
         p.x = rand(-1300, 1300); p.y = rand(-500, -20);
         p.ph = rand(0, 10); p.sp = rand(0.3, 1);
+        p.front = p.depth > 0.85;
+      } else if (type === 'snow') {
+        p.x = rand(-1500, 1500);
+        p.y = scatter ? rand(-1200, 0) : rand(-1300, -1100);
+        p.vx = rand(-80, -20); p.vy = rand(60, 160) * (0.6 + p.depth * 0.7);
+        p.size = rand(2, 5) * (0.6 + p.depth);
+        p.ph = rand(0, 10);
+        p.front = p.depth > 0.82;
+      } else if (type === 'dust' || type === 'data') {
+        p.x = rand(-1400, 1400);
+        p.y = scatter ? rand(-900, 0) : rand(-60, 20);
+        p.vx = rand(-20, 20); p.vy = type === 'data' ? -rand(40, 120) : -rand(5, 25);
+        p.size = rand(2, 5) * (0.6 + p.depth);
+        p.ph = rand(0, 10);
         p.front = p.depth > 0.85;
       } else if (type === 'embers') {
         p.x = rand(-1400, 1400);
@@ -1007,6 +1023,16 @@
           p.ph += dt * p.sp;
           p.x += Math.sin(p.ph * 1.3) * 25 * dt;
           p.y += Math.cos(p.ph) * 18 * dt;
+        } else if (w === 'snow') {
+          p.ph += dt;
+          p.x += (p.vx + Math.sin(p.ph * 1.7) * 30 + this.wind * 0.2) * dt;
+          p.y += p.vy * dt;
+          if (p.y > 20 || p.x < -1700) this.weather[i] = this.newParticle(w, false);
+        } else if (w === 'dust' || w === 'data') {
+          p.ph += dt;
+          p.x += (p.vx + Math.sin(p.ph) * 12) * dt;
+          p.y += p.vy * dt;
+          if (p.y < -1000) this.weather[i] = this.newParticle(w, false);
         } else if (w === 'embers') {
           p.ph += dt;
           p.x += (p.vx + Math.sin(p.ph * 3) * 30 + this.wind * 0.3) * dt;
@@ -1035,6 +1061,25 @@
           ctx.fill();
           ctx.restore();
         }
+      } else if (w === 'snow') {
+        ctx.fillStyle = '#f2f7ff';
+        for (const p of this.weather) {
+          if (!!p.front !== front) continue;
+          ctx.globalAlpha = 0.55 + p.depth * 0.4;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, SA.TAU); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      } else if (w === 'dust' || w === 'data') {
+        ctx.globalCompositeOperation = 'lighter';
+        const col = w === 'data' ? '#35f0ff' : '#ffe6a0';
+        for (const p of this.weather) {
+          if (!!p.front !== front) continue;
+          ctx.globalAlpha = (0.25 + 0.35 * Math.max(0, Math.sin(p.ph * 2))) * (w === 'data' ? 1.4 : 1);
+          if (w === 'data') { ctx.fillStyle = p.depth > 0.5 ? '#35f0ff' : '#ff2bd6'; ctx.fillRect(p.x, p.y, p.size * 1.6, p.size * 1.6); }
+          else ctx.drawImage(SA.glowSprite(col), p.x - p.size * 3, p.y - p.size * 3, p.size * 6, p.size * 6);
+        }
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
       } else if (w === 'fireflies' || w === 'embers') {
         ctx.globalCompositeOperation = 'lighter';
         for (const p of this.weather) {

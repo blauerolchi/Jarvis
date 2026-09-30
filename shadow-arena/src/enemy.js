@@ -34,14 +34,18 @@
     ['light', 'light'],
   ];
 
+  function c_press(ai, a) { ai.ctrl.press(a); }
+
   class EnemyAI {
     constructor(me, opp, game, opts) {
       this.me = me;
       this.opp = opp;
       this.game = game;
       this.ctrl = me.ctrl;
-      this.setDifficulty(opts.difficulty || 'normal');
+      if (opts.params) { this.diffName = 'stage'; this.D = opts.params; }
+      else this.setDifficulty(opts.difficulty || 'normal');
       this.profile = opts.profile || SA.CHARACTERS.dummy.ai;
+      this.abilities = (opts.abilities || []).map((a) => Object.assign({ cdLeft: a.cd * 0.5 }, a));
       this.mode = opts.mode || 'fight'; // fight | dummy | demo
       this.dummy = opts.dummy || 'stand';
       this.reset();
@@ -71,7 +75,24 @@
       this.moveDir = 0;
       this.moveTimer = 0;
       this.perceived = null;
-      this.desired = this.profile ? this.profile.range : 240;
+      this.seenProj = new Set();
+      this.raged = false;
+      this.rage = 1;
+      this.desired = this.baseRange();
+      for (const a of this.abilities || []) a.cdLeft = a.cd * 0.5;
+    }
+
+    // preferred fighting distance: personality + how far the equipped weapon reaches
+    baseRange() {
+      const r = this.profile ? this.profile.range : 240;
+      const w = this.me.weapon;
+      return r + (w && w.len ? w.len * 0.6 : 0);
+    }
+
+    attackReach() {
+      const ms = this.me.moveset;
+      const m = ms && SA.MOVES[ms.light];
+      return (m && m.reach) || REACH.jab;
     }
 
     observe() {
@@ -108,6 +129,15 @@
       this.timer -= ts;
       const dist = Math.abs(p.x - me.x);
       this.dist = dist;
+      for (const ab of this.abilities) if (ab.cdLeft > 0) ab.cdLeft -= ts / 60;
+      if (this.profile.rage && !this.raged && me.hp < me.maxHp * 0.4 && me.hp > 0) {
+        this.raged = true;
+        this.rage = 1.4;
+        me.rageSpeed = 1.12;
+        game.label('RAGE', me.x, me.y - 330, '#ff4a3a', me, 1.2);
+        SA.FX.special(game.particles, me.x, me.y, '#ff3a2a');
+        SA.audio.play('roar', 0.6);
+      }
 
       if (this.mode === 'dummy' && this.dummy !== 'cpu') { this.updateDummy(p, dist); return; }
 
@@ -167,7 +197,7 @@
       }
     }
 
-    aggr() { return (this.profile.aggression || 0.6) * this.D.aggression; }
+    aggr() { return (this.profile.aggression || 0.6) * this.D.aggression * (this.rage || 1); }
 
     enter(state, timer) {
       this.state = state;
@@ -178,10 +208,11 @@
     // Reactive layer: blocks / dodges / punishes / anti-airs what it has *seen*.
     react(p, dist) {
       const D = this.D, c = this.ctrl, me = this.me;
+      if (this.reactProjectiles()) return;
       const threat = (p.move && (p.phase === 'startup' || p.phase === 'active')) || (p.sp === 'charge' || p.sp === 'dash' || p.sp === 'rise');
       if (threat && p.serial !== this.reacted) {
         this.reacted = p.serial;
-        const reach = p.sp ? 900 : (REACH[p.move.id] || 260);
+        const reach = p.sp ? 900 : (p.move.reach || REACH[p.move.id] || 260);
         if (dist < reach + 50 && this.state !== 'PUNISH') {
           const r = Math.random();
           const block = D.block * (this.profile.blockMul || 1);
@@ -245,6 +276,37 @@
       }
     }
 
+    // Projectiles are visible objects: react after the reaction delay, never before.
+    reactProjectiles() {
+      const game = this.game, me = this.me, D = this.D;
+      if (!game.projectiles) return false;
+      for (const pr of game.projectiles.pool) {
+        if (!pr.alive || pr.owner === me || this.seenProj.has(pr.sid)) continue;
+        if (pr.life * 60 < D.react) continue;
+        const toward = Math.sign(me.x - pr.x) === Math.sign(pr.vx);
+        const d = Math.abs(me.x - pr.x);
+        if (!toward || d > 950) continue;
+        this.seenProj.add(pr.sid);
+        if (this.seenProj.size > 64) this.seenProj.clear();
+        const r = Math.random();
+        if (pr.type === 'shockwave') {
+          if (r < D.dodge * 1.6 + 0.15) { c_press(this, 'up'); this.enter('RECOVER', 20); }
+          else if (r < D.dodge + D.block) { this.enter('BLOCK'); this.blockTimer = 26; this.crouchBlk = true; }
+          return true;
+        }
+        if ((pr.type === 'bullet' || pr.type === 'pellet') && r < D.dodge * 1.4 + 0.1) {
+          this.enter('BLOCK'); this.blockTimer = 22; this.crouchBlk = true;   // duck under
+          return true;
+        }
+        if (r < D.block + 0.12) {
+          this.enter('BLOCK'); this.blockTimer = Math.min(40, d / 40 + 10); this.crouchBlk = false;
+          if (chance(D.parry)) this.parryAt = Math.max(0, d / (Math.abs(pr.vx) || 1) * 60 - 4);
+          return true;
+        }
+      }
+      return false;
+    }
+
     comboSteps(punish) {
       const D = this.D;
       let steps = SA.M.pick(punish ? COMBOS.slice(0, 3) : COMBOS);
@@ -263,6 +325,8 @@
       if (step === 'dash') { c.hold.add(fwd); c.press('dash'); return; }
       if (step === 'jump') { c.hold.add(fwd); c.press('up'); return; }
       if (step === 'special') { c.press('special'); return; }
+      if (step === 'ranged' || step === 'reload') { c.press(step); return; }
+      if (step === 'uheavy') { c.hold.add('up'); c.press('heavy'); return; }
       if (step[0] === 'd' && step !== 'dash') { c.hold.add('down'); c.press(step.slice(1)); return; }
       c.press(step);
     }
@@ -342,7 +406,8 @@
       const D = this.D, prof = this.profile, w = prof.weights, me = this.me;
       const aggr = this.aggr();
       this.timer = rand(D.think[0], D.think[1]);
-      this.desired = prof.range + rand(-1, 1) * D.spacing;
+      this.desired = this.baseRange() + rand(-1, 1) * D.spacing;
+      const R = this.attackReach();
 
       if (p.state === 'down' || p.state === 'getup' || p.state === 'ko') {
         if (dist > 330) this.enter('APPROACH', 40);
@@ -356,6 +421,35 @@
           return;
         }
       }
+      // special abilities (teleport, slam, shield … from archetype, elite modifier or boss phase)
+      for (const ab of this.abilities) {
+        if (ab.cdLeft > 0 || dist < (ab.min || 0) || dist > (ab.max || 9999)) continue;
+        if (chance(ab.chance || 0.35) && SA.Bosses.startAbility(me, this.opp, ab.id, this.game)) {
+          ab.cdLeft = ab.cd;
+          this.enter('RECOVER', 20);
+          return;
+        }
+      }
+      // ranged weapon: keep distance, throw/shoot, reload when safe
+      const rw = me.rangedWeapon;
+      if (rw) {
+        const rs = me.rangedState;
+        if (rw.magazine && rs.ammo === 0 && dist > 380 && chance(0.7)) { this.startPlan('ATTACK', ['reload']); return; }
+        const minD = rw.proj.life ? 150 : (prof.rangedMin || 300);
+        const maxD = rw.proj.life ? 330 : 1300;
+        if (rs.ready() && dist > minD && dist < maxD && chance((D.ranged || 0.3) * (prof.rangedMul || 1))) {
+          this.startPlan('ATTACK', ['ranged']);
+          return;
+        }
+      }
+      if (prof.keepAway && dist < this.desired - 120 && chance(0.55)) {
+        if (chance(0.4 * (prof.dodgeMul || 1))) {
+          this.enter('DODGE');
+          this.ctrl.hold.add(this.keys()[1]);
+          this.ctrl.press('dash');
+        } else this.enter('RETREAT', rand(18, 36));
+        return;
+      }
       if (chance(D.mistakes)) {
         this.startPlan('ATTACK', [SA.M.pick(['heavy', 'kick', 'dkick', 'light'])]);
         return;
@@ -363,9 +457,9 @@
       const lowHp = me.hp / me.maxHp < 0.3;
 
       let choice;
-      if (dist > 560) {
+      if (dist > R + 320) {
         choice = weighted([[3, 'approach'], [w.dashPunch * aggr * 0.4, 'dashIn'], [0.4, 'wait']]);
-      } else if (dist > 300) {
+      } else if (dist > R + 60) {
         choice = weighted([
           [2.2, 'approach'],
           [w.dashPunch * aggr, 'dashPunch'],
@@ -379,6 +473,7 @@
           [w.combo * aggr, 'combo'],
           [w.jab, 'jab'],
           [dist > 180 ? w.kick : w.kick * 0.4, 'kick'],
+          [(w.over || 0.5) * aggr, 'overhead'],
           [w.lowKick, 'lowKick'],
           [w.heavy * aggr, 'heavy'],
           [(1.3 * (1.3 - aggr) + (lowHp ? 1 : 0)) * D.guard, 'guard'],
@@ -401,6 +496,7 @@
         case 'kick': this.startPlan('ATTACK', ['kick']); break;
         case 'lowKick': this.startPlan('ATTACK', chance(D.comboChance) ? ['dkick', 'light'] : ['dkick']); break;
         case 'heavy': this.startPlan('ATTACK', ['heavy']); break;
+        case 'overhead': this.startPlan('ATTACK', ['uheavy']); break;
         case 'crouchJab': this.startPlan('ATTACK', ['dlight']); break;
         case 'guard':
           this.enter('BLOCK');

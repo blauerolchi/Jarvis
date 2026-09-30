@@ -20,8 +20,11 @@
     thigh: 80, shin: 78, foot: 22,
   };
 
-  const KEYS = ['hipX', 'torso', 'head', 'aF1', 'aF2', 'aB1', 'aB2', 'lF1', 'lF2', 'lB1', 'lB2', 'rot'];
-  const POINTS = ['hip', 'neck', 'head', 'sh', 'elbF', 'handF', 'elbB', 'handB', 'kneeF', 'footF', 'toeF', 'kneeB', 'footB', 'toeB'];
+  // wg / wgB: weapon grip angle relative to the forearm (front / back hand)
+  const KEYS = ['hipX', 'torso', 'head', 'aF1', 'aF2', 'aB1', 'aB2', 'lF1', 'lF2', 'lB1', 'lB2', 'rot', 'wg', 'wgB'];
+  const BODY = ['hip', 'neck', 'head', 'sh', 'elbF', 'handF', 'elbB', 'handB', 'kneeF', 'footF', 'toeF', 'kneeB', 'footB', 'toeB'];
+  // weapon points: blade tip, blade centre and butt of the held weapon(s); never touch the ground snap
+  const POINTS = BODY.concat(['tip', 'blade', 'butt', 'tipB', 'bladeB']);
   // radius used for ground contact per joint
   const CONTACT = { hip: 15, neck: 12, head: 21, handF: 8, handB: 8, elbF: 8, elbB: 8, kneeF: 10, kneeB: 10, footF: 5, footB: 5, toeF: 4, toeB: 4, sh: 12 };
 
@@ -29,7 +32,7 @@
     hipX: 0, torso: 0.12, head: 0.05,
     aF1: 0.55, aF2: 1.95, aB1: 0.25, aB2: 2.25,
     lF1: 0.55, lF2: -0.8, lB1: -0.4, lB2: -0.05,
-    rot: 0,
+    rot: 0, wg: -0.35, wgB: -0.35,
   };
 
   function P(over, base) {
@@ -157,7 +160,7 @@
   }
 
   // Solves the pose into facing-local coordinates (x forward), snapped so the lowest point is y=0.
-  function solveLocal(pose, S, bulk) {
+  function solveLocal(pose, S, bulk, wgeom) {
     const d = DIM;
     const hip = S.hip;
     hip.x = pose.hipX; hip.y = 0;
@@ -183,6 +186,17 @@
     place(S.footB, S.kneeB, shinB, d.shin);
     place(S.toeB, S.footB, Math.max(shinB + 1.45, 1.5), d.foot);
 
+    // held weapon: blade continues from the hand along forearm angle + grip
+    const len = wgeom ? wgeom.len : 0, back = wgeom ? wgeom.back || 0 : 0;
+    const wa = pose.aF1 + pose.aF2 + pose.wg;
+    place(S.tip, S.handF, wa, len);
+    place(S.blade, S.handF, wa, len * 0.68);
+    place(S.butt, S.handF, wa, -back);
+    const lenB = wgeom && wgeom.dual ? len : 0;
+    const wb = pose.aB1 + pose.aB2 + pose.wgB;
+    place(S.tipB, S.handB, wb, lenB);
+    place(S.bladeB, S.handB, wb, lenB * 0.68);
+
     if (pose.rot) {
       const c = Math.cos(pose.rot), s = Math.sin(pose.rot);
       for (const k of POINTS) {
@@ -195,7 +209,7 @@
     }
 
     let maxY = -Infinity;
-    for (const k of POINTS) {
+    for (const k of BODY) {
       const v = S[k].y + CONTACT[k] * (bulk || 1);
       if (v > maxY) maxY = v;
     }
@@ -325,7 +339,7 @@
     f.scaleY = damp(f.scaleY, 1, 14, dt);
     f.scaleX = damp(f.scaleX, 1, 14, dt);
 
-    solveLocal(f.pose, f.local, f.look.bulk);
+    solveLocal(f.pose, f.local, f.look.bulk, f.wgeom);
   }
 
   const GETUP = [
@@ -342,7 +356,7 @@
   const VICTORY2 = [[0, POSES.stance], [16, POSES.victory2, 'smooth'], [999, POSES.victory2]];
 
   SA.Anim = {
-    KEYS, POINTS, STANCE, P, copyPose, lerpPose, dampPose, sampleKeys,
+    KEYS, POINTS, BODY, STANCE, P, copyPose, lerpPose, dampPose, sampleKeys,
     createSkeleton, solveLocal, toWorld, update,
     idlePose, walkPose, runPose,
   };

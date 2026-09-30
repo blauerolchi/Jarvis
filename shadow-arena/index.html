@@ -2,33 +2,60 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#050305">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Shadow Arena</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main id="stage">
     <canvas id="game" width="1920" height="1080" tabindex="0" aria-label="Shadow Arena game canvas"></canvas>
   </main>
+  <div id="rotate" aria-live="polite">
+    <div class="rotate-icon"></div>
+    <p>Bitte das Tablet ins Querformat drehen</p>
+  </div>
   <div id="boot-error" role="alert"></div>
   <noscript><div class="noscript">Shadow Arena needs JavaScript enabled.</div></noscript>
 
-  <!-- Classic scripts (no modules) so the game runs straight from file:// -->
+  <!-- Classic scripts (no modules) so the game also runs straight from file:// -->
   <script src="src/core.js"></script>
+  <script src="src/balance.js"></script>
   <script src="src/storage.js"></script>
   <script src="src/input.js"></script>
+  <script src="src/touch.js"></script>
   <script src="src/audio.js"></script>
   <script src="src/particles.js"></script>
   <script src="src/camera.js"></script>
   <script src="src/physics.js"></script>
   <script src="src/animation.js"></script>
   <script src="src/combat.js"></script>
+  <script src="src/weapons.js"></script>
+  <script src="src/projectiles.js"></script>
   <script src="src/fighter.js"></script>
   <script src="src/player.js"></script>
   <script src="src/enemy.js"></script>
+  <script src="src/enemies.js"></script>
+  <script src="src/bosses.js"></script>
+  <script src="src/progression.js"></script>
+  <script src="src/arenamode.js"></script>
   <script src="src/renderer.js"></script>
   <script src="src/arena.js"></script>
+  <script src="src/arenas2.js"></script>
   <script src="src/ui.js"></script>
+  <script src="src/screens.js"></script>
   <script src="game.js"></script>
+  <script>
+    // Installable PWA: the service worker only runs over http(s); file:// keeps working without it.
+    if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)) {
+      window.addEventListener('load', function () { navigator.serviceWorker.register('service-worker.js').catch(function () {}); });
+    }
+  </script>
 </body>
 </html>

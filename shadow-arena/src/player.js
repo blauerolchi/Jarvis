@@ -93,20 +93,38 @@
     },
   };
 
+  // Recolors the player's silhouette details with an owned cosmetic.
+  SA.applyCosmetic = function (look, cosId) {
+    const c = SA.COSMETICS && SA.COSMETICS[cosId];
+    if (!c) return look;
+    const out = Object.assign({}, look, { accent: c.accent, trail: c.trail, eye: c.eye });
+    out.accessories = look.accessories.map((a) => (a.color ? Object.assign({}, a, { color: a.anchor === 'hip' ? SA.M.shade(c.band, -0.18) : c.band }) : a));
+    return out;
+  };
+
+  // opts: isPlayer, special, weapon, ranged, cosmetic, look, name, title, stats {maxHp, damageMul, speedMul, armor, superArmor}
   SA.createFighter = function (charId, controller, opts) {
+    opts = opts || {};
     const def = SA.CHARACTERS[charId];
+    let look = opts.look || def.look;
+    if (opts.cosmetic) look = SA.applyCosmetic(look, opts.cosmetic);
+    const st = Object.assign({}, def.stats, opts.stats || {});
     const f = new SA.Fighter({
-      name: def.name,
-      look: def.look,
+      name: opts.name || def.name,
+      look,
       controller,
-      isPlayer: !!(opts && opts.isPlayer),
-      maxHp: def.stats.maxHp,
-      damageMul: def.stats.damageMul,
-      speedMul: def.stats.speedMul,
-      special: (opts && opts.special) || 'rush',
+      isPlayer: !!opts.isPlayer,
+      maxHp: st.maxHp,
+      damageMul: st.damageMul,
+      speedMul: st.speedMul,
+      armor: st.armor,
+      superArmor: st.superArmor,
+      special: opts.special || def.special || 'rush',
+      weapon: opts.weapon || def.weapon || 'fists',
+      ranged: opts.ranged || def.ranged || null,
     });
     f.charId = charId;
-    f.title = def.title;
+    f.title = opts.title || def.title;
     f.energy = 0;
     return f;
   };
