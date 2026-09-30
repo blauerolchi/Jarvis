@@ -758,7 +758,13 @@
       if (step === 'uheavy') { c.hold.add('up'); c.press('heavy'); return; }
       if (step === 'fheavy') { c.hold.add(fwd); c.press('heavy'); return; }
       if (step === 'runlight') { c.hold.add(fwd); c.analog = GAIT.run; c.press('light'); return; }
-      if (step.startsWith('ab:')) { SA.Bosses.startAbility(this.me, this.opp, step.slice(3), this.game); return; }
+      if (step.startsWith('ab:')) {
+        // abilities inside combos respect their cooldown / phase; otherwise a plain move stands in
+        const id = step.slice(3), ab = (this.abilities || []).find((x) => x.id === id);
+        if (ab && ab.cdLeft <= 0 && SA.Bosses.startAbility(this.me, this.opp, id, this.game, { follow: false })) { ab.cdLeft = ab.cd; this.count('ability'); return; }
+        this.doStep(/teleport|Dash/.test(id) ? 'dash' : 'heavy', fwd);
+        return;
+      }
       if (step[0] === 'd' && step !== 'dash') { c.hold.add('down'); c.press(step.slice(1)); return; }
       c.press(step);
     }
@@ -805,11 +811,11 @@
         return;
       }
       if (plan.i === 0 || prev.startsWith('wait:') || prev === 'guard' || prev.startsWith('ab:')) {
-        if (me.isNeutral() || me.state === 'run' || me.state === 'sprint') {
+        if (me.isNeutral() || me.state === 'run' || me.state === 'sprint' || (prev && prev.startsWith('ab:') && me.isMoving() && me.st > 6)) {
           if (step[0] === 'd' && step !== 'dash') c.hold.add('down');
           this.doStep(step, fwd);
           plan.i++;
-        } else if (prev && prev.startsWith('ab:') && me.state !== 'bossmove' && me.state !== 'attack') plan.i = plan.steps.length;
+        } else if (prev && prev.startsWith('ab:') && me.state !== 'bossmove' && me.state !== 'attack' && !me.isMoving()) plan.i = plan.steps.length;
         return;
       }
       if (prev === 'dash') {

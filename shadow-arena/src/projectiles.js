@@ -10,6 +10,9 @@
 (function (SA) {
   const { rand, clamp } = SA.M;
 
+  // big boss attacks can be blocked but not sent back
+  const NO_REFLECT = { shockwave: 1, wave: 1, beam: 1, pillar: 1, sand: 1 };
+
   class ProjectileSystem {
     constructor(max) {
       this.pool = [];
@@ -47,6 +50,10 @@
       p.color = o.color || '#ffffff';
       p.level = o.level || 'mid';
       p.sourceId = o.sourceId || null;
+      // homing (boss spirits / sun orbs): steer toward target after a short delay, fixed speed
+      p.homing = o.homing || 0; p.homingDelay = o.homingDelay || 0; p.speed = o.speed || 0; p.target = o.target || null;
+      p.warn = !!o.warn;                 // telegraph only (never collides)
+      p.unblockable = !!o.unblockable;   // lightning from the sky: move out of it
       p.hitList.clear();
       p.trail = 0;
       return p;
@@ -123,17 +130,30 @@
           p.vy += (dy / d * spd - p.vy) * Math.min(1, dt * 8);
           if (d < 50) { this.kill(p); if (o.rangedState) o.rangedState.out = false; continue; }
         }
+        if (p.homing && p.target && p.life > p.homingDelay) {
+          const t = p.target, tx = t.skel.hip.x, ty = t.y - 130 * t.look.scale;
+          const want = Math.atan2(ty - p.y, tx - p.x), cur = Math.atan2(p.vy, p.vx);
+          let d = want - cur;
+          while (d > Math.PI) d -= SA.TAU;
+          while (d < -Math.PI) d += SA.TAU;
+          const a = cur + clamp(d, -p.homing * dt, p.homing * dt);
+          const sp = Math.max(p.speed, Math.hypot(p.vx, p.vy) * 0.96);
+          p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp;
+          if (p.y > -30 && p.vy > 0) p.vy *= 0.5;   // skim over the floor instead of dying on it
+        }
         p.vy += p.grav * dt;
         p.px = p.x; p.py = p.y;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.rot += p.spin * dt;
-        if (p.type === 'rocket' || p.type === 'energy' || p.type === 'wave') {
+        if (p.type === 'rocket' || p.type === 'energy' || p.type === 'wave' || p.type === 'spirit' || p.type === 'orb') {
           if ((p.trail = (p.trail || 0) + 1) % 2 === 0) SA.FX.projectileTrail(game.particles, p.x, p.y, p.color, p.type);
         }
         if (p.type === 'shockwave' && (p.trail = (p.trail || 0) + 1) % 3 === 0) SA.FX.dust(game.particles, p.x, 0, 0.35, Math.sign(p.vx));
         // ground / walls / lifetime
-        if (!p.ground && p.y > -6) {
+        if (p.type === 'sand' || p.type === 'wind') { if ((p.trail = (p.trail || 0) + 1) % 3 === 0) SA.FX.sandTrail(game.particles, p.x, p.y, Math.sign(p.vx), p.type === 'wind' ? '#cfeeff' : '#d8b070'); }
+        if (p.warn) { if (p.life > p.maxLife) this.kill(p); continue; }
+        if (!p.ground && p.y > -6 && !p.homing) {
           if (p.explode) { this.explode(p, game); continue; }
           if (p.type === 'kunai' || p.type === 'knife' || p.type === 'shuriken' || p.type === 'bolt') SA.FX.spark(game.particles, p.x, -4, '#ffe0b0');
           this.kill(p);
@@ -168,7 +188,9 @@
       const hit = SA.Combat.hurtRegion(this.rect(p), f);
       if (!hit) return false;
       p.hitList.add(f);
-      const dir = Math.sign(p.vx) || 1;
+      // beams / pillars stand still: they push away from their source
+      const src = p.type === 'beam' ? p.owner.x : p.x;
+      const dir = p.vx ? Math.sign(p.vx) : Math.sign(f.x - src) || 1;
       // energy shield (bosses) stops projectiles
       if (f.shieldT > 0) {
         SA.FX.block(game.particles, hit.x, hit.y, -dir, 0.6);
@@ -176,12 +198,12 @@
         this.kill(p);
         return true;
       }
-      const fromX = p.px === undefined ? p.x : p.px;
+      const fromX = p.type === 'beam' ? p.owner.x : p.px === undefined ? p.x : p.px;
       const facingIt = Math.sign(fromX - f.x) === f.facing || Math.abs(fromX - f.x) < 10;
-      const blocking = (f.state === 'block' || f.state === 'blockstun') && facingIt &&
+      const blocking = !p.unblockable && (f.state === 'block' || f.state === 'blockstun') && facingIt &&
         !(p.level === 'low' && !f.crouchBlock);
       if (blocking) {
-        if (f.parryAge <= SA.PARRY_WINDOW && p.type !== 'shockwave' && p.type !== 'wave') {
+        if (f.parryAge <= SA.PARRY_WINDOW && !NO_REFLECT[p.type]) {
           // parry reflects the projectile back to its owner
           p.owner = f;
           p.reflected = true;
@@ -215,6 +237,7 @@
       SA.Combat.applyHit(owner, f, p.data, hit, game, { projectile: true, dir });
       if (p.explode) this.explode(p, game);
       else if (!p.pierce && !p.returns && p.type !== 'wave') this.kill(p);
+      if (p.type === 'spirit' || p.type === 'orb') SA.FX.glyphBurst(game.particles, p.x, p.y, p.color, 3, 200);
       return true;
     }
 
@@ -341,6 +364,78 @@
             ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5;
             ctx.beginPath(); ctx.arc(-34, 0, p.h * 0.55, -1.0, 1.0); ctx.stroke();
             ctx.drawImage(SA.glowSprite(p.color), -p.w, -p.h * 0.7, p.w * 2, p.h * 1.4);
+            break;
+          }
+          case 'spirit': {
+            // wailing soul: glowing head with a tail that follows its flight
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.rotate(Math.atan2(p.vy, p.vx));
+            ctx.drawImage(SA.glowSprite(p.color), -34, -24, 68, 48);
+            ctx.globalAlpha = 0.7;
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.moveTo(10, -9); ctx.quadraticCurveTo(-30, -6 + Math.sin(p.life * 30) * 6, -46, 0); ctx.quadraticCurveTo(-30, 6, 10, 9); ctx.closePath(); ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(8, 0, 7, 0, SA.TAU); ctx.fill();
+            break;
+          }
+          case 'orb': {
+            ctx.globalCompositeOperation = 'lighter';
+            const r = 16 + Math.sin(p.life * 18) * 2;
+            ctx.drawImage(SA.glowSprite(p.color), -44, -44, 88, 88);
+            ctx.fillStyle = '#fff4c8'; ctx.beginPath(); ctx.arc(0, 0, r * 0.6, 0, SA.TAU); ctx.fill();
+            ctx.strokeStyle = p.color; ctx.lineWidth = 3;
+            for (let i = 0; i < 6; i++) { const a = p.life * 4 + i * SA.TAU / 6; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); ctx.lineTo(Math.cos(a) * r * 1.6, Math.sin(a) * r * 1.6); ctx.stroke(); }
+            break;
+          }
+          case 'wind': {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.scale(dir, 1);
+            ctx.strokeStyle = p.color; ctx.lineWidth = 4; ctx.globalAlpha = 0.85;
+            for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(-10 - i * 14, 0, 18 - i * 3, -1.3, 1.3); ctx.stroke(); }
+            ctx.drawImage(SA.glowSprite(p.color), -50, -26, 80, 52);
+            break;
+          }
+          case 'sand': {
+            ctx.fillStyle = '#c8a060'; ctx.globalAlpha = 0.9;
+            for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(-i * 9 * dir, Math.sin(i * 2 + p.life * 20) * 6, 5 - i * 0.6, 0, SA.TAU); ctx.fill(); }
+            break;
+          }
+          case 'beam': {
+            // Ra's sun beam; a thin flickering line first (the warning), then the burning ray
+            ctx.globalCompositeOperation = 'lighter';
+            if (p.warn) {
+              ctx.globalAlpha = 0.35 + 0.35 * Math.abs(Math.sin(p.life * 30));
+              ctx.fillStyle = p.color; ctx.fillRect(-p.w / 2, -2, p.w, 4);
+            } else {
+              const k = clamp(1 - p.life / p.maxLife, 0, 1);
+              ctx.globalAlpha = 0.5 + 0.5 * k;
+              ctx.fillStyle = p.color; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+              ctx.fillStyle = '#fffbe8'; ctx.fillRect(-p.w / 2, -p.h * 0.18, p.w, p.h * 0.36);
+              ctx.drawImage(SA.glowSprite(p.color), -p.w / 2, -p.h * 1.6, p.w, p.h * 3.2);
+            }
+            break;
+          }
+          case 'pillar': {
+            // lightning of Set: a jagged bolt from the sky down to the floor
+            ctx.globalCompositeOperation = 'lighter';
+            if (p.warn) {
+              const k = p.life / p.maxLife;
+              ctx.globalAlpha = (0.12 + 0.25 * k) * (0.6 + 0.4 * Math.abs(Math.sin(p.life * (12 + 30 * k))));
+              ctx.fillStyle = p.color;
+              ctx.fillRect(-(8 + 50 * k), -p.h / 2, 16 + 100 * k, p.h);
+              ctx.globalAlpha = 0.5 + 0.4 * k;
+              ctx.drawImage(SA.glowSprite(p.color), -90, p.h / 2 - 50, 180, 70);
+              break;
+            }
+            ctx.globalAlpha = clamp(1 - p.life / p.maxLife + 0.2, 0, 1);
+            ctx.drawImage(SA.glowSprite(p.color), -110, -p.h / 2, 220, p.h);
+            ctx.strokeStyle = '#f4e8ff'; ctx.lineWidth = 7; ctx.lineJoin = 'round';
+            ctx.beginPath();
+            let x = 0;
+            for (let y = -p.h / 2; y <= p.h / 2; y += 60) { ctx.lineTo(x, y); x = rand(-22, 22); }
+            ctx.stroke();
+            ctx.strokeStyle = p.color; ctx.lineWidth = 16; ctx.globalAlpha *= 0.4; ctx.stroke();
             break;
           }
           case 'shockwave': {

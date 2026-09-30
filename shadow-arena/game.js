@@ -177,7 +177,7 @@
       if (this.mode === 'arena') {
         const AIClass = o.enemy.kind === 'boss' ? SA.BossAI : SA.EnemyAI;
         this.ai2 = new AIClass(this.p2, this.p1, this, { params: o.enemy.params, profile, abilities: o.enemy.abilities, mode: 'fight' });
-        if (o.enemy.kind === 'boss') this.bossFx = { phase: 0, tint: o.enemy.tint, fx: o.enemy.fx };
+        if (o.enemy.kind === 'boss') SA.Bosses.applyPhaseMood(this, o.enemy, 0);
       } else {
         this.ai2 = new SA.EnemyAI(this.p2, this.p1, this, {
           difficulty: demo ? 'hard' : this.difficulty, profile,
@@ -575,6 +575,53 @@
       if (st === 'walk' || st === 'run' || st === 'idle') SA.FX.dust(this.particles, f.x, 0, 0.45, f.facing);
     }
 
+    // Boss moods: Anubis / Osiris darken the tomb, Ra floods it with light, Set's sandstorm.
+    // During the god's intro the world is black except for its glowing eyes.
+    drawBossMood(ctx) {
+      const fx = this.bossFx, W = SA.W, H = SA.H;
+      if (fx && fx.dark > 0) {
+        const g = ctx.createRadialGradient(W / 2, H * 0.55, H * 0.2, W / 2, H * 0.55, W * 0.7);
+        g.addColorStop(0, `rgba(0,0,0,${fx.dark * 0.25})`);
+        g.addColorStop(1, `rgba(0,0,0,${fx.dark})`);
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      }
+      if (fx && fx.light > 0) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = `rgba(255,190,90,${fx.light * (0.09 + 0.02 * Math.sin(performance.now() / 300))})`;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      const boss = this.p2 && this.p2.isBoss ? this.p2 : null;
+      if (boss && boss.stormT > 0) {
+        ctx.fillStyle = `rgba(190,140,70,${Math.min(0.28, boss.stormT * 0.2)})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+      const bi = this.match && this.match.phase === 'intro' && this.match.bossIntro;
+      if (bi && boss) {
+        const a = 0.94 * (1 - SA.M.clamp((bi.t - 0.7) / 0.9, 0, 1));
+        if (a > 0.01) {
+          ctx.fillStyle = `rgba(0,0,0,${a})`;
+          ctx.fillRect(0, 0, W, H);
+          // the eyes shine through the dark
+          const cam = this.camera, head = boss.skel.head;
+          ctx.save();
+          cam.apply(ctx);
+          ctx.globalCompositeOperation = 'lighter';
+          const eye = (this.enemyDef && this.enemyDef.introEye) || boss.look.eye;
+          const s = boss.look.scale, fl = 0.8 + 0.2 * Math.sin(bi.t * 20);
+          for (const dx of [-7, 9]) {
+            const x = head.x + boss.facing * (dx + 8) * s, y = head.y - 2 * s;
+            ctx.globalAlpha = a * fl;
+            ctx.drawImage(SA.glowSprite(eye), x - 26 * s, y - 16 * s, 52 * s, 32 * s);
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 5 * s, y - 1.5 * s, 10 * s, 3 * s);
+          }
+          ctx.restore();
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      }
+    }
+
     // ---------- match flow ----------
     updateMatch(dt, realDt) {
       const m = this.match, p1 = this.p1, p2 = this.p2;
@@ -604,23 +651,51 @@
             if (arena) {
               const e = this.enemyDef, run = this.arenaRun;
               const boss = e.kind === 'boss';
-              this.ui.showAnnounce(boss ? 'BOSS' : `STAGE ${run.stage}`, {
-                dur: 1.5, size: boss ? 190 : 150, color: boss ? '#ff4a3a' : e.kind === 'elite' ? '#ffd27a' : '#ffffff',
-                sub: `${e.name.toUpperCase()}${e.title && boss ? '  ·  ' + e.title.toUpperCase() : ''}`,
-              });
-              SA.audio.play(boss ? 'roar' : 'gong');
+              if (boss) {
+                // god intro: darkness, two glowing eyes, the god steps out of the shadow, then its name
+                m.bossIntro = { t: 0, x0: p2.x + 260, x1: p2.x };
+                p2.x = p2.prevX = m.bossIntro.x0;
+                p2.introGlow = 2;
+                SA.audio.play('whisper', 1);
+                SA.audio.play('boss_impact', 0.5);
+              } else {
+                this.ui.showAnnounce(`STAGE ${run.stage}`, {
+                  dur: 1.5, size: 150, color: e.kind === 'elite' ? '#ffd27a' : '#ffffff', sub: e.name.toUpperCase(),
+                });
+                SA.audio.play('gong');
+              }
             } else {
               this.ui.showAnnounce(m.round === 3 ? 'FINAL ROUND' : `ROUND ${m.round}`, { dur: 1.35, size: m.round === 3 ? 140 : 170, sub: m.round === 1 ? `${p1.name}  VS  ${p2.name}` : null });
               SA.audio.play('gong');
             }
           }
-          if (m.stage === 1 && m.t > 1.6) {
+          if (m.bossIntro) {
+            const bi = m.bossIntro, e = this.enemyDef;
+            bi.t = m.t;
+            // 0.0–0.5 s only the eyes; 0.5–1.3 s the god walks out of the dark; name at 0.9 s
+            const k = SA.M.clamp((bi.t - 0.5) / 0.8, 0, 1);
+            const nx = bi.x0 + (bi.x1 - bi.x0) * SA.M.easeOutCubic(k);
+            if (k > 0 && k < 1 && Math.floor(bi.t * 60) % 16 === 0) { SA.FX.dust(this.particles, nx, 0, 0.5, -1); SA.audio.play('step', 1); }
+            p2.x = p2.prevX = nx;
+            p2.introWalk = k > 0 && k < 1;
+            p2.introGlow = Math.max(0, 2 - k * 1.6);
+            if (!bi.named && bi.t > 0.9) {
+              bi.named = true;
+              this.ui.showAnnounce(e.name.toUpperCase(), { dur: 1.5, size: 180, color: p2.look.accent, sub: (e.title || '').toUpperCase() });
+              SA.audio.play('roar');
+              this.shake(0.5);
+              this.camera.punch(0.06);
+            }
+          }
+          const fightAt = m.bossIntro ? 2.5 : 1.6;
+          if (m.stage === 1 && m.t > fightAt) {
             m.stage = 2;
             this.ui.showAnnounce('FIGHT!', { dur: 0.8, size: 200, color: '#fff4de', brushColor: '#b01d31' });
             SA.audio.play('fight');
             this.shake(0.25);
           }
-          if (m.t > 2.1) {
+          if (m.t > fightAt + 0.5) {
+            if (m.bossIntro) { p2.introGlow = 0; p2.introWalk = false; m.bossIntro = null; }
             m.phase = 'fight';
             for (const f of [p1, p2]) if (f.state === 'intro') f.setState('idle');
             p1.ctrl.clearBuffer();
@@ -630,6 +705,8 @@
 
         case 'fight':
           m.timer -= dt;
+          // Osiris: the first defeat is not the end
+          if (p2.hp <= 0 && p1.hp > 0 && p2.isBoss && SA.Bosses.tryRevive(p2, this)) break;
           if (p1.hp <= 0 || p2.hp <= 0) this.startKO();
           else if (m.timer <= 0) {
             m.timer = 0;
@@ -796,6 +873,7 @@
 
       SA.resetTransform(ctx);
       arena.drawFront(ctx, cam);
+      this.drawBossMood(ctx);
       if (this.bossFx && this.bossFx.tint) {
         const [r, g, b] = this.bossFx.tint;
         const a = 0.04 + this.bossFx.phase * 0.04 + (this.bossFx.phase > 1 ? 0.02 * Math.sin(performance.now() / 180) : 0);

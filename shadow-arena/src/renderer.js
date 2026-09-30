@@ -745,9 +745,26 @@
       }
       case 'wings': {
         // folded falcon wings behind the shoulders (Horus)
-        ctx.fillStyle = col(a.color || '#3a2a1a');
-        const s = P.sh;
-        poly([{ x: s.x - hf.fx * 10, y: s.y - 10 * sc }, { x: s.x - hf.fx * 120 * sc, y: s.y - 90 * sc }, { x: s.x - hf.fx * 150 * sc, y: s.y + 40 * sc }, { x: s.x - hf.fx * 40 * sc, y: s.y + 120 * sc }]);
+        // layered feathers: long primaries at the back, short coverts on top, gold-tipped
+        const s = P.sh, bx = -hf.fx;
+        const lift = (f.state === 'air' || (f.bm && !f.grounded)) ? -30 : 0;
+        const base = col(a.color || '#3a2a1a');
+        for (let row = 0; row < 3; row++) {
+          ctx.fillStyle = flat ? base : row === 0 ? shade(a.color || '#3a2a1a', -0.25) : row === 1 ? (a.color || '#3a2a1a') : shade(a.color || '#3a2a1a', 0.2);
+          const n = 4 - (row > 1 ? 1 : 0), len = (175 - row * 45) * sc;
+          for (let i = 0; i < n; i++) {
+            const t = i / (n - 1 || 1);
+            const ang = -0.35 + t * 1.25 + lift * 0.01 + row * 0.08;
+            const rx = s.x + bx * (14 + row * 6) * sc, ry = s.y - 6 * sc + t * 30 * sc;
+            const tx = rx + bx * Math.cos(ang) * len, ty = ry + Math.sin(ang) * len * 0.8 + lift * sc;
+            const nx = -Math.sin(ang) * 21 * sc, ny = Math.cos(ang) * 21 * sc;
+            poly([{ x: rx + nx, y: ry + ny }, { x: tx, y: ty }, { x: rx - nx, y: ry - ny }]);
+          }
+        }
+        if (!flat && a.tip) {
+          ctx.fillStyle = a.tip;
+          ctx.beginPath(); ctx.arc(s.x + bx * 18 * sc, s.y + 4 * sc, 7 * sc, 0, SA.TAU); ctx.fill();
+        }
         break;
       }
       case 'kilt': {
@@ -940,11 +957,11 @@
     const ex = P.head.x + hf.fx * hr * fwd + hf.ux * 3 * sc;
     const ey = P.head.y + hf.fy * hr * fwd + hf.uy * 3 * sc;
     const e = clamp((f.energy || 0) / 100, 0, 1);
-    const glow = 0.5 + e * 0.5 + (f.state === 'special' ? 0.4 : 0);
+    const glow = 0.5 + e * 0.5 + (f.state === 'special' ? 0.4 : 0) + (look.eyeBoost || 0) + (f.introGlow || 0);
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = clamp(0.45 * glow, 0, 1);
     const g = SA.glowSprite(eye);
-    const gs = (22 + e * 18) * sc;
+    const gs = (22 + e * 18 + ((look.eyeBoost || 0) + (f.introGlow || 0)) * 14) * sc;
     ctx.drawImage(g, ex - gs, ey - gs, gs * 2, gs * 2);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';

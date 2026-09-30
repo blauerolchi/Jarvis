@@ -159,6 +159,15 @@
           ctx.stroke();
           break;
         }
+        case 'glyph': {
+          // glowing hieroglyph (magic, specials, the mummy's special-ready aura)
+          ctx.globalAlpha = p.alpha * (u < 0.2 ? u / 0.2 : fade);
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = Math.max(1.5, p.size * 0.1);
+          ctx.lineCap = 'round';
+          SA.ArenaPaint.glyph(ctx, p.len | 0, p.x, p.y, p.size);
+          break;
+        }
         case 'text': {
           const pop = u < 0.12 ? SA.M.easeOutBack(u / 0.12) : 1;
           ctx.globalAlpha = p.alpha * (u > 0.7 ? (1 - u) / 0.3 : 1);
@@ -325,6 +334,35 @@
         ps.spawn({ type: 'dust', x: x + rand(-50, 50), y: y - rand(0, 300), vx: rand(-160, 160), vy: -rand(20, 120), drag: 2, life: rand(0.5, 0.9), size: rand(30, 60), color: '#1a1420', add: false, alpha: 0.8 });
       }
       ps.spawn({ type: 'flash', x, y: y - 150, size: 260, life: 0.3, color, alpha: 0.6 });
+    },
+
+    // hieroglyphs bursting outward / rising (specials, boss magic)
+    glyphBurst(ps, x, y, color, n, speed) {
+      for (let i = 0; i < n; i++) {
+        const a = rand(0, SA.TAU), sp = rand(80, speed || 380);
+        ps.spawn({ type: 'glyph', x: x + rand(-30, 30), y: y + rand(-40, 40), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, drag: 2.2,
+          life: rand(0.6, 1.1), size: rand(18, 30), color, len: Math.floor(rand(0, 8)) });
+      }
+    },
+    glyphRise(ps, x, y, color) {
+      ps.spawn({ type: 'glyph', x: x + rand(-70, 70), y: y - rand(20, 260), vx: rand(-20, 20), vy: -rand(40, 90), drag: 0.5,
+        life: rand(0.7, 1.2), size: rand(14, 22), color, len: Math.floor(rand(0, 8)), alpha: 0.8 });
+    },
+    // ground warning ring for incoming boss strikes (lightning, dives, beams)
+    marker(ps, x, color, life) {
+      ps.spawn({ type: 'ring', x, y: -4, size: 150, life: life || 0.6, color, len: 6, rot: 0.22, alpha: 0.9 });
+      ps.spawn({ type: 'flash', x, y: -10, size: 140, life: life || 0.6, color, alpha: 0.35 });
+    },
+    // sand kicked up behind a dash / sprint
+    sandTrail(ps, x, y, dir, color) {
+      for (let i = 0; i < 3; i++) {
+        ps.spawn({ type: 'dust', x: x + rand(-20, 20), y: y - rand(0, 40), vx: -dir * rand(60, 220), vy: -rand(10, 90), drag: 2.5, life: rand(0.35, 0.7),
+          size: rand(16, 32), color: color || '#caa46a', add: false, alpha: 0.55 });
+      }
+    },
+    // soul wisps (Anubis / Osiris summons)
+    wisp(ps, x, y, color) {
+      ps.spawn({ type: 'glow', x: x + rand(-12, 12), y: y + rand(-12, 12), vx: rand(-40, 40), vy: -rand(30, 90), drag: 2, life: rand(0.3, 0.6), size: rand(10, 18), color });
     },
 
     coinBurst(ps, x, y, n) {

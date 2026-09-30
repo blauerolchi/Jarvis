@@ -255,8 +255,13 @@
     f.animTime += dt;
 
     let name = st;
-    if (st === 'intro') {
-      sampleKeys(INTRO, f.st, target);
+    if (st === 'intro' && f.introWalk) {
+      // a god steps out of the shadows
+      f.walkPhase += dt * 8;
+      walkPose(f.walkPhase, 1, target);
+      k = 14;
+    } else if (st === 'intro') {
+      sampleKeys(f.isBoss ? INTRO_BOSS : INTRO, f.st, target);
       k = 14;
     } else if (st === 'idle') {
       idlePose(f.animTime, target);
@@ -415,6 +420,8 @@
     [0, POSES.attention], [22, POSES.attention], [44, POSES.bow, 'smooth'], [66, POSES.bow],
     [88, POSES.attention, 'smooth'], [106, POSES.stance, 'out'],
   ];
+  // gods never bow: they straighten up and take their stance
+  const INTRO_BOSS = [[0, POSES.attention], [50, POSES.attention], [80, POSES.stance, 'smooth']];
   const VICTORY = [[0, POSES.stance], [14, POSES.victory, 'back'], [999, POSES.victory]];
   const VICTORY2 = [[0, POSES.stance], [16, POSES.victory2, 'smooth'], [999, POSES.victory2]];
 

@@ -347,7 +347,7 @@ const { openGame } = require('./harness');
         maxPhase = Math.max(maxPhase, g.p2.bossPhase || 0);
         if (i === 600) g.p2.hp = g.p2.maxHp * 0.5;
         if (i === 1200) g.p2.hp = g.p2.maxHp * 0.2;
-        g.p1.hp = Math.max(g.p1.hp, 50);
+        g.p1.hp = Math.max(g.p1.hp, 300);
         g.p2.hp = Math.max(g.p2.hp, 30);
       }
       out[id] = { used: Object.keys(used), maxPhase, name: def.name };

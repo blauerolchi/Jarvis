@@ -327,6 +327,34 @@
           this.noise({ filter: 'bandpass', f: 300, q: 1.5, g: 0.5, dur: 1.1, attack: 0.1, rev: 0.5 });
           this.gong(0.4, 55);
           break;
+        // ---- Egyptian theme ----
+        case 'thunder':
+          this.noise({ f: 2200, f2: 90, g: 0.9 * p, dur: 1.2, rev: 0.7 });
+          this.tone({ f: 60, f2: 24, dur: 1.3, g: 0.8 * p, rev: 0.5 });
+          this.noise({ filter: 'highpass', f: 3000, g: 0.35 * p, dur: 0.08 });
+          break;
+        case 'whisper':
+          // breathy formant sweep + a faint glass tone: the mummy / god "speaking"
+          this.noise({ filter: 'bandpass', f: 1800 * v, f2: 900, q: 6, g: 0.14 * p, dur: 0.9, attack: 0.25, rev: 0.8 });
+          this.noise({ filter: 'bandpass', f: 3400 * v, f2: 2400, q: 8, g: 0.08 * p, dur: 0.7, attack: 0.2, rev: 0.8 });
+          this.tone({ f: 740, f2: 700, dur: 1, g: 0.035 * p, type: 'sine', attack: 0.3, rev: 0.9 });
+          break;
+        case 'wind':
+          this.noise({ filter: 'bandpass', f: 500 * v, f2: 1600, q: 0.9, g: 0.22 * p, dur: 0.5, attack: 0.08, rev: 0.3 });
+          this.noise({ filter: 'highpass', f: 5000, g: 0.06 * p, dur: 0.4, attack: 0.05 });   // sand hiss
+          break;
+        case 'beam':
+          this.tone({ f: 220, f2: 880, dur: 0.5, g: 0.2, type: 'sawtooth', lp: 3000, rev: 0.6 });
+          this.tone({ f: 55, dur: 0.6, g: 0.6, rev: 0.4 });
+          this.noise({ filter: 'bandpass', f: 2600, q: 2, g: 0.3, dur: 0.5, rev: 0.5 });
+          break;
+        case 'step':
+          // soft sand footstep
+          this.noise({ filter: 'bandpass', f: 1400 * v, f2: 500, q: 0.7, g: 0.05 * p, dur: 0.06 });
+          break;
+        case 'mystic':
+          [392, 523, 784].forEach((f, i) => this.tone({ f: f * v, dur: 0.9, g: 0.05 * p, type: 'sine', t: this.ctx.currentTime + i * 0.05, rev: 0.9 }));
+          break;
         case 'coin':
           [1318, 1760, 2093].forEach((f, i) => this.tone({ f, dur: 0.25, g: 0.1, type: 'square', lp: 5000, t: this.ctx.currentTime + i * 0.07 }));
           break;

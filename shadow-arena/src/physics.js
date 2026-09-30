@@ -34,7 +34,8 @@
     else if (f.isCrouching() || st === 'roll' || st === 'slide') b.h = CROUCH_H * s;
     else b.h = BODY_H * s;
     // states that pass through the other body
-    b.pass = st === 'rushed' || st === 'ko' || (st === 'roll' && f.st < (f.rollThrough || 18)) || !!f.vanished;
+    b.pass = st === 'rushed' || st === 'ko' || (st === 'roll' && f.st < (f.rollThrough || 18)) || !!f.vanished ||
+      (st === 'bossmove' && !!f.bm && f.bm.pass);
     return b;
   }
 

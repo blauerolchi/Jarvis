@@ -454,21 +454,26 @@
     update(dt, cam) {
       this.t += dt;
       this.updateWeather(dt, cam);
+      this.flashA = Math.max(0, this.flashA - dt * 3.2);
       // lightning (chaos desert, Set)
       if (this.def.lightning || this.forceLightning) {
         this.boltT -= dt;
-        this.flashA = Math.max(0, this.flashA - dt * 3.2);
         if (this.boltT <= 0) {
           this.boltT = (this.forceLightning ? 1.2 : 2.5) + Math.random() * 4;
-          this.flashA = 1;
-          const pts = [];
-          let x = rand(SA.W * 0.1, SA.W * 0.9), y = -20;
-          while (y < SA.H * 0.55) { pts.push([x, y]); x += rand(-60, 60); y += rand(30, 70); }
-          this.bolt = { pts, life: 0.25 };
-          SA.audio && SA.audio.play && SA.audio.play('thunder', 0.5);
+          this.strike(true);
         }
-        if (this.bolt) { this.bolt.life -= dt; if (this.bolt.life <= 0) this.bolt = null; }
       }
+      if (this.bolt) { this.bolt.life -= dt; if (this.bolt.life <= 0) this.bolt = null; }
+    }
+
+    // a lightning flash + bolt in the sky (ambient, or Set's strikes)
+    strike(ambient) {
+      this.flashA = 1;
+      const pts = [];
+      let x = rand(SA.W * 0.1, SA.W * 0.9), y = -20;
+      while (y < SA.H * 0.55) { pts.push([x, y]); x += rand(-60, 60); y += rand(30, 70); }
+      this.bolt = { pts, life: 0.25 };
+      if (ambient && SA.audio && SA.audio.play) SA.audio.play('thunder', 0.5);
     }
 
     // screen-space background: sky + parallax layers

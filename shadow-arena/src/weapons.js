@@ -316,6 +316,19 @@
       speed: 0.86, damage: 1.1, len: 150, back: 50, look: 'axe' },
     titan_hammer: { grip: '#1c1a12', metal: '#4a5a42', name: 'Sobek’s Maul', type: 'melee', style: 'heavy', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
       speed: 0.85, damage: 1.12, len: 135, back: 50, look: 'mace', element: 'shock' },
+    // weapons of the gods (boss-only)
+    anubis_khopesh: { grip: '#d4a84a', metal: '#141018', name: 'Khopesh of the Dead', type: 'melee', style: 'sword', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
+      speed: 1.04, damage: 1.08, len: 128, back: 28, look: 'khopesh', element: 'shadow' },
+    sekhmet_claws: { grip: '#8a1a10', metal: '#f0b43a', name: 'Claws of Sekhmet', type: 'melee', style: 'dual', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
+      speed: 1.12, damage: 1.02, len: 52, back: 10, dual: true, look: 'khopesh', element: 'fire' },
+    horus_spear: { grip: '#1a3a8a', metal: '#f2c458', name: 'Spear of Horus', type: 'melee', style: 'spear', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
+      speed: 1.06, damage: 1.04, len: 190, back: 60, look: 'spear' },
+    set_sceptre: { grip: '#3a1a2a', metal: '#8a6a9a', name: 'Was of Chaos', type: 'melee', style: 'heavy', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
+      speed: 0.9, damage: 1.08, len: 128, back: 44, look: 'mace', element: 'shock' },
+    ra_sceptre: { grip: '#c0501a', metal: '#ffd24a', name: 'Sceptre of Ra', type: 'melee', style: 'staff', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
+      speed: 1.02, damage: 1.06, len: 170, back: 80, look: 'scepter', element: 'fire' },
+    osiris_crook: { grip: '#1f3a8a', metal: '#e0b24a', name: 'Crook of Osiris', type: 'melee', style: 'scythe', rarity: 'legendary', price: 0, levelRequired: 99, hidden: true,
+      speed: 0.98, damage: 1.06, len: 150, back: 40, look: 'scythe' },
   };
 
   // ranged slot

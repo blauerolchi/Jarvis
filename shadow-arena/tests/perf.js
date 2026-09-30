@@ -36,7 +36,7 @@ const { openGame } = require('./harness');
     // stress: a boss fight with many projectiles and particles
     SA.Save.data.settings.graphics = 'medium';
     g.applySettings(true);
-    const def = SA.Bosses.generate(20, 20, 'normal', SA.M.seeded(3), 'hunter');
+    const def = SA.Bosses.generate(20, 20, 'normal', SA.M.seeded(3), 'horus');
     g.scene = 'fight';
     g.arenaRun = { stage: 20, wins: 0, streak: 0, coins: 0, xp: 0, bosses: 0, screen: null, energy: 0, enemy: def };
     g.setupWorld({ mode: 'arena', arena: def.arena, enemy: def });
