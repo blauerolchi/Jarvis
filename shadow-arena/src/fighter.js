@@ -17,13 +17,54 @@
   // Movement tuning (px/s, frames). Responsive input: target speeds are reached within ~3 frames.
   const WALK_FWD = 430, WALK_BACK = 350, RUN_SPEED = 760, SPRINT_SPEED = 960;
   const ACCEL = 60, DECEL = 40;
-  const JUMP_VY = -1310, JUMP_VX = 540, LEAP_VY = -1200, LEAP_VX = 880;
-  const DASH_SPEED = 1450, DASH_FRAMES = 11, EVADE_FRAMES = 16, DASH_CD = 14;
+  const JUMP_VY = -1310, JUMP_VX = 540;
+  const DASH_CD = 12;
   const RUN_AFTER = 9, SPRINT_AFTER = 38;      // keyboard: hold forward to break into a run / sprint
-  const AIR_STEER = 900, AIR_MAX = 600;
+  const AIR_STEER = 1250, AIR_MAX = 620;   // air control ≈ 40 % of ground control
 
-  // combat roll: 26 frames, passes the enemy body for 18, fully invulnerable 2..12, then vulnerable
-  const ROLL = { frames: 26, speed: 980, through: 18, invuln: 12 };
+  // ---------- root motion ----------
+  // Mobility moves don't use flat speeds: each has a velocity *shape* v(u) over its duration, turned
+  // into a cumulative position curve C(u) (0 -> 1). Every step moves the fighter by
+  // dist * (C(u1) - C(u0)), expressed as a velocity so physics / body collision still apply.
+  // => very fast bursts that still travel over many rendered frames, with a clean ease-out.
+  function makeCurve(shape) {
+    const N = 64, c = new Float32Array(N + 1);
+    let sum = 0;
+    for (let i = 0; i < N; i++) { c[i] = sum; sum += Math.max(0, shape((i + 0.5) / N)); }
+    c[N] = sum;
+    for (let i = 0; i <= N; i++) c[i] /= sum;
+    return c;
+  }
+  function curveAt(c, u) {
+    if (u <= 0) return 0;
+    if (u >= 1) return 1;
+    const x = u * 64, i = Math.floor(x);
+    return c[i] + (c[i + 1] - c[i]) * (x - i);
+  }
+  const ramp = (u, a, from) => (u < a ? from + (1 - from) * (u / a) : 1);
+  // frames, dist (px), velocity shape, invulnerable frames [from, to], mobility cost
+  const MOB = {
+    // dash: snaps to full speed, short peak, eases out into running speed
+    dash: { frames: 11, dist: 255, shape: (u) => ramp(u, 0.12, 0.55) * (u < 0.12 ? 1 : 1 - 0.68 * Math.pow((u - 0.12) / 0.88, 0.85)), cost: 20 },
+    // backstep: a quick defensive hop back that settles
+    backstep: { frames: 15, dist: 180, shape: (u) => ramp(u, 0.1, 0.6) * Math.pow(1 - u, 1.3), invuln: [1, 8], cost: 18 },
+    // combat roll: accelerate, hold, brake, clean recovery frame
+    roll: { frames: 24, dist: 330, shape: (u) => ramp(u, 0.16, 0.45) * (u < 0.66 ? 1 : 1 - 0.9 * ((u - 0.66) / 0.34)), invuln: [2, 10], through: 17, cost: 26 },
+    // slide: launched by the run, friction slows it down
+    slide: { frames: 24, dist: 300, shape: (u) => Math.pow(1 - u, 1.25) + 0.04, cost: 16 },
+    // air dash: short horizontal burst, gravity paused
+    airdash: { frames: 10, dist: 215, shape: (u) => ramp(u, 0.15, 0.6) * (1 - 0.55 * u), cost: 24 },
+  };
+  for (const k in MOB) MOB[k].curve = makeCurve(MOB[k].shape);
+  // acrobatics: take-off velocity, gravity scale, rotation frames, attack allowed from frame, invulnerable frames
+  const FLIPS = {
+    front: { vy: -1260, vx: 820, grav: 1, rotFrames: 26, atkFrom: 8, dir: 1, cost: 18 },
+    back: { vy: -1150, vx: -600, grav: 1.05, rotFrames: 24, atkFrom: 14, dir: -1, cost: 18 },
+    // handspring (flik-flak): low, fast arc backwards over the hands
+    hand: { vy: -520, vx: -820, grav: 0.9, rotFrames: 19, atkFrom: 99, dir: -1, invuln: [2, 11], cost: 30 },
+  };
+  const ROLL = MOB.roll;
+  const MOB_REGEN = 70;   // mobility meter per second (hidden): chaining many dodges costs recovery time
 
   const NEUTRAL = { idle: 1, walk: 1, crouch: 1, block: 1 };
   const MOVING = { run: 1, sprint: 1, dash: 1 };
@@ -125,12 +166,16 @@
       this.fromRun = false;
       this.turnT = 0; this.rollDir = 1; this.rollThrough = 0;
       this.fwdT = 0; this.dashCd = 0; this.landT = 0; this.gravMul = 1; this.moveBonus = 1;
+      this.faceVis = facing; this.lean = 0; this.prevVx = 0;
+      this.flip = null; this.airDashUsed = false; this.dive = false; this.flipAtk = 0; this.hsLand = 0;
+      this.mobility = 100; this.mobRest = 0; this.rm = null;
       if (this.rangedWeapon) this.rangedState = new SA.RangedState(this.rangedWeapon);
       this.startCombo();
       A.copyPose(this.pose, A.STANCE);
       A.solveLocal(this.pose, this.local, this.look.bulk, this.wgeom);
       A.toWorld(this);
       this.updateHurtboxes();
+      this.snapshotRender();
       if (this.ctrl) this.ctrl.clear();
       if (this.accessories) SA.Render.resetAccessories(this);
     }
@@ -160,7 +205,7 @@
     }
     isStunned() { return !!STUNNED[this.state]; }
     isCrouching() {
-      return this.state === 'crouch' || ((this.state === 'block' || this.state === 'blockstun') && this.crouchBlock) ||
+      return this.state === 'crouch' || this.state === 'slide' || ((this.state === 'block' || this.state === 'blockstun') && this.crouchBlock) ||
         (this.state === 'attack' && this.move && this.move.crouching);
     }
     canBeHit(attacker) {
@@ -190,6 +235,7 @@
     }
     setAnim(keys) {
       A.copyPose(this.entryPose, this.pose);
+      this.entryPose.rot = Math.atan2(Math.sin(this.entryPose.rot), Math.cos(this.entryPose.rot));
       this.animKeys = keys;
       this.mt = 0;
     }
@@ -223,6 +269,7 @@
       if (!m) return;
       this.moveBonus = m.id === 'backCounter' || (this.state === 'evade' && id === this.moveset.backCounter) ? 1.2 : 1;
       A.copyPose(this.entryPose, this.pose);
+      this.entryPose.rot = Math.atan2(Math.sin(this.entryPose.rot), Math.cos(this.entryPose.rot));
       this.move = m;
       this.animKeys = m.keys;
       this.setState('attack');
@@ -239,9 +286,33 @@
       if (m.reload) SA.audio.play('reload');
     }
 
+    // root motion: move along a mobility curve (see MOB). dir: +1 forward, -1 backward
+    startRoot(id, dir, distScale) {
+      const M = MOB[id];
+      // the hidden mobility meter: a tired fighter still moves, just a little shorter and slower to recover
+      const tired = this.mobility < M.cost;
+      this.mobility -= M.cost;
+      this.mobRest = 0.3;
+      this.rm = { M, dir, dist: M.dist * (distScale || 1) * (tired ? 0.82 : 1) * this.speedMul, frames: M.frames };
+      if (tired) this.dashCd += 8;
+      if (M.invuln) this.invuln = Math.max(this.invuln, M.invuln[1]);
+    }
+    rootMotion(ts) {
+      const r = this.rm;
+      if (!r) return 1;
+      const u1 = clamp(this.st / r.frames, 0, 1), u0 = clamp((this.st - ts) / r.frames, 0, 1);
+      const d = (curveAt(r.M.curve, u1) - curveAt(r.M.curve, u0)) * r.dist;
+      this.vx = this.facing * r.dir * d / (SA.STEP * Math.max(ts, 0.001));
+      return u1;
+    }
+
+    // When the current move may be cancelled. Light / medium: early on contact, late on a whiff.
+    // Heavies (power >= 0.8): only after they connected, a little later.
     cancelOpen() {
       const m = this.move;
-      if (this.moveContact === 'hit' || this.moveContact === 'block') return this.mt >= m.startup + Math.min(m.active, 3) - 1;
+      const heavy = (m.power || 0.5) >= 0.8;
+      if (this.moveContact === 'hit' || this.moveContact === 'block') return this.mt >= m.startup + Math.min(m.active, 3) - 1 + (heavy ? 3 : 0);
+      if (heavy) return false;
       return this.mt >= m.startup + m.active + m.recovery * 0.45;
     }
 
@@ -282,6 +353,10 @@
       if (this.parryLock > 0) this.parryLock -= ts;
       if (this.dashCd > 0) this.dashCd -= ts;
       if (this.landT > 0) this.landT -= ts;
+      if (this.hsLand > 0) this.hsLand -= ts;
+      // hidden mobility meter regenerates after a short rest
+      if (this.mobRest > 0) this.mobRest -= dt;
+      else if (this.mobility < 100) this.mobility = Math.min(100, this.mobility + MOB_REGEN * dt);
       this.parryAge += ts;
       if (c.consume('block')) {
         this.parryAge = this.parryLock > 0 ? 99 : 0; // mashing block never parries
@@ -328,39 +403,57 @@
           break;
 
         case 'prejump':
+          // take-off crouch: 2 frames, keeps the running momentum
           this.vx = damp(this.vx, this.fromRun ? this.vx : 0, 20, dt);
           // up + heavy: cancel the jump into the overhead / uppercut
           if (!this.fromRun && c.consume('heavy')) { this.startMove(ms.heavyUp); break; }
           if (this.st >= 2) this.doJump(game);
           break;
 
-        case 'air': {
-          // a little air control and a snappier fall
-          const steer = this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0;
-          if (steer) this.vx = clamp(this.vx + this.facing * steer * AIR_STEER * dt, -Math.max(AIR_MAX, Math.abs(this.vx)), Math.max(AIR_MAX, Math.abs(this.vx)));
-          if (!this.airAttackUsed) {
-            if (c.consume('light')) this.startMove(ms.airLight);
-            else if (c.consume('kick') || c.consume('heavy')) this.startMove(ms.airHeavy);
-            else if (c.consume('ranged')) this.tryRanged();
-          }
+        case 'air': case 'flip':
+          this.updateAir(ts, dt, game);
+          break;
+
+        case 'airdash': {
+          // horizontal burst, gravity paused; attacks come straight out of it
+          this.rootMotion(ts);
+          this.vy = 0;
+          this.spawnGhost(2, true);
+          if (this.airActions(game, true)) { this.gravMul = 1; break; }
+          if (this.st >= this.rm.frames) { this.gravMul = 1; this.rm = null; this.setState('air'); }
           break;
         }
 
         case 'landing':
+          // short landing recovery after a whiffed air attack; attacks may still cancel it late
           this.stun -= ts;
           this.vx = damp(this.vx, 0, 14, dt);
+          if (this.stun <= 3 && this.tryAttacks()) break;
           if (this.stun <= 0) this.toNeutral();
           break;
 
         case 'dash': {
-          const u = clamp(this.st / DASH_FRAMES, 0, 1);
-          this.vx = this.facing * lerp(DASH_SPEED, RUN_SPEED, u * u) * this.speedMul;
-          this.spawnGhost(this.weapon.element === 'shadow' ? 2 : 3);
+          this.rootMotion(ts);
+          this.spawnGhost(this.weapon.element === 'shadow' ? 2 : 3, true);
           if (this.runActions(game)) break;
-          if (this.st >= DASH_FRAMES) {
+          if (this.st >= this.rm.frames) {
+            this.rm = null;
             if (this.fwdHeld()) { this.fwdT = Math.max(this.fwdT, RUN_AFTER); this.setState(this.moveTier() === 'sprint' ? 'sprint' : 'run'); }
             else this.setState('idle');
           }
+          break;
+        }
+
+        case 'slide': {
+          // low, fast slide out of a run: under high attacks and projectiles
+          const u = this.rootMotion(ts);
+          if (Math.floor(this.st) % 3 === 0 && this.st % 1 < ts) SA.FX.dust(game.particles, this.x, 0, 0.45, -this.facing);
+          if (this.st >= 3) {
+            if (c.consume('light') || c.consume('kick')) { this.startMove(ms.slide); break; }       // slide attack (low sweep)
+            if (c.consume('heavy')) { c.consume('up'); this.startMove(ms.heavyUp); break; }         // slide -> uppercut
+            if (c.consume('up')) { this.rm = null; this.startPrejump(true); break; }                   // slide -> jump / flip
+          }
+          if (u >= 1) { this.rm = null; this.toNeutral(); }
           break;
         }
 
@@ -375,6 +468,8 @@
             break;
           }
           this.fwdT += ts;
+          // run + down = slide
+          if (c.held('down') && this.st >= 2) { this.startSlide(game); break; }
           const tier = this.moveTier();
           if (tier === 'walk') { this.setState('walk'); break; }
           if (tier !== this.state) this.setState(tier);
@@ -388,26 +483,32 @@
         case 'roll': {
           // tucked roll: passes through the enemy body and under high attacks, short vulnerable end
           const R = ROLL;
-          const u = clamp(this.st / R.frames, 0, 1);
-          this.vx = this.facing * this.rollDir * R.speed * this.speedMul * (u < 0.7 ? 1 : 1 - (u - 0.7) / 0.3);
+          const u = this.rootMotion(ts);
           if (Math.floor(this.st) % 5 === 0 && this.st % 1 < ts) SA.FX.dust(game.particles, this.x, 0, 0.4, -this.facing * this.rollDir);
           // never come out of a roll inside the opponent: keep passing through until clear
           const o = game.p1 === this ? game.p2 : game.p1;
           if (o && this.st >= this.rollThrough - 1 && this.st < R.frames + 8 && Math.abs(o.x - this.x) < SA.Physics.minDistance(this, o)) {
             this.rollThrough = this.st + 2;
-            if (u >= 0.7) this.vx = this.facing * this.rollDir * R.speed * 0.45 * this.speedMul;
+            if (u >= 0.66) this.vx = this.facing * this.rollDir * 420 * this.speedMul;
           }
-          if (this.st >= R.frames && this.st >= this.rollThrough) { this.vx *= 0.3; this.toNeutral(); }
+          // attack roll: light = low slash / jab, kick = low kick, heavy = rising launcher out of the roll
+          if (this.st >= 13 && this.st >= this.rollThrough - 2) {
+            if (c.consume('light')) { this.rm = null; this.startMove(ms.lightDown); break; }
+            if (c.consume('kick')) { this.rm = null; this.startMove(ms.kickDown); break; }
+            if (c.consume('heavy')) { this.rm = null; this.startMove(ms.heavyUp); break; }
+          }
+          if (this.st >= R.frames && this.st >= this.rollThrough) { this.vx *= 0.3; this.rm = null; this.toNeutral(); }
           break;
         }
 
         case 'evade':
-          // backstep: short defensive hop back; heavy right after it = backstep counter
-          this.vx = damp(this.vx, 0, 7, dt);
+          // backstep: short defensive hop back; heavy right after it = backstep counter, jump = backflip
+          this.rootMotion(ts);
           this.spawnGhost(3);
-          if (this.st >= 5 && c.consume('heavy')) { this.startMove(this.moveset.backCounter); break; }
-          if (this.st >= 10 && this.tryAttacks()) break;
-          if (this.st >= EVADE_FRAMES) this.toNeutral();
+          if (this.st >= 3 && c.consume('up')) { this.rm = null; this.startFlip('back', game); break; }
+          if (this.st >= 5 && c.consume('heavy')) { this.rm = null; this.startMove(this.moveset.backCounter); break; }
+          if (this.st >= 9 && this.tryAttacks()) { this.rm = null; break; }
+          if (this.st >= this.rm.frames) { this.rm = null; this.toNeutral(); }
           break;
 
         case 'attack':
@@ -476,6 +577,7 @@
       const c = this.ctrl;
       const down = c.held('down'), fwd = this.fwdHeld(), back = this.backHeld();
       if (!fwd) this.fwdT = 0;
+      if (this.hsLand > 0 && this.ctrl.consume('heavy')) { this.hsLand = 0; this.startMove(this.moveset.backCounter); return; }
       if (this.tryAttacks()) return;
       if (this.tryDash(game)) return;
       if (c.consume('up')) { this.startPrejump(false); return; }
@@ -566,37 +668,44 @@
       if (c.consume('heavy')) { this.startMove(down ? ms.slide : dash ? ms.dashHeavy : ms.heavyFwd); return true; }
       if (c.has('special') && this.energy >= 100) { c.consume('special'); this.startSpecial(); return true; }
       if (c.consume('ranged') && this.tryRanged()) return true;
-      if (c.consume('up')) { this.startPrejump(true); return true; }
+      if (c.consume('up')) { this.rm = null; this.startPrejump(true); return true; }
       if (!dash && this.tryDash(game)) return true;
+      if (dash && down && this.st >= 3) { this.rm = null; this.startSlide(game); return true; }
       if (c.held('block')) { this.setState('block'); this.crouchBlock = down; this.vx *= 0.4; return true; }
       return false;
     }
 
     // dash button: down = roll, forward = dash, otherwise backstep. Small cooldown against spamming;
     // a press during the cooldown stays buffered and fires as soon as it ends.
+    // dash button: down = combat roll, forward = dash, back = handspring (flik-flak), neutral = backstep.
+    // A double tap on left / right ('step') is a quick dash forward / backstep back.
+    // Small cooldown against spamming; a press during the cooldown stays buffered.
     tryDash(game) {
       const c = this.ctrl;
-      if (!c.has('dash') || this.dashCd > 0) return false;
-      c.consume('dash');
+      const step = c.has('step');
+      if ((!c.has('dash') && !step) || this.dashCd > 0) return false;
+      if (step) c.consume('step'); else c.consume('dash');
       if (c.held('down')) this.startRoll(game, this.backHeld() ? -1 : 1);
       else if (this.fwdHeld()) this.startDash(game);
+      else if (this.backHeld() && !step && this.grounded) this.startFlip('hand', game);
       else this.startEvade(game);
       return true;
     }
 
     startDash(game) {
       this.setState('dash');
-      this.dashCd = DASH_FRAMES + DASH_CD;
-      this.vx = this.facing * DASH_SPEED * this.speedMul;
+      this.startRoot('dash', 1);
+      this.dashCd = this.rm.frames + DASH_CD;
       SA.audio.play('dash');
       SA.FX.dust(game.particles, this.x - this.facing * 20, 0, 0.7, -this.facing);
+      SA.FX.sandTrail(game.particles, this.x - this.facing * 40, -10, -this.facing, '#cfae78');
     }
 
     startRoll(game, dir) {
       this.setState('roll');
       this.rollDir = dir;
+      this.startRoot('roll', dir);
       this.rollThrough = ROLL.through;
-      this.invuln = ROLL.invuln;
       this.dashCd = ROLL.frames + DASH_CD;
       SA.audio.play('dash', 0.8);
       SA.FX.dust(game.particles, this.x, 0, 0.6, -this.facing * dir);
@@ -604,25 +713,127 @@
 
     startEvade(game) {
       this.setState('evade');
-      this.dashCd = EVADE_FRAMES + DASH_CD;
-      this.vx = -this.facing * 1150 * this.speedMul;
-      this.invuln = 12;
+      this.startRoot('backstep', -1);
+      this.dashCd = this.rm.frames + DASH_CD;
       SA.audio.play('dash');
       SA.FX.dust(game.particles, this.x + this.facing * 10, 0, 0.6, this.facing);
     }
 
+    startSlide(game) {
+      this.setState('slide');
+      // the slide inherits the run: faster runs slide further
+      this.startRoot('slide', 1, clamp(Math.abs(this.vx) / RUN_SPEED, 0.75, 1.3));
+      this.dashCd = Math.max(this.dashCd, 10);
+      SA.audio.play('dash', 0.7);
+      SA.FX.dust(game.particles, this.x, 0, 0.8, -this.facing);
+    }
+
+    // front flip / backflip / handspring: real jumps (physics) with an acrobatic body rotation
+    startFlip(kind, game) {
+      const F = FLIPS[kind];
+      if (this.mobility < F.cost) this.dashCd += 6;
+      this.mobility -= F.cost;
+      this.mobRest = 0.3;
+      this.cancelMove();
+      this.setState('flip');
+      this.flip = { kind, F };
+      this.grounded = false;
+      this.y = -1;
+      this.vy = F.vy;
+      this.vx = this.facing * F.vx * this.speedMul;
+      this.gravMul = F.grav;
+      this.airAttackUsed = false;
+      this.airWhiff = false;
+      this.airDashUsed = kind === 'hand';
+      this.airTime = 0;
+      this.jumpDir = F.dir;
+      if (F.invuln) this.invuln = Math.max(this.invuln, F.invuln[1]);
+      if (kind === 'hand') this.dashCd = Math.max(this.dashCd, 22 + DASH_CD);
+      this.scaleY = 1.12; this.scaleX = 0.92;
+      SA.audio.play(kind === 'hand' ? 'dash' : 'jump', 1.1);
+      SA.audio.play('whoosh_medium', 0.7);
+      SA.FX.dust(game.particles, this.x, 0, 0.6, -this.facing * F.dir);
+    }
+
+    // air: steering, air attacks (light / kick / heavy, down + heavy = dive), air throw, one air dash
+    updateAir(ts, dt, game) {
+      const flip = this.state === 'flip' ? this.flip : null;
+      // air control: ~40 % of ground control; flips steer even less
+      const steer = this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0;
+      const k = flip ? 0.5 : 1;
+      if (steer) {
+        const lim = Math.max(AIR_MAX, Math.abs(this.vx));
+        this.vx = clamp(this.vx + this.facing * steer * AIR_STEER * k * dt, -lim, lim);
+      }
+      if (flip && flip.kind === 'hand' && this.st < flip.F.rotFrames) return;   // committed until the hands leave the floor
+      if (flip && this.st < flip.F.atkFrom) return;
+      if (this.airActions(game, false)) return;
+      // flip finished: normal air state (the body opens up, attacks stay available)
+      if (flip && this.st >= flip.F.rotFrames + 4) { this.setState('air'); this.flip = null; }
+    }
+
+    airActions(game, fromDash) {
+      const c = this.ctrl, ms = this.moveset;
+      if (!this.airAttackUsed) {
+        const fromFlip = this.state === 'flip';
+        const down = c.held('down');
+        let id = null;
+        if (c.consume('light')) id = ms.airLight;
+        else if (c.consume('kick')) id = down ? ms.airKick : ms.airKick;
+        else if (c.consume('heavy')) id = down ? ms.airKick : ms.airHeavy;
+        if (id) {
+          const dive = down && id === ms.airKick;
+          this.startMove(id);
+          this.flipAtk = fromFlip ? this.flip && this.flip.F.dir : 0;   // a flip slash keeps rotating
+          if (dive) {
+            // dive attack: steep drop onto the opponent
+            this.dive = true;
+            this.vy = Math.max(this.vy, 1450);
+            this.vx = this.facing * 720 * this.speedMul;
+            this.gravMul = 1;
+          }
+          if (fromDash) this.moveBonus = 1.1;
+          return true;
+        }
+        if (c.consume('ranged') && this.tryRanged()) return true;
+      }
+      if (!fromDash && !this.airDashUsed && this.dashCd <= 0 && (c.has('dash') || c.has('step'))) {
+        c.consume('dash'); c.consume('step');
+        this.airDashUsed = true;
+        const dir = this.backHeld() ? -1 : 1;
+        this.flip = null;
+        this.setState('airdash');
+        this.startRoot('airdash', dir);
+        this.gravMul = 0;
+        this.vy = 0;
+        this.dashCd = this.rm.frames + DASH_CD;
+        SA.audio.play('dash', 1.1);
+        SA.audio.play('wind', 0.4);
+        return true;
+      }
+      return false;
+    }
+
     startPrejump(fromRun) {
       this.fromRun = fromRun;
+      // the direction is taken when jump is pressed (a quick back+up tap is still a backflip)
+      this.jumpIntent = this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0;
       this.setState('prejump');
       this.scaleY = 0.9; this.scaleX = 1.06;
     }
 
     doJump(game) {
-      const dir = this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0;
-      this.jumpDir = this.fromRun ? 1 : dir;
-      // from a run: leap (long, flat, fast); otherwise neutral / forward / back jump
-      this.vy = this.fromRun ? LEAP_VY : JUMP_VY;
-      this.vx = this.fromRun ? this.facing * LEAP_VX * this.speedMul : dir * this.facing * JUMP_VX * this.speedMul;
+      const dir = this.fwdHeld() ? 1 : this.backHeld() ? -1 : this.jumpIntent || 0;
+      // run / dash / slide + jump = front flip, back + jump = backflip
+      if (this.fromRun) { this.startFlip('front', game); return; }
+      if (dir < 0) { this.startFlip('back', game); return; }
+      this.airDashUsed = false;
+      this.airWhiff = false;
+      this.gravMul = 1;
+      this.jumpDir = dir;
+      // neutral / forward jump (run + jump = front flip, back + jump = backflip, see above)
+      this.vy = JUMP_VY;
+      this.vx = dir * this.facing * JUMP_VX * this.speedMul;
       this.grounded = false;
       this.y = -1;
       this.airAttackUsed = false;
@@ -691,8 +902,8 @@
         }
       }
       // light / medium attacks that connected can be cancelled into a dash or backstep
-      if (this.moveContact && this.grounded && (m.power || 0.5) < 0.8 && !m.ranged && this.dashCd <= 0 &&
-          this.mt >= m.startup + m.active && c.has('dash')) {
+      if (this.moveContact && this.grounded && ((m.power || 0.5) < 0.8 || this.moveContact === 'hit') && !m.ranged && this.dashCd <= 0 &&
+          this.mt >= m.startup + m.active && (c.has('dash') || c.has('step'))) {
         this.cancelMove();
         this.tryDash(game);
         return;
@@ -700,6 +911,27 @@
       if (this.moveContact === 'hit' && this.energy >= 100 && c.has('special')) {
         c.consume('special');
         this.startSpecial();
+        return;
+      }
+      // ---- cancel windows (see cancelOpen): movement and combat flow into each other ----
+      if (this.grounded && !m.ranged && !m.reload && this.cancelOpen()) {
+        const light = (m.power || 0.5) < 0.62;
+        // light attacks cancel into any other attack (directional heavies, kicks, lows)
+        if (light && this.tryAttacks()) return;
+        // jump cancel: after a hit (launchers!) or from a light attack's window -> air combo
+        if ((light || this.moveContact === 'hit') && c.has('up')) {
+          c.consume('up');
+          this.cancelMove();
+          this.startPrejump(false);
+          return;
+        }
+      }
+      if (m.air && !this.grounded && this.mt >= m.total) {
+        // air attack finished: keep falling in the air state (no pose snap), flips end here too
+        this.airWhiff = !this.moveContact;
+        this.cancelMove();
+        this.flipAtk = 0;
+        this.setState('air');
         return;
       }
       if (this.mt >= m.total && (!m.air || this.grounded)) this.toNeutral();
@@ -712,6 +944,15 @@
       this.airTime = 0;
       switch (this.state) {
         case 'air': {
+          // a whiffed jump attack still costs a short landing recovery (no jump-attack mashing)
+          if (this.airWhiff) {
+            this.airWhiff = false;
+            this.stun = 8; this.landT = 10;
+            this.scaleY = 0.84; this.scaleX = 1.1;
+            SA.FX.dust(game.particles, this.x, 0, 0.5, 0);
+            this.setState('landing');
+            break;
+          }
           // no input lock on a normal landing: knee bend + squash are purely visual
           const hard = impactVy > 1700;
           this.scaleY = hard ? 0.78 : 0.86; this.scaleX = hard ? 1.14 : 1.08;
@@ -722,16 +963,38 @@
           this.toNeutral();
           break;
         }
-        case 'attack':
-          // a whiffed jump attack is punishable on landing
-          this.stun = this.moveContact ? 4 : 10;
-          this.cancelMove();
-          this.setState('landing');
-          this.landT = 10;
-          this.scaleY = 0.86; this.scaleX = 1.08;
-          SA.FX.dust(game.particles, this.x, 0, 0.5, 0);
+        case 'flip': case 'airdash': {
+          const hand = this.flip && this.flip.kind === 'hand';
+          this.flip = null; this.rm = null; this.gravMul = 1;
+          this.scaleY = 0.84; this.scaleX = 1.1;
+          this.landT = hand ? 6 : 9;
+          SA.FX.dust(game.particles, this.x, 0, 0.6, 0);
+          SA.audio.play('land', 0.5);
+          // a handspring lands ready to counter: heavy right after it = backstep counter
+          if (hand) this.hsLand = 12;
+          this.toNeutral();
           break;
+        }
+        case 'attack': {
+          const dive = this.dive;
+          this.dive = false; this.flipAtk = 0; this.gravMul = 1;
+          this.scaleY = 0.84; this.scaleX = 1.1;
+          this.landT = 10;
+          SA.FX.dust(game.particles, this.x, 0, dive ? 1.2 : 0.5, 0);
+          if (dive) { game.shake(0.2); SA.audio.play('land', 0.9); }
+          this.cancelMove();
+          if (this.moveContact) {
+            // a jump attack that connected flows straight into the ground game (landing sweep, dash …)
+            this.setState(this.ctrl.held('down') ? 'crouch' : 'idle');
+          } else {
+            // a whiffed jump attack is punishable on landing
+            this.stun = dive ? 12 : 8;
+            this.setState('landing');
+          }
+          break;
+        }
         case 'launched':
+          this.gravMul = 1;
           if (!this.bounced && impactVy > 850) {
             this.bounced = true;
             this.grounded = false;
@@ -1031,15 +1294,88 @@
       return null;
     }
 
+    // Foot planting (IK-light): while a foot has ground contact during idle / walk / run it stays
+    // where it was planted; the knee takes half of the correction. The lock releases when the foot
+    // lifts or the correction would exceed a few pixels, so gait timing and pose stay in charge.
+    footLock() {
+      const st = this.state;
+      const gait = this.grounded && (st === 'idle' || st === 'walk' || st === 'run' || st === 'sprint' || st === 'crouch' || st === 'block');
+      const L = this._lock || (this._lock = { footF: { on: false, x: 0 }, footB: { on: false, x: 0 } });
+      const S = this.skel;
+      const max = st === 'run' || st === 'sprint' ? 10 : 16;
+      for (const k of ['footF', 'footB']) {
+        const lk = L[k], foot = S[k];
+        const contact = gait && foot.y > this.y - 7 * this.look.scale;
+        if (!contact) { lk.on = false; continue; }
+        if (!lk.on) { lk.on = true; lk.x = foot.x; continue; }
+        let d = lk.x - foot.x;
+        if (Math.abs(d) > max) { lk.x = foot.x - Math.sign(d) * max * 0.5; d = lk.x - foot.x; }
+        const toe = S[k === 'footF' ? 'toeF' : 'toeB'], knee = S[k === 'footF' ? 'kneeF' : 'kneeB'];
+        foot.x += d; toe.x += d; knee.x += d * 0.5;
+      }
+    }
+
+    // ---------- render interpolation ----------
+    // The simulation runs at a fixed 60 Hz; the screen may run at 50–144 Hz with jittery frame times.
+    // snapshotRender() stores the pose of the previous tick, beginRender(alpha) temporarily puts the
+    // blended pose (previous → current) into skel / x / y, endRender() restores the simulation state.
+    snapshotRender() {
+      const P = this._rPrev || (this._rPrev = A.createSkeleton());
+      for (const k of A.POINTS) { P[k].x = this.skel[k].x; P[k].y = this.skel[k].y; }
+      this._rpx = this.x; this._rpy = this.y;
+      this._rReady = true;
+    }
+    beginRender(alpha) {
+      // real teleports (vanish / reappear, round reset) are shown as the jump they are
+      const lerpOn = this._rReady && alpha < 1 && Math.abs(this.x - this._rpx) < 260 && Math.abs(this.y - this._rpy) < 260;
+      // turning: the gameplay facing flips at once, the drawing turns through ~7 frames (x scale
+      // passes through a narrow side view) so the figure never mirrors within a single frame
+      const turn = this.faceVis !== undefined && this.faceVis !== this.facing ? this.faceVis * this.facing : 1;
+      this._rOn = lerpOn || turn !== 1;
+      if (!this._rOn) return;
+      const C = this._rCur || (this._rCur = A.createSkeleton()), P = this._rPrev, S = this.skel;
+      this._rx = this.x; this._ry = this.y;
+      if (lerpOn) {
+        this.x = this._rpx + (this.x - this._rpx) * alpha;
+        this.y = this._rpy + (this.y - this._rpy) * alpha;
+      }
+      let m = turn;
+      if (Math.abs(m) < 0.14) m = m < 0 ? -0.14 : 0.14;
+      const cx = this.x;
+      for (const k of A.POINTS) {
+        const sk = S[k], c = C[k];
+        c.x = sk.x; c.y = sk.y;
+        let x = sk.x, y = sk.y;
+        if (lerpOn) { const p = P[k]; x = p.x + (x - p.x) * alpha; y = p.y + (y - p.y) * alpha; }
+        if (m !== 1) x = cx + (x - cx) * m;
+        sk.x = x; sk.y = y;
+      }
+      this._rSpin = this.spinScale;
+      if (m !== 1) this.spinScale *= m;
+    }
+    endRender() {
+      if (!this._rOn) return;
+      const C = this._rCur, S = this.skel;
+      for (const k of A.POINTS) { S[k].x = C[k].x; S[k].y = C[k].y; }
+      this.x = this._rx; this.y = this._ry;
+      this.spinScale = this._rSpin;
+      this._rOn = false;
+    }
+
     // ---------- visuals bookkeeping ----------
+    // Afterimages: at most 3 at a time, recycled from a small pool (no allocations during combos).
+    // interval: spawn every n-th call (0 = every call); force: also on graphics presets without ghosts
     spawnGhost(interval, force) {
       if (SA.GFX && !SA.GFX.ghosts && !force) return;
       this.ghostTimer++;
-      if (!force && (interval <= 0 || this.ghostTimer % interval !== 0)) return;
-      const pts = {};
-      for (const k of A.POINTS) pts[k] = { x: this.skel[k].x, y: this.skel[k].y };
-      this.ghosts.push({ pts, life: 1, facing: this.facing * this.spinScale });
-      if (this.ghosts.length > 10) this.ghosts.shift();
+      if (interval > 0 && this.ghostTimer % interval !== 0) return;
+      const pool = this._ghostPool || (this._ghostPool = []);
+      let g = this.ghosts.length >= 3 ? this.ghosts.shift() : pool.pop();
+      if (!g) { g = { pts: A.createSkeleton(), life: 1, facing: 1 }; }
+      for (const k of A.POINTS) { g.pts[k].x = this.skel[k].x; g.pts[k].y = this.skel[k].y; }
+      g.life = 1;
+      g.facing = this.facing * this.spinScale;
+      this.ghosts.push(g);
     }
 
     updateHurtboxes() {
@@ -1063,19 +1399,41 @@
       const dt = SA.STEP * ts;
       A.update(this, ts);
       A.toWorld(this);
+      this.footLock();
       this.updateHurtboxes();
 
+      // motion arc: the real path of the weapon tip (and a point down the blade) during the strike
       const m = this.state === 'attack' ? this.move : null;
       if (m && m.hit && this.mt >= m.startup - 2 && this.mt <= m.startup + m.active + 2) {
-        const j = this.skel[m.hit.joint];
-        this.trail.push({ x: j.x, y: j.y });
-        if (this.trail.length > 8) this.trail.shift();
+        const S = this.skel, h = m.hit;
+        let tx, ty, bx, by;
+        if (h.seg) {
+          const hand = S[h.seg === 'B' ? 'handB' : 'handF'], tip = S[h.seg === 'B' ? 'tipB' : 'tip'];
+          const k = this.weapon.style === 'spear' ? 0.82 : this.weapon.style === 'heavy' ? 0.55 : 0.45;
+          tx = tip.x; ty = tip.y; bx = hand.x + (tip.x - hand.x) * k; by = hand.y + (tip.y - hand.y) * k;
+        } else {
+          const j = S[h.joint], par = S[PARENT[h.joint] || h.joint];
+          tx = j.x; ty = j.y; bx = j.x + (par.x - j.x) * 0.3; by = j.y + (par.y - j.y) * 0.3;
+        }
+        const pool = this._trailPool || (this._trailPool = []);
+        const e = this.trail.length >= 7 ? this.trail.shift() : pool.pop() || {};
+        e.x = tx; e.y = ty; e.bx = bx; e.by = by;
+        this.trail.push(e);
       } else if (this.trail.length) {
-        this.trail.shift();
+        (this._trailPool || (this._trailPool = [])).push(this.trail.shift());
       }
       if (this.turnT > 0) this.turnT -= ts;
-      for (const g of this.ghosts) g.life -= dt * 3.2;
-      while (this.ghosts.length && this.ghosts[0].life <= 0) this.ghosts.shift();
+      // visual facing follows the gameplay facing over ~7 frames (a teleport turns at once)
+      if (this.faceVis !== this.facing) {
+        if (Math.abs(this.x - this.prevX) > 200 || this.state === 'bossmove' || this.state === 'intro') this.faceVis = this.facing;
+        else {
+          const step = ts * 2 / 7;
+          this.faceVis = this.facing > 0 ? Math.min(1, this.faceVis + step) : Math.max(-1, this.faceVis - step);
+        }
+      }
+      // afterimages are short: 60–150 ms
+      for (const g of this.ghosts) g.life -= dt * 8;
+      while (this.ghosts.length && this.ghosts[0].life <= 0) (this._ghostPool || (this._ghostPool = [])).push(this.ghosts.shift());
 
       SA.Render.updateAccessories(this, dt, game.arena);
     }

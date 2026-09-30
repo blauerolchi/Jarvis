@@ -26,6 +26,8 @@
       this.x = (a.x + b.x) / 2;
       this.zoom = this.targetZoom(Math.abs(a.x - b.x));
       this.y = this.baseY(this.zoom);
+      this.lead = 0; this.speedZoom = 0;
+      this.snapshotRender();
     }
 
     targetZoom(dist) {
@@ -75,6 +77,29 @@
     }
 
     viewZoom() { return this.zoom + this.zoomKick; }
+
+    // render interpolation (see Fighter.beginRender): previous tick -> current tick
+    snapshotRender() {
+      this._p = this._p || {};
+      const p = this._p;
+      p.x = this.x; p.y = this.y; p.zoom = this.zoom; p.zk = this.zoomKick; p.sx = this.sx; p.sy = this.sy; p.sr = this.sr;
+    }
+    beginRender(a) {
+      const p = this._p;
+      this._on = !!p && a < 1;
+      if (!this._on) return;
+      const c = this._c || (this._c = {});
+      c.x = this.x; c.y = this.y; c.zoom = this.zoom; c.zk = this.zoomKick; c.sx = this.sx; c.sy = this.sy; c.sr = this.sr;
+      const L = (u, v) => u + (v - u) * a;
+      this.x = L(p.x, c.x); this.y = L(p.y, c.y); this.zoom = L(p.zoom, c.zoom); this.zoomKick = L(p.zk, c.zk);
+      this.sx = L(p.sx, c.sx); this.sy = L(p.sy, c.sy); this.sr = L(p.sr, c.sr);
+    }
+    endRender() {
+      if (!this._on) return;
+      const c = this._c;
+      this.x = c.x; this.y = c.y; this.zoom = c.zoom; this.zoomKick = c.zk; this.sx = c.sx; this.sy = c.sy; this.sr = c.sr;
+      this._on = false;
+    }
 
     addTrauma(v) { this.trauma = clamp(this.trauma + v, 0, 1); }
     punch(v) { this.zoomKick = Math.min(0.2, this.zoomKick + v); }

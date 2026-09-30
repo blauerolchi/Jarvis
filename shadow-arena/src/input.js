@@ -54,7 +54,7 @@
         // double-tap left / right = quick dash (forward) or backstep (the fighter decides from the held direction)
         if (a === 'left' || a === 'right') {
           const now = performance.now();
-          if (this.lastTapDir === a && now - this.lastTapT < 230) { this.queue.push('dash'); this.lastTapT = 0; }
+          if (this.lastTapDir === a && now - this.lastTapT < 230) { this.queue.push('step'); this.lastTapT = 0; }
           else { this.lastTapDir = a; this.lastTapT = now; }
         }
       }, { passive: false });
@@ -178,7 +178,7 @@
     }
   }
 
-  const FIGHT_ACTIONS = ['left', 'right', 'up', 'down', 'light', 'heavy', 'kick', 'block', 'dash', 'special', 'ranged', 'reload'];
+  const FIGHT_ACTIONS = ['left', 'right', 'up', 'down', 'light', 'heavy', 'kick', 'block', 'dash', 'step', 'special', 'ranged', 'reload'];
 
   class Controller {
     constructor() {

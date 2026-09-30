@@ -29,7 +29,7 @@
       if (!o) { o = pool[this.cursor]; this.cursor = (this.cursor + 1) % pool.length; }
       o.alive = true;
       o.type = p.type || 'glow';
-      o.x = p.x; o.y = p.y;
+      o.x = p.x; o.y = p.y; o.ox = p.x; o.oy = p.y;
       o.vx = p.vx || 0; o.vy = p.vy || 0;
       o.life = 0; o.max = p.life || 0.4;
       o.size = p.size || 10; o.grow = p.grow || 0;
@@ -57,6 +57,7 @@
           p.vx *= d; p.vy *= d;
         }
         p.vy += p.grav * dt;
+        p.ox = p.x; p.oy = p.y;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.rot += p.vr * dt;
@@ -67,14 +68,24 @@
 
     clear() { for (const p of this.pool) p.alive = false; }
 
+    // start of a simulation step: particles that don't move this step must not be blended
+    snapshot() { for (const p of this.pool) if (p.alive) { p.ox = p.x; p.oy = p.y; } }
+
     draw(ctx, front) {
       // normal blended first, additive second (fewer composite switches)
       for (let pass = 0; pass < 2; pass++) {
         const additive = pass === 1;
         ctx.globalCompositeOperation = additive ? 'lighter' : 'source-over';
+        const a = this.alpha === undefined ? 1 : this.alpha;
         for (const p of this.pool) {
           if (!p.alive || p.add !== additive || p.front !== front || !p.world) continue;
-          this.drawOne(ctx, p);
+          if (a < 1) {
+            // render interpolation between the last two simulation steps
+            const x = p.x, y = p.y;
+            p.x = p.ox + (x - p.ox) * a; p.y = p.oy + (y - p.oy) * a;
+            this.drawOne(ctx, p);
+            p.x = x; p.y = y;
+          } else this.drawOne(ctx, p);
         }
       }
       ctx.globalCompositeOperation = 'source-over';

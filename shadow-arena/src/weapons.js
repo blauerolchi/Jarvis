@@ -244,12 +244,21 @@
   const FIST_MAP = {
     light: 'jab', lightDown: 'crouchJab', heavy: 'heavy', heavyFwd: 'lunge', heavyDown: 'sweep', heavyUp: 'uppercut',
     dashLight: 'dashPunch', dashHeavy: 'slideKick', runLight: 'runStrike', slide: 'slideKick', backCounter: 'backCounter',
-    airLight: 'airPunch', airHeavy: 'flyingKick', kick: 'kick', kickDown: 'lowKick',
+    airLight: 'airPunch', airHeavy: 'airSmash', airKick: 'flyingKick', kick: 'kick', kickDown: 'lowKick',
   };
   const STYLE_MAP = {
     light: 'a1', lightDown: 'low', heavy: 'over', heavyFwd: 'hv', heavyDown: 'sweep', heavyUp: 'launch',
-    dashLight: 'dash', runLight: 'dash', backCounter: 'dash', airLight: 'air',
+    dashLight: 'dash', runLight: 'dash', backCounter: 'dash', airLight: 'air', airHeavy: 'airHeavy',
   };
+  // every weapon style gets a heavy air strike (jump + heavy): a slower, harder downward cut
+  for (const st of Object.values(STYLES)) {
+    const air = st.moves.air;
+    if (!air || st.moves.airHeavy) continue;
+    st.moves.airHeavy = Object.assign({}, air, {
+      st: air.st + 3, ac: air.ac + 1, rc: air.rc + 4, dmg: Math.round(air.dmg * 1.4), kb: 460, kbY: -380, knockdown: true,
+      power: 0.82, hitstop: 5, shake: 0.32, chain: null,
+    });
+  }
   // every weapon style gets a knockdown sweep (down + heavy), derived from its low attack
   for (const st of Object.values(STYLES)) {
     const low = st.moves.low;

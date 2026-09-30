@@ -23,6 +23,9 @@
 
     clear() { for (const p of this.pool) p.alive = false; }
 
+    // start of a simulation step (render interpolation): a projectile that doesn't move isn't blended
+    snapshot() { for (const p of this.pool) if (p.alive && p.px !== undefined) { p.px = p.x; p.py = p.y; } }
+
     get(ownerFilter) {
       const out = [];
       for (const p of this.pool) if (p.alive && (!ownerFilter || p.owner !== ownerFilter)) out.push(p);
@@ -114,7 +117,8 @@
     }
 
     update(dt, game) {
-      const fighters = [game.p1, game.p2];
+      const fighters = this._f || (this._f = []);
+      fighters[0] = game.p1; fighters[1] = game.p2;
       let n = 0;
       for (const p of this.pool) {
         if (!p.alive) continue;
@@ -273,7 +277,8 @@
       for (const p of this.pool) {
         if (!p.alive) continue;
         ctx.save();
-        ctx.translate(p.x, p.y);
+        const ra = this.alpha === undefined || p.px === undefined ? 1 : this.alpha;
+        ctx.translate(p.px === undefined ? p.x : p.px + (p.x - p.px) * ra, p.py === undefined ? p.y : p.py + (p.y - p.py) * ra);
         const dir = Math.sign(p.vx) || 1;
         switch (p.type) {
           case 'shuriken': {

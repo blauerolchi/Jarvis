@@ -181,7 +181,7 @@
       if (hard && hard !== s.lastSide) {
         const now = performance.now();
         if (s.flick.dir === hard && now - s.flick.t < FLICK_MS) {
-          this.input.queue.push('dash');
+          this.input.queue.push('step');
           s.flick.t = 0;
         } else {
           s.flick.dir = hard; s.flick.t = now;
@@ -213,7 +213,9 @@
       if (b.id === 'ranged') return rw ? (rw.kind === 'gun' ? 'SHOOT' : 'THROW') : '';
       if (b.id === 'dash') {
         const s = this.stick;
-        return f && s.nx * f.facing > SIDE_ON ? 'DASH' : 'DODGE';
+        if (!f) return 'DODGE';
+        if (s.ny > SIDE_ON) return 'ROLL';
+        return s.nx * f.facing > SIDE_ON ? 'DASH' : s.nx * f.facing < -SIDE_ON ? 'FLIP' : 'DODGE';
       }
       return b.label;
     }

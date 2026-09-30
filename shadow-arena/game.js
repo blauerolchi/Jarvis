@@ -337,7 +337,14 @@
 
     // ---------- effects API used by combat ----------
     impactFlash(v) { this.flash = Math.max(this.flash || 0, v); }
-    hitStop(frames) { this.hitstop = Math.max(this.hitstop, Math.round(frames)); }
+    // Hitstop = a short freeze of the two fighters only (particles, flashes and the camera keep moving).
+    // Move data asks for 3–12 frames; the freeze is compressed to 1–4 frames (≈17–67 ms), a god's heavy
+    // blow may hold 5–6 frames (≈100 ms) — long enough to feel the impact, never long enough to look stuck.
+    hitStop(frames) {
+      const cap = this.p2 && this.p2.isBoss ? 6 : 4;
+      const f = clamp(Math.round(frames * 0.5), 1, cap);
+      this.hitstop = Math.max(this.hitstop, f);
+    }
     // gods shake the world harder
     shake(v) { this.camera.addTrauma(v * (this.p2 && this.p2.isBoss && this.ranked ? 1.25 : 1)); }
     slowMo(scale, dur) {
@@ -408,24 +415,48 @@
     }
 
     // ---------- loop ----------
+    // Fixed 60 Hz simulation, rendering at the display rate (50 / 60 / 90 / 120 / 144 Hz).
+    // Every tick first snapshots the render state; render() then blends previous → current with
+    // alpha = leftover time / STEP, so uneven frame times never show up as stutter.
     frame(now) {
-      const dt = Math.min(0.1, (now - this.last) / 1000);
+      let raw = (now - this.last) / 1000;
       this.last = now;
-      if (dt > 0) this.fps = this.fps * 0.93 + (1 / dt) * 0.07;
+      const ms = raw * 1000;
+      if (raw > 0) {
+        this.fps = this.fps * 0.93 + (1 / raw) * 0.07;
+        this.frameMs = ms;
+        // frame-time spread for the debug overlay (spikes / GC pauses show up here)
+        this.frameMax = Math.max((this.frameMax || 0) * 0.995, ms);
+      }
+      // vsync snapping: a 16.4 ms or 16.9 ms frame on a 60 Hz screen is one step, not 0 or 2
+      if (Math.abs(raw - SA.STEP) < 0.0012) raw = SA.STEP;
+      // long hitch (tab switch, GC): run at most 3 steps, the game slows instead of teleporting
+      const dt = Math.min(0.05, Math.max(0, raw));
       this.acc += dt;
       let steps = 0;
       if (this.manual) this.acc = 0; // tests step the simulation themselves
-      while (this.acc >= SA.STEP && steps < 5) {
+      while (this.acc >= SA.STEP && steps < 4) {
         this.tick();
         this.acc -= SA.STEP;
         steps++;
       }
-      if (steps >= 5) this.acc = 0;
+      if (this.acc >= SA.STEP) this.acc = SA.STEP * 0.999;
       this.updateTransition(dt);
       this.autoQuality(dt);
       this.ui.update(dt);
       this.render();
       requestAnimationFrame((t) => this.frame(t));
+    }
+
+    // render-state snapshot at the start of every simulation step
+    snapshotRender() {
+      this.simTick = (this.simTick || 0) + 1;
+      SA.Render.RENDER.tick = this.simTick;
+      if (this.p1) this.p1.snapshotRender();
+      if (this.p2) this.p2.snapshotRender();
+      this.camera.snapshotRender();
+      this.particles.snapshot();
+      this.projectiles.snapshot();
     }
 
     updateTransition(dt) {
@@ -444,6 +475,7 @@
     }
 
     tick() {
+      this.snapshotRender();
       const presses = this.input.drain();
       const mouse = this.input.takeMouse();
       this.handleDebugKeys(presses);
@@ -517,7 +549,8 @@
       if (this.hitstop > 0) {
         this.hitstop--;
         this.flash = Math.max(0, (this.flash || 0) - realDt * 1.5);
-        this.particles.update(realDt * 0.2);
+        // fighters hold their pose, the world around them keeps moving
+        this.particles.update(realDt);
         cam.update(realDt, p1, p2);
         return;
       }
@@ -856,6 +889,24 @@
 
     // ---------- rendering ----------
     render() {
+      // interpolated presentation of the simulation (see frame())
+      const a = this.manual ? 1 : clamp(this.acc / SA.STEP, 0, 1);
+      this.renderAlpha = a;
+      SA.Render.RENDER.alpha = a;
+      this.particles.alpha = a;
+      this.projectiles.alpha = a;
+      const fs = [this.p1, this.p2];
+      for (const f of fs) if (f) f.beginRender(a);
+      this.camera.beginRender(a);
+      try {
+        this.renderScene();
+      } finally {
+        this.camera.endRender();
+        for (const f of fs) if (f) f.endRender();
+      }
+    }
+
+    renderScene() {
       const ctx = this.ctx, cam = this.camera, arena = this.arena, p1 = this.p1, p2 = this.p2;
       SA.resetTransform(ctx);
       ctx.globalAlpha = 1;

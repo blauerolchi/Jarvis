@@ -80,9 +80,20 @@
     for (const k of KEYS) out[k] = a[k] + (b[k] - a[k]) * t;
     return out;
   }
+  // wrap an angle to (-PI, PI]
+  function wrapA(a) {
+    while (a > Math.PI) a -= SA.TAU;
+    while (a <= -Math.PI) a += SA.TAU;
+    return a;
+  }
+  // exponential blend toward the target pose (frame-rate independent); the body rotation takes the
+  // shortest way round, so a finished roll / flip (rot = 2π) never unwinds backwards
   function dampPose(cur, target, k, dt) {
     const f = 1 - Math.exp(-k * dt);
-    for (const key of KEYS) cur[key] += (target[key] - cur[key]) * f;
+    for (const key of KEYS) {
+      if (key === 'rot') { cur.rot = wrapA(cur.rot); cur.rot += wrapA(target.rot - cur.rot) * f; }
+      else cur[key] += (target[key] - cur[key]) * f;
+    }
   }
 
   const EASE = {
@@ -128,39 +139,105 @@
     out.wg += h * 0.08;
     return out;
   }
+  // Gait wave for one leg: during the stance part of the cycle the foot moves backwards at a
+  // constant rate (so it can stay planted while the body moves at constant speed), then it swings
+  // forward on an eased curve and lifts. G.x: -1..1 (back..front), G.lift: 0..1.
+  const G = { x: 0, lift: 0 };
+  function gait(phase, stance) {
+    let u = (phase / SA.TAU) % 1;
+    if (u < 0) u += 1;
+    if (u < stance) { G.x = 1 - 2 * (u / stance); G.lift = 0; }
+    else {
+      const v = (u - stance) / (1 - stance);
+      G.x = -1 + 2 * SA.M.smooth(v);
+      G.lift = Math.sin(v * Math.PI);
+    }
+    return G;
+  }
+  // walk (dir 1) / walk backwards (dir -1): small fighting steps, guard up
   function walkPose(phase, dir, out) {
     copyPose(out, STANCE);
-    const s = Math.sin(phase), c = Math.cos(phase);
-    out.lF1 = 0.46 + s * 0.38;
-    out.lB1 = -0.3 - s * 0.34;
-    out.lF2 = -0.82 - Math.max(0, c * dir) * 0.62;
-    out.lB2 = -0.22 - Math.max(0, -c * dir) * 0.8;
-    out.torso = (dir > 0 ? 0.3 : 0.08) + Math.abs(c) * 0.03;
+    const ph = dir > 0 ? phase : -phase;
+    gait(ph, 0.62);
+    const fx = G.x, fl = G.lift;
+    gait(ph + Math.PI, 0.62);
+    const bx = G.x, bl = G.lift;
+    out.lF1 = 0.46 + fx * 0.36 + fl * 0.12;
+    out.lB1 = -0.3 + bx * 0.36 + bl * 0.12;
+    out.lF2 = -0.82 - fl * 0.7;
+    out.lB2 = -0.22 - bl * 0.85;
+    const c = Math.cos(phase * 2);
+    out.torso = (dir > 0 ? 0.3 : 0.08) + c * 0.015;
     out.head = dir > 0 ? -0.1 : 0;
-    out.aF1 += s * 0.14;
-    out.aB1 -= s * 0.16;
-    out.hipX = (dir > 0 ? 6 : -5) + c * 3;
-    out.wg += s * 0.1;
+    out.aF1 += fx * -0.1;
+    out.aB1 += fx * 0.12;
+    out.hipX = (dir > 0 ? 6 : -5) + c * 2;
+    out.wg += fx * 0.08;
     return out;
   }
   // Run / sprint: strong forward lean, big leg amplitude, pumping arms (sprint: even more).
   function runPose(phase, out, sprint) {
     copyPose(out, STANCE);
-    const s = Math.sin(phase);
-    const amp = sprint ? 1.15 : 1.0, lift = sprint ? 1.65 : 1.45;
-    const leg = (ph) => [0.38 + amp * Math.sin(ph), -0.25 - lift * Math.max(0, Math.cos(ph))];
-    const f = leg(phase), b = leg(phase + Math.PI);
-    out.lF1 = f[0]; out.lF2 = f[1];
-    out.lB1 = b[0]; out.lB2 = b[1];
+    const amp = sprint ? 1.05 : 0.92, lift = sprint ? 1.7 : 1.5;
+    gait(phase, 0.42);
+    const fx = G.x, fl = G.lift;
+    gait(phase + Math.PI, 0.42);
+    const bx = G.x, bl = G.lift;
+    out.lF1 = 0.3 + amp * fx + fl * 0.35; out.lF2 = -0.3 - lift * fl;
+    out.lB1 = 0.3 + amp * bx + bl * 0.35; out.lB2 = -0.3 - lift * bl;
     out.torso = sprint ? 0.78 : 0.58;
     out.head = sprint ? -0.42 : -0.3;
-    const arm = sprint ? 1.25 : 1.0;
-    out.aF1 = 0.55 - arm * s; out.aF2 = 1.5 + Math.max(0, s) * 0.5;
-    out.aB1 = 0.55 + arm * s; out.aB2 = 1.5 + Math.max(0, -s) * 0.5;
+    const arm = sprint ? 1.2 : 1.0;
+    // arms pump against the legs
+    out.aF1 = 0.55 + arm * bx; out.aF2 = 1.5 + Math.max(0, -bx) * 0.5;
+    out.aB1 = 0.55 + arm * fx; out.aB2 = 1.5 + Math.max(0, -fx) * 0.5;
     out.hipX = 8;
-    out.wg = -0.9;
+    out.wg = -0.9 + bx * 0.08;
     return out;
   }
+
+  // ---------- acrobatics ----------
+  // Flip poses are keyframed over the flip's rotation frames (u = 0..1): the limbs move through
+  // take-off, tuck and opening instead of a stiff body spinning as one piece.
+  const ACRO = {};
+  function buildAcro() {
+    const tuck = POSES.roll;
+    ACRO.front = [
+      [0, P({ torso: 0.35, head: -0.1, aF1: 2.6, aF2: 0.3, aB1: 2.4, aB2: 0.4, lF1: 0.2, lF2: -0.2, lB1: -0.4, lB2: -0.1 })],
+      [0.22, tuck, 'out'],
+      [0.7, P({ torso: 1.2, aF1: 1.0, aF2: 2.0, aB1: 0.9, aB2: 2.1 }, tuck)],
+      [1, P({ torso: 0.1, head: -0.1, aF1: 1.4, aF2: 0.8, aB1: -0.8, aB2: 0.8, lF1: 0.8, lF2: -1.1, lB1: -0.1, lB2: -0.9 }), 'smooth'],
+    ];
+    ACRO.back = [
+      [0, P({ torso: -0.35, head: 0.2, aF1: 2.9, aF2: 0.2, aB1: 2.7, aB2: 0.3, lF1: 0.3, lF2: -0.5, lB1: -0.2, lB2: -0.3 })],
+      [0.25, P({ torso: 0.9, head: 0.4, aF1: 1.2, aF2: 1.9, aB1: 1.0, aB2: 2.0 }, tuck), 'out'],
+      [0.7, P({ torso: 0.9, aF1: 1.6, aF2: 1.2, aB1: 1.4, aB2: 1.3 }, tuck)],
+      [1, P({ torso: 0.2, aF1: 1.2, aF2: 1.2, aB1: 0.2, aB2: 1.6, lF1: 0.9, lF2: -1.3, lB1: 0.1, lB2: -1.1 }), 'smooth'],
+    ];
+    // handspring: arch back, hands to the floor, legs whip over, snap down into a crouch
+    ACRO.hand = [
+      [0, P({ torso: -0.5, head: 0.4, aF1: 3.0, aF2: 0.15, aB1: 2.9, aB2: 0.2, lF1: 0.55, lF2: -0.9, lB1: -0.2, lB2: -0.6 })],
+      [0.35, P({ torso: -0.2, head: 0.5, aF1: 3.1, aF2: 0.05, aB1: 3.05, aB2: 0.05, lF1: 1.2, lF2: -0.2, lB1: -0.6, lB2: -0.1 }), 'out'],
+      [0.65, P({ torso: 0.3, head: 0.3, aF1: 2.6, aF2: 0.5, aB1: 2.5, aB2: 0.5, lF1: 1.6, lF2: -1.6, lB1: 1.2, lB2: -1.8 })],
+      [1, POSES.crouch, 'smooth'],
+    ];
+    ACRO.slide = P({ torso: -0.85, head: 0.5, lF1: 1.45, lF2: -0.1, lB1: 0.7, lB2: -2.2, aF1: -0.3, aF2: 0.9, aB1: -0.9, aB2: 0.4 });
+    ACRO.airdash = P({ torso: 0.85, head: -0.35, aF1: 1.2, aF2: 0.4, aB1: -1.1, aB2: 0.6, lF1: 0.9, lF2: -1.4, lB1: -0.9, lB2: -0.5 });
+  }
+  function sampleU(keys, u, out) {
+    // keys with times in 0..1
+    if (u <= keys[0][0]) return copyPose(out, keys[0][1]);
+    for (let i = 1; i < keys.length; i++) {
+      const k1 = keys[i];
+      if (u <= k1[0]) {
+        const k0 = keys[i - 1];
+        const e = EASE[k1[2] || 'smooth'](clamp((u - k0[0]) / (k1[0] - k0[0]), 0, 1));
+        return lerpPose(out, k0[1], k1[1], e);
+      }
+    }
+    return copyPose(out, keys[keys.length - 1][1]);
+  }
+  const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
   // ---------- skeleton solve ----------
   function createSkeleton() {
@@ -246,9 +323,15 @@
   // ---------- per-state animation driver ----------
   const target = P();
   const sampled = P();
+  // Gait cycles advance with the distance travelled (px per radian of the cycle), not with time:
+  // the planted foot moves backwards exactly as fast as the body moves forwards -> no skating.
+  const STRIDE = { walk: 28, back: 34, run: 84, sprint: 112, dash: 120 };
+  const ARM_KEYS = ['aF1', 'aF2', 'aB1', 'aB2'];
+  SA.STRIDE = STRIDE;
 
   function update(f, ts) {
     const dt = SA.STEP * ts;
+    f.pose.rot = wrapA(f.pose.rot);
     let k = 18;
     let direct = false;
     const st = f.state;
@@ -266,16 +349,18 @@
     } else if (st === 'idle') {
       idlePose(f.animTime, target);
     } else if (st === 'walk') {
-      f.walkPhase += dt * (f.walkDir > 0 ? 10.5 : 9);
-      walkPose(f.walkPhase * f.walkDir, f.walkDir, target);
+      f.walkPhase += Math.abs(f.vx) * dt / (f.walkDir > 0 ? STRIDE.walk : STRIDE.back);
+      walkPose(f.walkPhase, f.walkDir, target);
       name = f.walkDir > 0 ? 'walk' : 'backwalk';
-      k = 16;
+      // the gait is followed closely (a soft blend would shrink the steps and make the feet skate);
+      // entering the walk from another pose still blends in over a few frames
+      k = f.st < 6 ? 16 : 42;
     } else if (st === 'run' || st === 'sprint') {
       const sprint = st === 'sprint';
-      f.walkPhase += dt * (sprint ? 19 : 16);
+      f.walkPhase += Math.abs(f.vx) * dt / (sprint ? STRIDE.sprint : STRIDE.run);
       runPose(f.walkPhase, target, sprint);
       name = st;
-      k = 24;
+      k = f.st < 5 ? 24 : 40;
     } else if (st === 'crouch') {
       copyPose(target, POSES.crouch);
       target.torso += Math.sin(f.animTime * 2.3) * 0.02;
@@ -287,6 +372,27 @@
     } else if (st === 'prejump' || st === 'landing') {
       copyPose(target, POSES.prejump);
       k = 30;
+    } else if (st === 'flip' && f.flip) {
+      // acrobatics: keyed limbs + eased rotation around the body (front flip forward, back / hand backward)
+      const F = f.flip.F, u = clamp(f.st / F.rotFrames, 0, 1);
+      if (!ACRO.front) buildAcro();
+      sampleU(ACRO[f.flip.kind], u, target);
+      target.rot = F.dir * SA.TAU * easeInOut(u);
+      // enter from the take-off crouch over 2 frames, then follow the keys exactly
+      const w = clamp(f.st / 2, 0, 1);
+      if (w < 1) { const r = target.rot; lerpPose(target, f.pose, target, w); target.rot = r; }
+      copyPose(f.pose, target);
+      direct = true;
+      name = f.flip.kind === 'hand' ? 'handspring' : f.flip.kind + 'flip';
+    } else if (st === 'airdash') {
+      if (!ACRO.front) buildAcro();
+      copyPose(target, ACRO.airdash);
+      k = 30;
+    } else if (st === 'slide') {
+      if (!ACRO.front) buildAcro();
+      copyPose(target, ACRO.slide);
+      target.torso += Math.sin(f.animTime * 30) * 0.02;
+      k = 32;
     } else if (st === 'air') {
       const u = clamp((f.vy + 900) / 1600, 0, 1);
       lerpPose(target, POSES.jump, POSES.fall, u);
@@ -294,15 +400,20 @@
       if (f.jumpDir !== 0) target.torso += 0.15 * f.jumpDir;
       k = 12;
     } else if (st === 'dash') {
-      runPose(f.walkPhase += dt * 16, tmp);
+      f.walkPhase += Math.abs(f.vx) * dt / STRIDE.dash;
+      runPose(f.walkPhase, tmp, true);
       lerpPose(target, POSES.dash, tmp, 0.35);
-      k = 24;
+      k = 26;
     } else if (st === 'roll') {
-      // tucked ball rotating around the hip; ground snap keeps it on the floor
-      copyPose(target, POSES.roll);
-      const u = clamp(f.st / 22, 0, 1);
-      target.rot = (f.rollDir || 1) * u * SA.TAU;
-      copyPose(f.pose, target);
+      // tucked ball rotating around the hip; ground snap keeps it on the floor.
+      // Limbs tuck in over ~3 frames, the rotation eases in and out, the last frames open up again.
+      const u = clamp(f.st / 23, 0, 1);
+      if (u < 0.82) copyPose(target, POSES.roll);
+      else lerpPose(target, POSES.roll, POSES.crouch, SA.M.smooth((u - 0.82) / 0.18));
+      const rot = (f.rollDir || 1) * SA.TAU * easeInOut(clamp(u / 0.9, 0, 1));
+      dampPose(f.pose, target, 40, dt);
+      f.pose.rot = rot;
+      copyPose(target, f.pose);
       direct = true;
     } else if (st === 'evade') {
       copyPose(target, POSES.evade);
@@ -344,9 +455,20 @@
     } else if ((st === 'attack' || st === 'special') && f.animKeys) {
       sampleKeys(f.animKeys, f.mt, sampled);
       name = f.move ? f.move.id : f.sp ? 'special:' + f.sp.phase : st;
-      const blend = f.move && f.move.blend !== undefined ? f.move.blend : 2;
-      const w = blend <= 0 ? 1 : clamp(f.mt / blend, 0, 1);
-      lerpPose(target, f.entryPose, sampled, SA.M.smooth(w));
+      // blend in from whatever the body was doing (run, roll, previous attack …) over ~3 frames:
+      // hips / torso lead, the arms follow a fraction of a frame later, the weapon last
+      const blend = Math.max(3, f.move && f.move.blend !== undefined ? f.move.blend : 3);
+      const out = SA.M.easeOutCubic;
+      const wb = out(clamp(f.mt / blend, 0, 1));
+      lerpPose(target, f.entryPose, sampled, wb);
+      if (wb < 1) {
+        const wa = out(clamp(f.mt / (blend + 0.7), 0, 1)), ww = out(clamp(f.mt / (blend + 1.2), 0, 1));
+        for (const key of ARM_KEYS) target[key] = f.entryPose[key] + (sampled[key] - f.entryPose[key]) * wa;
+        target.wg = f.entryPose.wg + (sampled.wg - f.entryPose.wg) * ww;
+        target.wgB = f.entryPose.wgB + (sampled.wgB - f.entryPose.wgB) * ww;
+      }
+      // a slash out of a front flip keeps rotating: the spinning aerial slash
+      if (f.flipAtk && f.move && f.move.air) target.rot = f.flipAtk * SA.TAU * out(clamp(f.mt / Math.max(8, f.move.startup + f.move.active), 0, 1));
       direct = true;
     } else {
       idlePose(f.animTime, target);
@@ -354,10 +476,22 @@
 
     // ---- procedural overlays (never change timing, only the look) ----
     const grounded = f.grounded;
-    // momentum: lean into the direction of travel, lean back while braking
-    if (!direct && grounded && (st === 'idle' || st === 'walk' || st === 'crouch' || st === 'block')) {
-      const v = (f.vx * f.facing) / 1000;
-      target.torso += clamp(v, -0.6, 0.9) * 0.18;
+    // lean: from velocity and acceleration (smoothed). Speeding up tips the body forward, braking
+    // throws it back for a moment; the head counter-rotates so the gaze stays level.
+    const vf = (f.vx * f.facing) / 960;
+    const acc = ((f.vx - (f.prevVx || 0)) * f.facing) / Math.max(dt, 1e-4);
+    f.prevVx = f.vx;
+    const leanT = grounded ? clamp(vf, -1, 1) * 0.6 + clamp(acc / 14000, -0.5, 0.45) : 0;
+    f.lean = (f.lean || 0) + (leanT - (f.lean || 0)) * (1 - Math.exp(-10 * dt));
+    if (!direct && grounded && st !== 'down' && st !== 'ko' && st !== 'getup') {
+      const run = st === 'run' || st === 'sprint' || st === 'dash';
+      const L = f.lean * (run ? 0.12 : 0.26);
+      target.torso += L;
+      target.head -= L * 0.7;
+      target.hipX += f.lean * (run ? 4 : 8);
+      // weapon and back arm drag a little behind fast movement
+      target.wg -= f.lean * 0.18;
+      target.aB1 -= f.lean * 0.12;
     }
     // landing: knees give way for a moment (visual only, input is live)
     if (f.landT > 0 && !direct && grounded) {

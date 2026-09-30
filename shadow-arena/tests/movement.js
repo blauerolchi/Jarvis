@@ -68,12 +68,14 @@ const { openGame } = require('./harness');
     T.fresh(-900, 900);
     T.rec(20, { hold: ['right'] });
     const lp = T.rec(4, { hold: ['right'], press: ['up'] });
-    o.leap = { vx: Math.round(lp[3].vx), air: !lp[3].g };
+    o.leap = { vx: Math.round(lp[3].vx), air: !lp[3].g, state: lp[3].s };
     // --- slide: sprint + down + attack
     T.fresh(-900, 900);
     T.rec(45, { hold: ['right'] });
-    const sl = T.rec(2, { hold: ['right', 'down'], press: ['light'] });
-    o.slide = sl[1].m;
+    // run + down = slide (movement), attack during the slide = slide attack
+    const sl0 = T.rec(2, { hold: ['right', 'down'] });
+    const sl = T.rec(6, { hold: ['right', 'down'], press: ['light'] });
+    o.slide = sl0[1].s === 'slide' ? (sl.find((l) => l.m) || {}).m : null;
     // --- running attack
     T.fresh(-900, 900);
     T.rec(16, { hold: ['right'] });
@@ -135,8 +137,8 @@ const { openGame } = require('./harness');
     { walk: r.stickWalk, run: r.stickRun, sprint: r.stickSprint });
   check('T8 dash > dash attack > combo > backstep', /dash > dashPunch.*jab > jab2.*evade/.test(r.flow), r.flow);
   check('backstep counter (backstep + heavy)', r.backCounter.start === 'evade' && r.backCounter.move === 'backCounter' && r.backCounter.bonus > 1, r.backCounter);
-  check('leap: up while running = long fast jump', r.leap.air && r.leap.vx > 800, r.leap);
-  check('slide: sprint + down + attack', r.slide === 'slideKick', r.slide);
+  check('front flip: up while running = long fast flip', r.leap.air && r.leap.vx > 780 && r.leap.state === 'flip', r.leap);
+  check('slide: sprint + down, then attack = slide attack', r.slide === 'slideKick', r.slide);
   check('running attack', r.runAttack === 'runStrike', r.runAttack);
   check('directional heavies: lunge / uppercut / sweep', r.heavy.neutral === 'heavy' && r.heavy.fwd === 'lunge' && r.heavy.up === 'uppercut' && r.heavy.down === 'sweep', r.heavy);
   check('jump buffer: early jump press fires on landing', r.jumpBuffer.landedAt >= 0 && r.jumpBuffer.rejump, r.jumpBuffer);

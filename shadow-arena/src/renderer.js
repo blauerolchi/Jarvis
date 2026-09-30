@@ -16,6 +16,9 @@
   const { clamp } = SA.M;
   const shade = (c, a) => SA.M.shade(c, a);
 
+  // render interpolation factor for cloth (set by the game every frame, 1 = latest step)
+  const RENDER = { alpha: 1 };
+
   // ---------- cloth / loose bandages ----------
   class Rope {
     constructor(n, seg) {
@@ -32,6 +35,8 @@
     update(ax, ay, dt, windX, lift) {
       if (!this.ready) this.reset(ax, ay);
       const pts = this.pts;
+      this.r0x = pts[0].x; this.r0y = pts[0].y;   // previous root (render interpolation)
+      this.tick = RENDER.tick;
       pts[0].x = pts[0].px = ax;
       pts[0].y = pts[0].py = ay;
       const g = 1500 * dt * dt;
@@ -63,17 +68,24 @@
     }
     // tapered ribbon; bandage ropes get a frayed, slightly darker tip
     draw(ctx, w0, w1, color, tip) {
-      const pts = this.pts;
+      // not simulated in the latest step (pause, hitstop): show the current state as it is
+      const pts = this.pts, a = this.tick === RENDER.tick ? RENDER.alpha : 1;
       ctx.strokeStyle = color;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
+      // blend each point between the previous and current simulation step (no allocations)
+      const r0 = this.r0x !== undefined && a < 1;
+      let x0 = r0 ? this.r0x + (pts[0].x - this.r0x) * a : pts[0].x, y0 = r0 ? this.r0y + (pts[0].y - this.r0y) * a : pts[0].y;
       for (let i = 1; i < pts.length; i++) {
+        const q = pts[i];
+        const x1 = q.px + (q.x - q.px) * a, y1 = q.py + (q.y - q.py) * a;
         ctx.lineWidth = w0 + (w1 - w0) * (i / (pts.length - 1));
         if (tip && i === pts.length - 1) ctx.strokeStyle = tip;
         ctx.beginPath();
-        ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
-        ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
         ctx.stroke();
+        x0 = x1; y0 = y1;
       }
     }
   }
@@ -980,7 +992,7 @@
   }
 
   SA.Render = {
-    Rope, createAccessories, resetAccessories, updateAccessories,
+    RENDER, Rope, createAccessories, resetAccessories, updateAccessories,
 
     drawShadow(ctx, f, strength) {
       const h = clamp(-f.y / 500, 0, 1);
@@ -1070,33 +1082,60 @@
     // afterimages: sand-coloured for the mummy (dash / sprint trail), accent for everyone else
     drawGhosts(ctx, f) {
       if (!f.ghosts.length) return;
-      ctx.globalCompositeOperation = 'lighter';
-      const col = f.look.trail || f.look.accent;
+      // afterimages: faint sand / linen silhouettes (not neon), gone after ~125 ms
+      const col = f.look.trail || '#c8b08a';
       for (const g of f.ghosts) {
-        ctx.globalAlpha = clamp(g.life, 0, 1) * 0.3;
+        ctx.globalAlpha = clamp(g.life, 0, 1) * 0.22;
         drawFlat(ctx, g.pts, f.look, col, col, f.weapon);
       }
       ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'source-over';
     },
 
+    // Motion arcs follow the real weapon path: a tapered ribbon between the tip and a point down
+    // the blade, ending exactly at the (interpolated) weapon on screen. Sword = curved slash,
+    // heavy = short wide arc, spear = thin straight streak, fists = thin line from the fist.
     drawTrail(ctx, f) {
       const t = f.trail;
-      if (t.length < 2) return;
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.lineCap = 'round';
-      const n = t.length;
-      for (let i = 1; i < n; i++) {
-        if (Math.abs(t[i].x - t[i - 1].x) + Math.abs(t[i].y - t[i - 1].y) < 3) continue;
-        const u = i / (n - 1);
-        ctx.globalAlpha = u * 0.5;
-        ctx.strokeStyle = i > n - 3 ? '#fff4dc' : f.look.trail || f.look.accent;
-        ctx.lineWidth = 3 + u * 16;
-        ctx.beginPath();
-        ctx.moveTo(t[i - 1].x, t[i - 1].y);
-        ctx.lineTo(t[i].x, t[i].y);
-        ctx.stroke();
+      if (t.length < 2 || !f.move || !f.move.hit) return;
+      const h = f.move.hit, S = f.skel;
+      const style = f.weapon.style;
+      const n = style === 'heavy' ? Math.min(t.length, 4) : t.length;
+      const first = t.length - n;
+      // live end point = where the weapon is drawn this frame
+      let lx, ly, lbx, lby;
+      if (h.seg) {
+        const hand = S[h.seg === 'B' ? 'handB' : 'handF'], tip = S[h.seg === 'B' ? 'tipB' : 'tip'];
+        const k = style === 'spear' ? 0.82 : style === 'heavy' ? 0.55 : 0.45;
+        lx = tip.x; ly = tip.y; lbx = hand.x + (tip.x - hand.x) * k; lby = hand.y + (tip.y - hand.y) * k;
+      } else {
+        const last = t[t.length - 1];
+        lx = last.x; ly = last.y; lbx = last.bx; lby = last.by;
       }
+      const col = f.weapon.metal || f.look.trail || f.look.accent;
+      ctx.fillStyle = col;
+      for (let i = first + 1; i <= t.length; i++) {
+        const a = t[i - 1];
+        const bx = i === t.length ? lx : t[i].x, by = i === t.length ? ly : t[i].y;
+        const cbx = i === t.length ? lbx : t[i].bx, cby = i === t.length ? lby : t[i].by;
+        if (Math.abs(bx - a.x) + Math.abs(by - a.y) < 4) continue;
+        const u = (i - first) / n;
+        ctx.globalAlpha = u * u * (h.seg ? 0.42 : 0.3);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y); ctx.lineTo(bx, by); ctx.lineTo(cbx, cby); ctx.lineTo(a.bx, a.by);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // bright cutting edge along the tip path
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = '#fff4dc';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = style === 'heavy' ? 5 : 3;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(t[first].x, t[first].y);
+      for (let i = first + 1; i < t.length; i++) ctx.lineTo(t[i].x, t[i].y);
+      ctx.lineTo(lx, ly);
+      ctx.stroke();
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
     },
