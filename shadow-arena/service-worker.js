@@ -1,6 +1,6 @@
 // Offline cache for Shadow Arena (only active when served over http(s); file:// works without it).
 // Bump CACHE when files change so installed copies update.
-const CACHE = 'shadow-arena-v3';
+const CACHE = 'shadow-arena-v4';
 const FILES = [
   './',
   './index.html',

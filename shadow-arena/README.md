@@ -1,8 +1,10 @@
-# SHADOW ARENA
+# SHADOW ARENA · Curse of the Mummy
 
-Ein schnelles 2D-Arena-Fighting-Game mit Silhouetten-Kämpfern, prozeduralen Animationen und atmosphärischen Arenen. Es läuft komplett offline im Browser, am PC mit Tastatur und auf dem **Android-Tablet mit Touch-Steuerung**. Kein Server, kein npm, keine CDNs, keine externen Bilder oder Sounds.
+Ein schnelles 2D-Arena-Fighting-Game im Stil einer **ägyptischen Dark-Fantasy-Unterwelt**: Du spielst eine erwachte Mumie mit flatternden Bandagen, leuchtenden Augen und Goldschmuck und kämpfst dich durch Grabwächter, Wüstenbanditen und Anubis-Akolythen bis zu den **Göttern** selbst: Anubis, Sobek, Sekhmet, Horus, Set, Ra und Osiris.
 
-Enthalten sind ein endloser **ARENA-Modus** mit über 100 Stages, Elite-Gegnern und fünf Bossen mit je drei Phasen, **Level & XP**, **Coins** und ein **Shop** mit Nahkampfwaffen, Wurfwaffen, Schusswaffen, Specials und Kosmetik.
+Das Spiel läuft komplett offline im Browser, am PC mit Tastatur und auf dem **Android-Tablet mit Touch-Steuerung**. Kein Server, kein npm, keine CDNs, keine externen Bilder oder Sounds: Grafik, Animationen, Musik und Soundeffekte entstehen zur Laufzeit.
+
+Enthalten sind ein endloser **ARENA-Modus** mit über 100 Stages, zehn Gegner-Archetypen, Elite-Gegner, sieben Götter-Bosse mit je drei Phasen und Intro, **Level & XP**, **Coins** und ein **Shop** mit Nahkampfwaffen, Wurfwaffen, Relikten (Fernkampf), Specials und Kosmetik.
 
 ---
 
@@ -12,7 +14,7 @@ Enthalten sind ein endloser **ARENA-Modus** mit über 100 Stages, Elite-Gegnern 
 2. `index.html` doppelklicken (oder per Drag & Drop in Chrome, Edge, Firefox oder Safari ziehen).
 3. Fertig. Der Startbildschirm erscheint sofort.
 
-> Der Sound startet mit dem ersten Tastendruck oder Mausklick. Browser erlauben Audio erst nach einer Benutzerinteraktion.
+> Der Sound startet mit dem ersten Tastendruck oder Antippen. Browser erlauben Audio erst nach einer Benutzerinteraktion.
 
 Alle Skripte sind klassische `<script>`-Dateien ohne ES-Module, weil Chrome Module über `file://` blockiert. Dadurch funktioniert das Spiel per Doppelklick ohne lokalen Webserver.
 
@@ -24,13 +26,11 @@ Alle Skripte sind klassische `<script>`-Dateien ohne ES-Module, weil Chrome Modu
 3. Tablet quer halten und oben rechts im Hauptmenü **FULLSCREEN** antippen.
 
 **Variante B: als App installieren (PWA, voll offline)**
-1. Den Ordner auf einen beliebigen Webspace legen (GitHub Pages, Netlify, eigener Server) oder im WLAN bereitstellen, z. B. am PC mit `python3 -m http.server 8000` im Ordner `shadow-arena/`.
-2. Die Adresse im Chrome des Tablets öffnen und im Menü **„Zum Startbildschirm hinzufügen“ / „App installieren“** wählen.
+1. Den Ordner auf einen Webspace legen (GitHub Pages, Netlify, eigener Server) oder im WLAN bereitstellen, z. B. am PC mit `python3 -m http.server 8000` im Ordner `shadow-arena/`.
+2. Die Adresse im Chrome des Tablets öffnen und **„App installieren“ / „Zum Startbildschirm hinzufügen“** wählen.
 3. Der Service Worker (`service-worker.js`) speichert alle Dateien. Danach startet das Spiel auch ohne Internet im Vollbild und im Querformat.
 
 > Über `file://` ist der Service Worker nicht aktiv (Browser-Regel). Das Spiel läuft dort trotzdem vollständig.
-
-Hält man das Tablet hochkant, erscheint ein Hinweis zum Drehen und ein laufender Kampf pausiert automatisch.
 
 ---
 
@@ -38,305 +38,182 @@ Hält man das Tablet hochkant, erscheint ein Hinweis zum Drehen und ein laufende
 
 | Taste | Aktion |
 |---|---|
-| **A / D** (oder ← →) | Laufen / Rückwärtslaufen |
-| **W** (oder ↑) | Springen (mit Richtung: Vorwärts- / Rückwärtssprung) |
+| **A / D** (oder ← →) | Gehen. **Gedrückt halten** → nach kurzer Zeit Laufen, dann Sprinten |
+| **2× A / D antippen** | Quick Dash nach vorne bzw. Backstep |
+| **W** (oder ↑) | Springen · mit Richtung: weiter Sprung (Leap) |
 | **S** (oder ↓) | Ducken |
-| **J** | Leichter Schlag |
-| **K** | Schwerer Schlag |
+| **J** | Leichter Angriff |
+| **K** | Schwerer Angriff (mit Richtung: ↑ Aufwärts, ↓ Feger, → Vorstoß) |
 | **L** | Kick |
-| **U** | Blocken (kurz vor dem Treffer antippen = **Parry**) |
-| **S + U** | Tiefer Block (nötig gegen Low-Angriffe) |
-| **I** | Dash nach vorne (mit →) · Ausweichschritt zurück (ohne / mit ←) |
-| **O** | Werfen / Schießen (Fernkampf-Slot) |
-| **P** | Nachladen (Schusswaffen mit Magazin) |
+| **U** | Blocken (kurz vor dem Treffer antippen = **Parry**) · **S + U** tiefer Block |
+| **I** | Dash (mit →) · Backstep (ohne Richtung / mit ←) · **Combat Roll** (mit ↓) |
+| **O** | Werfen / Schießen (Fernkampf-Slot) · **P** Nachladen |
 | **SPACE** | Spezialangriff (bei 100 % Energie) |
-| **ESC** | Pause / Trainingsoptionen |
-| **R** | Position zurücksetzen (Training) |
-| **Enter / J** | Menü bestätigen · **ESC / K** zurück · Maus funktioniert ebenfalls |
-| **T** (bzw. **L**) | Im Shop: Gegenstand im Training ausprobieren (TRY) |
+| **ESC** | Pause / Trainingsoptionen · **R** Position zurücksetzen (Training) |
+| **T** | Im Shop: Gegenstand im Training ausprobieren (TRY) |
 
 ### Touch-Steuerung (Tablet)
 
-Die Touch-Steuerung erscheint automatisch, sobald der Bildschirm berührt wird. Unter *Settings → TOUCH CONTROLS* lässt sie sich auf AUTO, ON oder OFF stellen, unter *TOUCH BUTTON SIZE* auf Small, Medium oder Large.
+Die Touch-Steuerung erscheint automatisch, sobald der Bildschirm berührt wird (*Settings → TOUCH CONTROLS*: AUTO / ON / OFF, *TOUCH BUTTON SIZE*: Small / Medium / Large).
 
 | Element | Funktion |
 |---|---|
-| **Analog-Stick** links unten | Laufen (Tempo je nach Auslenkung), nach oben = Springen (auch diagonal), nach unten = Ducken. Der Stick erscheint dort, wo der Daumen aufsetzt. Zweimal schnell zur Seite schnippen = Dash |
-| **PUNCH** (groß) | Leichter Angriff. Mit Waffe z. B. SLASH, STRIKE, THRUST |
-| **HEAVY** · **KICK** | Schwerer Angriff · Kick |
-| **BLOCK** | Halten = blocken, kurz vor dem Treffer antippen = Parry. Stick nach unten + BLOCK = tiefer Block |
-| **DASH / DODGE** | Mit Stick nach vorne Dash, sonst Ausweichschritt |
-| **SPECIAL** | Spezialangriff. Der Ring zeigt die Energie |
-| **THROW / SHOOT** | Fernkampfwaffe, mit Ladungs- bzw. Munitionsanzeige und Cooldown-Ring |
-| **RELOAD** | Nur bei Schusswaffen mit Magazin |
+| **Fester Joystick** links unten | Die Basis bleibt immer an derselben Stelle, nur der Knopf bewegt sich. Auslenkung 0–12 % = Totzone, bis 50 % = Gehen, bis 85 % = Laufen, darüber = Sprinten. Nach oben = Springen, nach unten = Ducken. Zweimal schnell zur Seite schnippen = Dash |
+| **PUNCH** (groß) · **HEAVY** · **KICK** | Angriffe (reagieren schon auf `pointerdown`) |
+| **BLOCK** | Halten = blocken, kurz vor dem Treffer antippen = Parry |
+| **DASH** | Dash / Backstep / Roll (mit Stick nach unten) |
+| **SPECIAL** | Spezialangriff, der Ring zeigt die Energie |
+| **THROW** · **RELOAD** | Fernkampfwaffe mit Ladungs- bzw. Munitionsanzeige |
 | **❚❚** oben rechts | Pause |
 
-Mehrere Finger gleichzeitig funktionieren: Jeder Finger wird über seine `pointerId` verfolgt. Man kann laufen und gleichzeitig angreifen oder blocken, ein Finger kann von HEAVY auf KICK weitergleiten, und wer mit dem Finger BLOCK verlässt, gibt den Block frei. `pointercancel`, App-Wechsel oder Fensterfokus-Verlust lassen alles los, sodass nichts hängen bleibt. Zoom, Scrollen, Textauswahl und Kontextmenü sind abgeschaltet. Tasten geben kurzes haptisches Feedback, Treffer ein stärkeres (abschaltbar unter *VIBRATION*).
+Jeder Finger wird über seine `pointerId` verfolgt und per `setPointerCapture` festgehalten: Der Stick gehört genau dem Finger, der ihn berührt hat, auch wenn dieser aus dem Stickbereich rutscht. `pointerup`, `pointercancel`, `lostpointercapture`, App-Wechsel oder Fokusverlust setzen alles zurück, nichts bleibt hängen.
 
-### Kontext-Aktionen
+### Bewegung & Kontext-Aktionen
 
 | Eingabe | Aktion |
 |---|---|
-| Unten + Angriff | Tiefer Angriff (muss geduckt geblockt werden) |
-| Unten + HEAVY | Launcher / Uppercut (Anti-Air, schleudert hoch) |
-| Oben + HEAVY | Overhead bzw. aufsteigender schwerer Angriff |
-| Angriff in der Luft | Sprungangriff (Overhead) |
-| Angriff während des Dashs | Dash-Angriff |
-| Fernkampf in der Luft | Wurf schräg nach unten |
+| Laufen/Sprinten + J | Running Attack (Flying Knee) |
+| Sprinten + ↓ + Angriff | Slide |
+| Dash + J / K | Dash-Angriff / Dash-Heavy |
+| Backstep + K | Backstep-Konter (+20 % Schaden) |
+| ↓ + Dash | Combat Roll (rollt durch den Gegner hindurch, kurze Unverwundbarkeit) |
+| ↑ + Richtung | Leap (weiter, flacher Sprung) · in der Luft J / K / L: Aerial Slash, Jump Kick |
+| ↑ / ↓ / → + K | Aufwärts-Heavy (Anti-Air) · Feger (low) · Vorstoß |
+| ↓ + J / L | tiefer Angriff / Low Kick |
 
-### Spezielle Eingaben
-
-| Eingabe | Angriff | Zweck |
-|---|---|---|
-| S + J | Crouch Punch | schneller Stoß aus der Hocke |
-| S + K | Uppercut | Anti-Air, schleudert den Gegner hoch |
-| S + L | Low Kick | trifft tief, schlägt stehenden Block |
-| W, dann J | Air Punch | Overhead, schlägt tiefen Block |
-| W, dann L / K | Flying Kick | Overhead mit großer Reichweite |
-| I (→), dann J | Dash Punch | überbrückt Distanz, starker Rückstoß |
-| I (→), dann L / K | Slide Kick | tief, wirft um, aber unsicher bei Block |
+Richtungswechsel beim Laufen erzeugen eine kurze Drehung mit Fußrutscher, Landungen haben Gewicht (Knie federn, Staub), und alle Eingaben werden 150 ms gepuffert (auch Sprung und Dash), Cancel-Fenster erlauben Combos ohne Button-Mashing.
 
 ---
 
 ## Kampfsystem
 
-Jeder Angriff hat echte **Framedaten** (60 fps): Startup, Active und Recovery. Dazu kommen Schaden, Knockback, Hitstun, Blockstun, Hitstop, Screen Shake und eine Trefferhöhe. Alle Werte stehen in `src/combat.js` → `SA.MOVES`.
+Jeder Angriff hat echte **Framedaten** (60 fps): Startup, Active, Recovery, Schaden, Knockback, Hitstun, Blockstun, Hitstop, Screen Shake und Trefferhöhe (`src/combat.js` → `SA.MOVES`, Waffen-Movesets in `src/weapons.js`).
 
-| Angriff | Startup | Active | Recovery | Schaden | Höhe |
-|---|---|---|---|---|---|
-| Jab (J) | 5 | 3 | 10 | 40 | high |
-| Cross (J→J) | 6 | 3 | 12 | 45 | high |
-| Heavy Punch (K) | 14 | 4 | 22 | 95 | high |
-| Kick (L) | 9 | 4 | 17 | 70 | mid |
-| Low Kick (S+L) | 8 | 4 | 16 | 50 | **low** |
-| Uppercut (S+K) | 7 | 6 | 20 | 85 | mid, Launch |
-| Spin Kick (L→L) | 13 | 5 | 22 | 105 | high, Knockdown |
-| Dash Punch | 6 | 5 | 18 | 80 | high |
-| Slide Kick | 6 | 12 | 16 | 70 | **low**, Knockdown |
-| Flying Kick | 6 | 12 | – | 80 | **overhead** |
+### Kollision (Phase 1)
 
-**Hitboxen folgen dem Skelett.** Die Angriffshitbox sitzt an der schlagenden Faust bzw. am Fuß, die Hurtboxes (Kopf / Oberkörper / Beine) werden jeden Frame aus der Pose berechnet. Was man sieht, trifft auch. Deshalb gehen hohe Schläge tatsächlich über duckende Gegner hinweg, während Kicks sie treffen.
+Jeder Kämpfer hat drei getrennte Boxen:
+- **Movement Collider** (Körper, skaliert mit Größe und Statur): Kämpfer können nicht ineinander laufen. Die Trennung wird nach Anlaufgeschwindigkeit gewichtet und ist zitterfrei, an der Wand übernimmt der andere den Rest. Niemand steht auf einem liegenden Gegner.
+- **Hurtboxes** (Kopf / Oberkörper / Beine) folgen jeden Frame dem Skelett.
+- **Attack Hitbox** an Faust, Fuß oder Klinge plus eine **Nah-Hitbox** entlang des schlagenden Arms/Beins, damit auch Schläge aus nächster Nähe treffen. Jeder Angriff trifft pro aktivem Fenster nur einmal.
 
-- **Kopftreffer** machen +20 % Schaden, Beintreffer −8 %.
-- **Counter Hit**: Treffer in den Startup eines gegnerischen Angriffs, +20 % Schaden und mehr Hitstun.
-- **Punish**: Treffer in die Recovery eines verfehlten Angriffs (wird im Spiel angezeigt).
-- **Block** reduziert den Schaden auf 10 % Chip Damage, der nie tötet. Stehend blockt man high und mid, geduckt low und mid. Sprungangriffe (overhead) muss man stehend blocken.
-- **Parry**: U höchstens 9 Frames (ca. 150 ms) vor dem Treffer antippen. Der Angreifer wird gestaggert, es gibt Zeitlupe, Lichtblitz, Glockenklang und +15 Energie. Wer U hämmert, parriert nie, denn nach jedem Tippen sperrt der Parry 24 Frames.
-- **Ausweichschritt** (I zurück): kurze Unverwundbarkeit, danach kann man sofort kontern.
-- **Knockdown → Aufstehen**: Am Boden ist man unverwundbar. Mit W oder I steht man schneller auf.
-- **Juggles**: In der Luft getroffene Gegner können bis zu 3-mal weiter getroffen werden.
-- **Game Feel**: Hitstop (3–12 Frames je nach Wucht), traumabasierter Screen Shake, Zoom-Punch, Impact-Flash, Zeitlupe bei Parry, KO, Spezial und harten Countern, Funken-, Staub- und Energiepartikel sowie synthetisierte Sounds.
+Cross-ups sind nur über Sprung, Roll, Dash-Durchgänge oder Fähigkeiten möglich. Die Blickrichtung wechselt mit einer Totzone (kein Flackern, wenn beide übereinander stehen). Jede Waffe kennt ihre gemessene Reichweite (`ranges.min / opt / max`), die auch die KI benutzt.
+
+- **Kopftreffer** +20 % Schaden, Beintreffer −8 %. **Counter Hit** +20 %.
+- **Block**: 10 % Chip Damage, beide Seiten rutschen auseinander (schwere Treffer mehr), in der Ecke wird der Angreifer zurückgeschoben. Stehend: high/mid, geduckt: low/mid, Sprungangriffe (overhead) stehend blocken.
+- **Parry**: Block höchstens 9 Frames vor dem Treffer antippen. Hämmern hilft nicht (24 Frames Sperre).
+- **Richtungsabhängige Trefferreaktionen**: Kopf, Körper und Beine reagieren unterschiedlich, stärkere Treffer stärker.
 
 ### Energie & Spezialangriffe
 
-Die Energieleiste unten füllt sich durch eigene Treffer, erlittenen Schaden, erfolgreiche Blocks und Parrys. Bei 100 % startet **SPACE** den Spezialangriff. Das geht auch direkt aus einem treffenden Angriff heraus, als Cancel. Danach ist die Leiste leer.
+Die Energieleiste (türkis, bei 100 % golden) füllt sich durch Treffer, erlittenen Schaden, Blocks und Parrys. Ist sie voll, steigen goldene Hieroglyphen um den Kämpfer auf. Beim Auslösen reißen die Bandagen der Mumie zurück, ein Hieroglyphen-Kreis explodiert und ein Flüstern ertönt.
 
-- **Shadow Rush** (Start-Special): Der Kämpfer rast nach vorne. Trifft er, folgen fünf Schläge aus wechselnden Richtungen und ein vernichtender Finisher. Geblockt oder verfehlt ist er bestrafbar.
-- **Crescent Storm** (Shop, Level 4): aufsteigender Wirbel aus Kicks. Stark gegen Sprünge.
-- **Shadow Slash** (Shop, Level 6, gehört auch zur Katana): eine Klingenwelle, die über den Boden rast.
-- **Earthshaker** (Shop, Level 12, gehört auch zum War Hammer): Sprung mit Aufschlag und Schockwellen in beide Richtungen. Die Wellen muss man überspringen oder blocken.
-
----
-
-## Combo-System
-
-Angriffe lassen sich innerhalb eines **Cancel-Fensters** verketten. Nach einem Treffer oder Block öffnet es sofort, nach einem Fehlschlag erst spät. Ein **Input-Buffer** von 13 Frames (ca. 215 ms) speichert Eingaben, man muss also nicht framegenau drücken.
-
-| Eingabe | Combo |
-|---|---|
-| J → J → K | **Twin Dragon Palm** (Jab, Cross, Doppel-Handflächenstoß mit Knockdown) |
-| J → L → L | **Crescent Chain** (Jab, Kick, Spin Kick) |
-| L → L | **Whirlwind** |
-| S+L → J | **Rising Dragon** (Low Kick → Uppercut) |
-| S+J → S+L → J | **Root Breaker** |
-| S+K → W → L | **Sky Hunter** (Uppercut, hinterherspringen, Flying Kick) |
-
-Das HUD zeigt die Trefferzahl, den Gesamtschaden und den Namen der Combo, zum Beispiel „3 HIT COMBO · 173 DAMAGE · TWIN DRAGON PALM“. Innerhalb einer Combo sinkt der Schaden leicht (−8 % pro Treffer, mindestens 55 %), damit Combos stark, aber nicht übermächtig sind.
+- **Tomb Rush** (Start): Vorstoß mit fünf Schlägen und Finisher.
+- **Sandstorm Spiral** (Level 4): aufsteigender Wirbel, stark gegen Sprünge.
+- **Crescent of Anubis** (Level 6): Klingenwelle über den Boden.
+- **Earthshaker** (Level 12): Sprung mit Aufschlag und Schockwellen in beide Richtungen.
 
 ---
 
 ## KI-System (`src/enemy.js`)
 
-Die KI steuert ihren Kämpfer über **denselben Controller** wie der Spieler: gehaltene Richtungen und gepufferte Tastendrücke. Alle Framedaten und Recovery-Regeln gelten für sie genauso.
+Die KI steuert ihren Kämpfer über **denselben Controller** wie der Spieler, mit echter **Reaktionszeit**: Sie sieht den Spieler so, wie er vor *n* Frames war (normal 200–400 ms, Elite 140–250 ms, Boss 100–220 ms) und liest niemals Tastendrücke.
 
-- **Wahrnehmung mit Reaktionszeit**: Die KI sieht den Spieler so, wie er vor *n* Frames war (Easy 24, Normal 15, Hard 10). Sie beobachtet nur Animationen und Positionen, niemals Tastendrücke, und kann deshalb nicht schummeln.
-- **Zustände**: `IDLE APPROACH RETREAT ATTACK COMBO BLOCK DODGE PUNISH RECOVER`
-- **Distanzlogik**: Auf große Distanz nähert sie sich an oder dasht. Auf mittlere Distanz nutzt sie Kick, Dash Punch, Slide Kick oder Sprungangriff. Nah dran spielt sie Combos, Jabs, Low Kicks, Heavy Punch, blockt oder weicht zurück.
-- **Reaktionen**: Gesehene Angriffe blockt sie, bei Low-Angriffen auch geduckt. Sie weicht aus oder parriert, auf Hard gut getimt. Springt der Spieler an, kontert sie mit Uppercut als Anti-Air.
-- **Punish**: Verfehlte Angriffe, gestaggerte Gegner und geblockte Specials bestraft sie.
-- **Vorausschauendes Blocken**: Läuft der Spieler in Reichweite, hebt die KI manchmal schon vorher die Deckung.
-- **Persönlichkeiten**: Jeder Gegner hat eigene Vorlieben:
-  - **Ronin**: ausgewogen, blockstark.
-  - **Kitsune**: weicht viel aus und kickt gern.
-  - **Volt**: aggressiver Rushdown.
-  - **Oni**: langsam, aber hart zuschlagend.
-- **Schwierigkeitsgrade**:
-  - **Easy**: langsame Reaktion, selten Combos, macht Fehler.
-  - **Normal**: ausgewogen.
-  - **Hard**: gute Blocks, volle Combos, konsequente Punishes und Ausweichbewegungen.
+- **Intents** mit Mindestdauer (kein Hin- und Herspringen): `PRESSURE KEEP_DISTANCE BAIT PUNISH DEFEND REPOSITION COMBO ESCAPE RANGED_PRESSURE SPECIAL_ATTACK`.
+- **Spacing pro Waffe**: Speerträger halten Abstand, Assassinen kleben am Gegner, Bogenschützen bleiben weit weg.
+- **Bewegung**: Dash, Backstep, Roll, Sprung, Slide, Running Attack, je nach Archetyp unterschiedlich häufig.
+- **Echte Combos**, z. B. Jackal Assassin *Light → Light → Dash → Kick*, Royal Guard *Block → Konter → Heavy*, Anubis *Teleport → Slash → Slash → Heavy*.
+- **Baits & Frame Traps**, Punishes, Anti-Air, Ecken-Verhalten (Roll, Sprung, Push oder Block), dynamische Schwierigkeit über die Stage.
 
 ---
 
-## Modi & Fortschritt
+## Gegner
 
-- **FIGHT**: Arena, Schwierigkeit und Special wählen. Vor Runde 1 verbeugen sich die Kämpfer. Gespielt wird Best of 3 mit 60-Sekunden-Timer. Die Rundenansage lautet „ROUND 1 … FIGHT!“, dazu kommen K.O., PERFECT und TIME.
-- **TRAINING**: Der Dummy greift nicht an. Über ESC lassen sich einstellen:
-  - Dummy-Verhalten: Stehen, Alles blocken, Zufällig blocken, CPU.
-  - Unendliche Lebenspunkte und unendliche Energie.
-  - Schadenszahlen und Hitboxen.
-  - Position zurücksetzen (auch mit R).
-- **ARENA**: siehe unten.
-- **SHOP / LOADOUT / PROFILE**: Ausrüstung kaufen und anlegen, Level, Statistiken und Arena-Rekorde ansehen.
-- **Freischaltungen**: Ein FIGHT-Sieg schaltet die nächste der ersten vier Arenen frei (Sunset Temple → Moonlit Bamboo → Neon Rain → Ember Ruins). Die übrigen Arenen schaltet man frei, indem man sie im ARENA-Modus erreicht. FIGHT-Matches bringen ebenfalls Coins und XP.
-- **Statistiken** (lokal über `localStorage`): Kämpfe, Siege, Niederlagen, Siegquote, gewonnene Runden, K.O.s, Perfects, Parrys, höchste Combo, größter Combo-Schaden, gelandete Specials und Gesamtschaden. Außerdem gespeichert werden Schwierigkeit, freigeschaltete Arenen und Specials sowie alle Einstellungen. Nichts davon geht in eine Cloud.
+| Archetyp | ab Stage | Stil |
+|---|---|---|
+| **TOMB GUARD** | 1 | Speer + Schild, defensiv, hält Abstand |
+| **DESERT BANDIT** | 4 | zwei Khopesh, schnell, Wurfmesser |
+| **SCARAB WARRIOR** | 5 | Panzer, langsam, schwere Treffer |
+| **DESERT ARCHER** | 6 | Bogen, hält maximale Distanz |
+| **ROYAL GUARD** | 7 | Blocken, Kontern, Heavy |
+| **ANUBIS ACOLYTE** | 8 | ausgewogen, Tricks, Konter |
+| **JACKAL ASSASSIN** | 11 | sehr mobil, Dash-Combos |
+| **SERPENT PRIEST** | 11 | Giftkugeln, Abstand |
+| **CURSED MUMMY** | 14 | unberechenbar |
+| **TOMB EXECUTIONER** | 16 | Henkersaxt, Super Armor |
+
+Alle 5 Stages kommt ein **Elite** mit Modifikatoren (AGGRESSIVE, FAST, ARMORED, BERSERKER, RANGED MASTER, PARRY MASTER, SHADOW STEP).
+
+### Götter (Bosse, alle 10 Stages)
+
+Jeder Gott hat ein eigenes Modell, eine eigene Größe, eine versteckte Götterwaffe, eine eigene Arena und **drei Phasen**. Vor dem Kampf erscheint er aus der Dunkelheit: zuerst nur leuchtende Augen, dann tritt er ins Licht, Name und Titel erscheinen, dann „FIGHT!“. Jede Fähigkeit wird angekündigt und hat einen Konter.
+
+| Gott | Größe | Arena | Fähigkeiten (Konter) |
+|---|---|---|---|
+| **ANUBIS** – Guardian of the Dead | 1.15 | Tomb of Anubis | Teleport + Schlag, Shadow Dash durch den Spieler hindurch, Soul Slash (hohe + tiefe Welle: blocken / springen), zielsuchende Seelen. Phase 2/3: Grab wird dunkler, Augen glühen |
+| **SOBEK** – Devourer of the Nile | 1.4 | Nile at Night | Biss-Griff (nicht blockbar → Backstep/Sprung), Sturmangriff, Schwanzfeger (springen!), Bodenschlag |
+| **SEKHMET** – Lioness of War | 1.1 | Lost Pyramid | Sprungangriff, Krallen-Serie, Solar Flare; unter 40 % **BERSERK** |
+| **HORUS** – Falcon of the Sky | 1.08 | Desert Temple | Sturzflug (Doppel in Phase 3), Windgeschosse hoch/tief, Teleport |
+| **SET** – Lord of Chaos | 1.12 | Chaos Desert | Blitze mit Bodenmarkierung (rausgehen!), Sandsturm drückt weg, Finten |
+| **RA** – The Sun Itself | 1.12 | Temple of Ra | Sonnenstrahl (hoch → ducken, tief → springen), zielsuchende Sonnenkugeln, Light Dash, Solar Explosion; Arena wird heller |
+| **OSIRIS** – King of the Underworld | 1.15 | Hall of Osiris | Seelen, Seelenraub (heilt ihn, blocken!), Regeneration (unterbrechbar), **zweites Leben** |
 
 ---
 
 ## Arenen
 
-Alle Grafiken werden prozedural mit Canvas-Formen, Verläufen und Partikeln erzeugt. Jede Arena hat Himmel, mehrere **Parallax-Ebenen** (fern, mittel, nah), einen Boden, einen unscharfen **Vordergrund**, Live-Wetter sowie eine eigene Rim-Light-Farbe für die Silhouetten, eigene Ambience und eigene Musik.
+Acht prozedurale ägyptische Arenen mit Himmel, Parallax-Ebenen, Boden, Vordergrund, Live-Licht (Fackeln, Kohlebecken flackern) und atmosphärischen Partikeln:
 
-| Arena | Stimmung | Gegner |
-|---|---|---|
-| **Sunset Temple** | Sonnenuntergang, Pagoden, Torii, Laternen, Lichtstrahlen, fliegende Blätter | Ronin |
-| **Moonlit Bamboo** | Vollmond, Sterne, wiegender Bambus, Bodennebel, Glühwürmchen | Kitsune |
-| **Neon Rain** | Cyberpunk-Skyline, Neonschilder, Regen, nasse spiegelnde Straße | Volt |
-| **Ember Ruins** | brennende Stadt, flackernde Feuer, Glutrisse, aufsteigende Funken | Oni |
-| **Frozen Mountain** | Schneesturm, Gletscher, Eisboden, kaltes Mondlicht | Iron Titan |
-| **Burning Palace** | Palast in Flammen, Rauch, Glut, rotes Licht | The Executioner |
-| **Ancient Ruins** | Wüstenruinen, Staub, Säulen, Lichtstrahlen | The Hunter |
-| **Cyber Arena** | Hologramme, Datenregen, Neonboden | Cyber Warlord |
-
-Im ARENA-Modus wechseln die Arenen alle drei Stages, Bosse kämpfen in ihrer eigenen Arena.
-
-## ARENA-Modus
-
-Endlose Stages, jede Stage ist eine Runde gegen einen neu generierten Gegner. Wer verliert, beendet den Run. **Bereits verdiente Coins und XP bleiben immer erhalten**, sie werden nach jedem Sieg sofort gutgeschrieben.
-
-- **Stage 1–100+**: Mit jeder Stage steigen Lebenspunkte, Schaden, Tempo, Reaktionsgeschwindigkeit, Aggressivität, Combo-Länge, Block-, Ausweich- und Parry-Rate sowie die Nutzung von Specials. Die Kurve flacht nach oben ab (`SA.BALANCE.enemyScaling`). Die KI wird besser, weil sie schneller reagiert und klüger entscheidet. Eingaben des Spielers liest sie nie.
-- **Alle 5 Stages ein Elite-Gegner** mit Modifikatoren: AGGRESSIVE, FAST, ARMORED, BERSERKER, RANGED MASTER, PARRY MASTER, SHADOW STEP. Früh gibt es nie mehrere extreme Modifikatoren gleichzeitig. Später tauchen gelegentlich auch zwischendurch Elites auf.
-- **Alle 10 Stages ein Boss**, **alle 30 Stages ein Great Boss** (stärker, mehr Belohnung).
-- **Belohnungsformel**: `Basis × Stage^0,7 × Typ-Multiplikator × Schwierigkeit`. Elite ×1,6, Boss ×(2 + 0,09 × Stage), Great Boss zusätzlich ×1,5, Perfect +15 %.
-- **Siegesserie**: ab 5 Siegen +10 %, ab 10 +20 %, ab 20 +35 %.
-- **Run-HUD**: STAGE, STREAK, Coins dieses Runs und „NEXT: ELITE“ / „BOSS IN n STAGES“.
-- **VICTORY**-Bildschirm mit Coins, XP, Streak-Bonus und Level-Ups → NEXT FIGHT oder END RUN.
-- **ARENA RUN OVER**: erreichte Stage, Siege, besiegte Bosse, verdiente Coins und XP, beste Stage → RETRY, SHOP oder MAIN MENU.
-- Die Schwierigkeit (Settings) verschiebt die effektive Stage (Easy −3, Hard +6) und ändert die Belohnung (×0,8 / ×1,3).
-- Wer eine Arena im Ladder erreicht, schaltet sie auch für den FIGHT-Modus frei.
-
-### Gegner-Archetypen
-
-| Archetyp | Stil |
+| Arena | Stimmung |
 |---|---|
-| **BRAWLER** | Fäuste, aggressiv, Combos auf kurze Distanz |
-| **ASSASSIN** | schnell, wenig HP, Dual Blades, Ausweichen, Wurfsterne |
-| **SWORDSMAN** | Katana, gutes Spacing, Konter |
-| **TANK** | viel HP, Rüstung, Super Armor bei schweren Angriffen, Hammer |
-| **RANGER** | hält Abstand, Kunai, Bumerang, Armbrust |
-| **GUNNER** | Pistole, Revolver, Schrotflinte, muss nachladen und ist dann angreifbar |
-| **MONK** | Stab, blockt und parriert viel |
-| **BERSERKER** | wird unter 40 % HP schneller und aggressiver |
-| **SHADOW** | teleportiert sich, Täuschungen, Schattenklingen |
+| **Desert Temple** | Sonnenuntergang über Pylonen und Obelisken, Sand weht |
+| **Nile at Night** | Mondlicht auf dem Nil, Palmen, Wasser glitzert |
+| **Lost Pyramid** | Pyramidenkammer, Staub in Lichtstrahlen |
+| **Scarab Catacombs** | Katakomben, krabbelnde Skarabäen |
+| **Tomb of Anubis** | Grabkammer, Hieroglyphen-Wände, Schakalschreine |
+| **Chaos Desert** | roter Sandsturm und Blitze |
+| **Temple of Ra** | riesige Sonne, Lichtstrahlen, Glut |
+| **Hall of Osiris** | Totenhalle, schwebende Glyphen, Nebel |
 
-Name, Farbe, Accessoires, Waffe und Verhalten werden pro Stage aus einem Seed erzeugt (`src/enemies.js`).
+---
 
-### Bosse
+## Präsentation
 
-Jeder Boss hat Namen, eigenes Aussehen, eigene Waffe, eigene Fähigkeiten, eine eigene Arena und Boss-Musik. Unter 60 % und unter 25 % HP wechselt er mit kurzer Cinematic-Pause in **Phase 2 bzw. 3**: schneller, aggressiver, neue Fähigkeiten, Farbstimmung der Arena ändert sich. Alle Fähigkeiten werden vorher sichtbar angekündigt (Telegraph) und lassen sich kontern.
-
-| Boss | Arena | Fähigkeiten |
-|---|---|---|
-| **THE EXECUTIONER** | Burning Palace | Henkersaxt, Super Armor, Bodenschlag, Schockwellen, Sturmangriff |
-| **SHADOW RONIN** | Moonlit Bamboo | Shadow Katana und Shuriken, Teleport, Schattenschnitte, Parry-Meister |
-| **IRON TITAN** | Frozen Mountain | Titan-Hammer, schwere Rüstung, Bodenschlag, Erdbeben, Schockwellen, Sturmangriff |
-| **THE HUNTER** | Ancient Ruins | Dual Blades und Armbrust, Dolchfächer, Verschwinden, Teleport |
-| **CYBER WARLORD** | Cyber Arena | Katana und Energiepistole, Raketensalven, Energieschild, Sturmangriff, Teleport |
+- **Mumie**: dunkler Körper unter hellen, zerrissenen Bandagen, 6 lose Bandagen-Enden (Verlet-Physik, reagieren auf Tempo und Special), leuchtende türkise Augen (heller bei voller Energie), Goldschmuck, asymmetrischer Schulterpanzer, Gürtel, Armschienen, Amulett.
+- **Animation**: Idle mit Atmung und Gewichtsverlagerung, Lauf/Sprint mit Vorlage, Wende-Pivot, Angriffe mit Ausholen, Schlag, Impact, Nachschwung und Erholung.
+- **Kamera**: folgt Dashes und Sprints mit Vorlauf, zoomt beim Sprinten leicht heraus, folgt Sprüngen, Zoom-Punch bei harten Treffern, stärkeres Beben bei Göttern.
+- **Effekte**: Sand-Spuren bei Dash/Roll/Sprint, Hieroglyphen bei Special und Phasenwechsel, Telegraph-Ringe und Lichtsäulen vor Götterangriffen.
+- **Sound** (synthetisiert, keine Samples): Sand-Schritte, Wind + Sand beim Dash, Bronze-Klang bei Blocks, mystische Töne, tiefe Boss-Impacts, Donner, das Flüstern der Mumie.
 
 ---
 
 ## Level, Coins & Shop
 
-- **XP & Level**: XP gibt es für Arena-Siege und FIGHT-Matches (auch für Niederlagen etwas). Jedes Level braucht mehr XP (`90 × Level^1,45`). Ein Level-Up bringt Coins und schaltet Shop-Gegenstände und Kosmetik frei. **Level erhöht keine Werte**: Skill bleibt wichtiger als Grinding.
-- **Shop** mit den Kategorien **WEAPONS, THROWABLES, FIREARMS, SPECIALS, COSMETICS**. Jeder Eintrag zeigt Icon, Seltenheit, Preis, benötigtes Level, Schaden, Tempo, Reichweite und Spezialeffekt sowie den Status (gesperrt, kaufbar, zu teuer, besessen, ausgerüstet). Eine Live-Vorschau zeigt den Kämpfer mit der Waffe. Aktionen: **BUY**, **EQUIP** und **TRY** (sofort im Training testen).
-- **Loadout**: PRIMARY (Nahkampf), RANGED (Wurf- oder Schusswaffe), SPECIAL und COSMETIC.
-- **Seltenheit**: COMMON, UNCOMMON, RARE, EPIC, LEGENDARY. Seltenere Waffen sind nur moderat stärker (+0 % bis +12 % Schaden) und haben vor allem andere Eigenschaften. Keine Lootboxen, keine Zufallskäufe.
-
-### Nahkampfwaffen
-
-Jede Waffe hat ein eigenes Moveset mit eigener Reichweite, eigenem Tempo, eigenen Animationen, Combos, Hitboxen entlang der Klinge, schwerem Angriff, Launcher, Low, Overhead, Dash- und Luftangriff sowie eigenen Sounds und Treffer-Effekten.
-
-| Waffe | Level | Stil |
-|---|---|---|
-| Fists | 1 | schnell, mobil, alle klassischen Combos |
-| Wood Staff | 1 | lange Reichweite, schnelle Stöße, besserer Block |
-| Katana | 3 | ausgewogen, präzise Schnitte (+ Shadow Slash) |
-| Dual Blades | 5 | sehr schnell, lange Ketten, kurze Reichweite |
-| Iron Bo | 7 | wie Wood Staff, stärker |
-| Spear | 8 | größte Reichweite, Stiche, Konter-Spacing |
-| Great Sword | 10 | langsam, hoher Schaden, schwere Angriffe mit Super Armor |
-| War Hammer | 15 | sehr langsam, enormer Schaden, Schockwelle (+ Earthshaker) |
-| Frost Spear | 18 | Speer, Treffer verlangsamen |
-| Scythe | 20 | weite Bögen, der schwere HOOK zieht Gegner heran |
-| Flame Katana | 22 | Katana, Treffer setzen in Brand |
-| Electric Baton | 25 | schnell, kann kurz betäuben |
-| Shadow Blades | 27 | Dual Blades mit Schattenspur |
-| Thunder Hammer | 28 | Hammer mit Blitz-Betäubung |
-| Shadow Katana | 30 | legendäres Katana, schnellere Schnitte |
-
-### Fernkampf
-
-| Waffe | Level | Eigenschaft |
-|---|---|---|
-| Shuriken | 1 | 3 Ladungen, laden nach, schnell, verlängert Combos |
-| Throwing Knife | 3 | mehr Schaden, weniger Ladungen |
-| Pistol | 5 | 6 Schuss Magazin, Nachladen nötig |
-| Kunai | 8 | Bogenwurf, trifft über die Deckung und springende Gegner |
-| Revolver | 10 | sehr hoher Schaden, langsam |
-| Boomerang Blade | 12 | fliegt zurück und trifft zweimal |
-| Crossbow | 13 | langsamer, starker Bolzen |
-| Shotgun | 15 | Streuschuss, stark auf kurze Distanz |
-| Explosive Kunai | 20 | explodiert mit Flächenschaden |
-| Energy Pistol | 25 | keine Munition, Cooldown |
-
-Fair balanciert: Alle Projektile sind blockbar (nur geringer Chip-Schaden), man kann ihnen ausweichen oder über sie springen, Kugeln fliegen über geduckte Gegner hinweg, ein Parry wirft Projektile zurück, und wer nachlädt, ist angreifbar. Schnelle Kugeln prüfen die Kollision über die ganze Flugstrecke eines Frames und können deshalb nicht durch Gegner „hindurchtunneln“.
-
----
+- **XP & Level** aus Arena-Siegen und FIGHT-Matches. Level erhöht keine Werte, es schaltet Shop-Gegenstände frei.
+- **Shop**: WEAPONS, THROWN, RELICS, SPECIALS, COSMETICS mit BUY / EQUIP / TRY.
+- **Nahkampf** (Auswahl): Ceremonial Staff, Khopesh, Dual Khopesh, Ankh Staff, Spear, Pharaoh Greatsword, War Mace, Moonlit Spear, Scythe, Solar Khopesh, Was Sceptre, Scarab Blades, Mace of Set, Khopesh of Anubis, Cursed Fists.
+- **Fernkampf**: Scarab Discs, Throwing Knives, Cursed Daggers, Throwing Stick, Fire Scarab, Eye of Ra, Scepter of Set, Desert Bow, Sandburst Relic, Ankh of Radiance.
+- **Kosmetik** (Bandagenfarben): Sand Wraps, Gilded Burial, Lapis Curse, Jade Spirit, Amethyst Hex, Ember Soul, Obsidian Wraps.
 
 ## Speicherstand
 
-Alles wird lokal in `localStorage` gespeichert (Schlüssel `shadowArena.save.v1`), versioniert und aufgeteilt in `{ version, player, inventory, progression, statistics, settings }`. Alte Spielstände werden automatisch migriert: Statistiken, Einstellungen und freigeschaltete Arenen bleiben erhalten, und frühere Siege werden in Start-Coins umgerechnet. Ein beschädigter Spielstand wird durch einen neuen ersetzt, statt das Spiel abstürzen zu lassen. *Settings → RESET PROGRESS* setzt alles zurück.
-
----
+Lokal in `localStorage`, versioniert (aktuell Version 3). Alte Spielstände werden automatisch migriert: alte Arena-IDs werden auf die neuen ägyptischen Arenen umgeschrieben, Coins, Level, Waffen, Loadout und Statistiken bleiben erhalten.
 
 ## Grafik & Performance
 
-*Settings → GRAPHICS*: **AUTO** (Standard), **HIGH**, **MEDIUM**, **LOW**. Die Stufen ändern interne Auflösung, Partikelmenge, Wetter, Vordergrund, Spiegelungen, Lichtstrahlen, Nachbilder und Rim-Lights. AUTO wählt auf Touch-Geräten MEDIUM, sonst HIGH, und senkt die Qualität schrittweise, wenn die FPS im Kampf länger unter 48 fallen.
-
-Weitere Maßnahmen: Die Pixeldichte wird auf 2 begrenzt. Partikel und Projektile kommen aus festen Pools (keine Garbage Collection im Kampf). Delta-Zeiten werden begrenzt, und die Simulation läuft unabhängig von der Bildrate mit festen 60 Hz. Statische Ebenen werden vorgerendert.
-
-## Kamera
-
-Die Kamera zoomt heraus, wenn die Kämpfer weit auseinander stehen, und heran, wenn sie nah kämpfen. Sie folgt hohen Sprüngen, gibt bei starken Treffern einen Zoom-Punch und bei einem K.O. einen kurzen Cinematic-Zoom mit Zeitlupe. Eine unsichtbare „Kamerawand“ verhindert, dass die Kämpfer aus dem Bild laufen.
+*Settings → GRAPHICS*: AUTO, HIGH, MEDIUM, LOW (interne Auflösung, Partikel, Wetter, Vordergrund, Spiegelungen, Lichtstrahlen, Nachbilder). AUTO senkt die Qualität automatisch bei dauerhaft niedrigen FPS. Partikel und Projektile kommen aus festen Pools, die Simulation läuft mit festen 60 Hz, statische Ebenen werden vorgerendert, Bandagen sind einfache Verlet-Ketten.
 
 ---
 
-## Debug-Tasten
+## Debug
 
-| Taste | Funktion |
+| Taste / Einstellung | Funktion |
 |---|---|
-| **F1** | Debug-Overlay: FPS, Zustände, Position und Geschwindigkeit, aktuelle Animation, aktueller Angriff mit Phase und Frame, Input-Buffer, Distanz, Hitstop, Zeitskala, KI-Zustand |
-| **F2** | Hitboxen (rot = Angriff, grün = Hurtbox, blau = unverwundbar bzw. Pushbox) |
-| **F3** | KI-Zustand und KI-Plan über dem Gegner |
-| **F4** | FPS-Anzeige |
-
-**Entwickler-Cheats** (zum Testen des Fortschritts, im normalen Spiel nicht nötig):
-
-| Taste | Funktion |
-|---|---|
-| **F5** | +1000 Coins |
-| **F6** | +1 Level |
-| **F7** | aktuelle Arena-Stage sofort gewinnen |
-| **F8** | Boss spawnen (startet notfalls einen Arena-Run auf Stage 10) |
+| *Settings → DEBUG OVERLAY* | kompaktes Overlay auch auf dem Tablet: FPS, Zustand beider Kämpfer, Distanz, Mindestabstand, aktueller Angriff, KI-Intent |
+| **F1** | ausführliches Debug-Overlay (Zustände, Animation, Buffer, Hitstop …) |
+| **F2** | Hitboxen: **blau** Movement Collider, **grün** Hurtbox, **rot** Angriff (gestrichelt: Nah-Hitbox), **gelb** Projektile, **orange** Waffenreichweite, dazu Distanz / Mindestabstand / Blickrichtung |
+| **F3** | KI-Intent und Plan über dem Gegner |
+| **F4** | FPS |
+| **F5–F8** | Entwickler: +1000 Coins, +1 Level, Stage gewinnen, Gott spawnen |
 
 ---
 
@@ -344,77 +221,56 @@ Die Kamera zoomt heraus, wenn die Kämpfer weit auseinander stehen, und heran, w
 
 ```
 shadow-arena/
-├── index.html          Einstieg, lädt alle Skripte in fester Reihenfolge, Mobile-Meta, Drehen-Hinweis
-├── style.css           Letterboxing 16:9, Safe Areas, touch-action: none
-├── manifest.json       PWA-Manifest (Vollbild, Querformat, Icons)
-├── service-worker.js   Offline-Cache (nur über http/https aktiv)
-├── game.js             Game: 60-Hz-Takt, Szenen, Runden/Match/Arena, Grafikstufen, Render-Reihenfolge
+├── index.html          Einstieg, lädt alle Skripte in fester Reihenfolge
+├── game.js             60-Hz-Takt, Szenen, Runden/Arena, Boss-Intro, Boss-Stimmungen, Render-Reihenfolge
 ├── src/
-│   ├── core.js         Namespace SA, Konstanten, Mathe/Easing, Glow-Sprite-Cache
-│   ├── balance.js      SA.BALANCE: alle Zahlen für Skalierung, Belohnungen, XP, Waffen, Projektile
+│   ├── core.js         Namespace SA, Konstanten, Mathe, Glow-Sprites
+│   ├── balance.js      alle Zahlen für Skalierung, Belohnungen, Reaktionszeiten
 │   ├── storage.js      versionierter Speicherstand mit Migration
-│   ├── input.js        InputManager (Tastatur + Pointer Events) + Controller (Buffer/Hold)
-│   ├── touch.js        Touch-Steuerung: Analog-Stick, Buttons, Multitouch pro pointerId
-│   ├── audio.js        Web-Audio-Synthese: SFX, Ambience, generative Musik
-│   ├── particles.js    Partikel-Pool + Effekt-Presets (Treffer, Block, Parry, KO, Staub …)
-│   ├── camera.js       dynamische Kamera: Zoom, Shake (Trauma), Punch, Fokus
-│   ├── physics.js      Schwerkraft, Boden, Wände, Wall-Bounce, Pushboxen, Kamerawand
-│   ├── animation.js    Skelett, Posen, Keyframe-Sampling, prozedurales Laufen, Ground Snap
-│   ├── combat.js       Framedaten aller Angriffe + Treffer-, Block-, Parry- und Element-Auflösung
-│   ├── weapons.js      Waffenkatalog (datengetrieben) + Moveset-Generator je Waffenstil
-│   ├── projectiles.js  Projektil-Pool: Würfe, Kugeln, Explosionen, Bumerang, Wellen
-│   ├── fighter.js      Fighter-Zustandsautomat, Bewegung, Specials, Hurtboxes
-│   ├── player.js       Charaktere: Looks (Accessoires, Farben) & Werte
-│   ├── enemy.js        EnemyAI: Wahrnehmung, Zustände, Pläne, Projektil-Reaktionen, Fähigkeiten
-│   ├── enemies.js      Gegner-Generator: Archetypen, Elite-Modifikatoren, Stage-Skalierung
-│   ├── bosses.js       Bosse, Phasen-System, Boss-Fähigkeiten, BossAI
-│   ├── progression.js  Belohnungen, XP/Level, Shop
-│   ├── arenamode.js    ARENA-Run: Stages, Sieg/Niederlage, Belohnungs- und Run-Over-Screen
-│   ├── renderer.js     Silhouetten-Renderer, Rim Light, Stoff-Physik, Trails, Nachbilder
-│   ├── arena.js        prozedurale Arenen, Parallax, Wetter, Lichter
-│   ├── arenas2.js      Frozen Mountain, Burning Palace, Ancient Ruins, Cyber Arena
-│   ├── ui.js           HUD, Ansagen, Combo-Anzeige, Menüs (Tastatur, Maus, Touch), Debug-Overlay
-│   └── screens.js      Shop, Loadout, Profil, Arena-Overlays
-├── assets/icons/       App-Icons für die PWA (alle Spielgrafiken entstehen zur Laufzeit)
-└── tests/              automatisierte Tests (optional, siehe unten)
+│   ├── input.js        Tastatur + Pointer Events (Capture), Controller mit Buffer
+│   ├── touch.js        fester Joystick, Buttons, Multitouch pro pointerId
+│   ├── audio.js        Web-Audio-Synthese: SFX, Ambience, Musik
+│   ├── particles.js    Partikel-Pool + Effekte (Hieroglyphen, Sand, Seelen …)
+│   ├── camera.js       Kamera: Zoom, Vorlauf, Sprint-Zoom, Shake, Punch
+│   ├── physics.js      Movement Collider, Trennung, Wände
+│   ├── animation.js    Skelett, Posen, Idle/Lauf/Sprint, Übergänge
+│   ├── combat.js       Framedaten + Treffer/Block/Parry/Nah-Hitbox
+│   ├── weapons.js      Waffenkatalog, Movesets, gemessene Reichweiten
+│   ├── projectiles.js  Projektile inkl. zielsuchend, Strahlen, Blitze
+│   ├── fighter.js      Zustandsautomat, Bewegung, Mobility-Moves, Specials
+│   ├── player.js       die Mumie + Trainingspuppe
+│   ├── enemy.js        KI: Wahrnehmung, Intents, Spacing, Combos
+│   ├── enemies.js      Gegner-Archetypen + Generator
+│   ├── bosses.js       Götter, Phasen, Fähigkeiten, BossAI
+│   ├── renderer.js     Material-Renderer, Bandagen, Kopfformen der Götter
+│   ├── arena.js        Arena-Laufzeit: Licht, Wetter, Blitze, Malhelfer
+│   ├── arenas_egypt.js die acht ägyptischen Arenen
+│   ├── progression.js / arenamode.js / ui.js / screens.js
+└── tests/              automatisierte Tests (optional)
 ```
-
-### Technische Eckpunkte
-
-- **Fester Simulationstakt** von 60 Hz mit Akkumulator über `requestAnimationFrame`. Framedaten bleiben dadurch unabhängig von der Bildrate exakt.
-- **Sofortige Eingaben**: `keydown` wird direkt in eine Queue geschrieben und im nächsten Tick verarbeitet. Tasten, die während des Hitstops gedrückt werden, bleiben gepuffert.
-- **Skelett-Animation**: Die Posen sind Gelenkwinkel. Angriffe nutzen Keyframes mit Easing, Ausholbewegung und Nachschwung, Fortbewegung ist prozedural. Ein „Ground Snap“ setzt immer den tiefsten Körperpunkt auf den Boden, dadurch bleiben die Füße beim Stehen, Ducken, Liegen und Aufstehen korrekt. Squash und Stretch gibt es bei Sprung und Landung, eine Dreh-Illusion beim Spin Kick. Stirnband, Pferdeschwanz und Mantel sind Verlet-Stoff und schwingen nach.
-- **Rendering**: Die Canvas läuft intern in 1920×1080 und wird skaliert. Statische Ebenen werden vorgerendert, halbtransparente Ebenen werden nur dort gezeichnet, wo Inhalt ist. Mit **AUTO**-Qualität sinkt die interne Auflösung automatisch, wenn die FPS dauerhaft einbrechen. In den Einstellungen lässt sich die Qualität auch fest wählen.
 
 ---
 
 ## Tests (optional)
 
-Das Spiel selbst braucht nichts davon. Die Tests steuern das echte Spiel über Playwright in einem headless Chromium. Die Simulation wird dabei Frame für Frame getaktet.
+Die Tests steuern das echte Spiel über Playwright in headless Chromium, Frame für Frame.
 
 ```bash
-NODE_PATH=$(npm root -g) node tests/mechanics.js   # 30 Mechanik-Checks (Reichweiten, Blockhöhen, Parry, Combos, Specials …)
-NODE_PATH=$(npm root -g) node tests/expansion.js   # 86 Checks: Migration, Shop, alle Waffen, Projektile, Reload, Parry, Generator, Belohnungen, Arena-Run, alle Bosse
-NODE_PATH=$(npm root -g) node tests/touch.js out/  # echtes Multitouch (CDP): Stick + Buttons, 3 Finger, Gleiten, pointercancel, Hochformat
-NODE_PATH=$(npm root -g) node tests/flow.js        # Echtzeit-Durchlauf aller Menüs nur per Tastatur (inkl. Shop-Kauf)
-NODE_PATH=$(npm root -g) node tests/aimatch.js     # komplette KI-gegen-KI-Matches in allen Arenen/Schwierigkeiten
-NODE_PATH=$(npm root -g) node tests/aibalance.js 8 # Siegquoten Hard/Normal/Easy gegeneinander
-NODE_PATH=$(npm root -g) node tests/smoke.js out/  # lädt index.html, klickt durch Menüs, Screenshots
-NODE_PATH=$(npm root -g) node tests/screens.js out/  # Screenshots: Special, K.O., Ergebnis, Menüs
-NODE_PATH=$(npm root -g) node tests/posesheet.js out/poses  # Kontaktbogen aller Animationen
-NODE_PATH=$(npm root -g) node tests/perf.js        # Renderzeit pro Arena und Grafikstufe + Projektil-Stresstest
+NODE_PATH=$(npm root -g) node tests/collision.js   # Collider, Trennung, Cross-ups, Nah-Hitbox, Reichweiten
+NODE_PATH=$(npm root -g) node tests/movement.js    # Lauf/Sprint, Dash, Backstep, Roll, Leap, Slide, Buffer
+NODE_PATH=$(npm root -g) node tests/touch.js       # echter Multitouch: fester Joystick, Zonen, Reset
+NODE_PATH=$(npm root -g) node tests/ai.js          # Intents, Spacing, Reaktionszeiten, Combos, Ecke
+NODE_PATH=$(npm root -g) node tests/bosses.js      # jede Götter-Fähigkeit trifft und hat einen Konter, Intro, Phasen
+NODE_PATH=$(npm root -g) node tests/mechanics.js   # Framedaten, Blockhöhen, Parry, Combos, Specials
+NODE_PATH=$(npm root -g) node tests/expansion.js   # Migration, Shop, Waffen, Projektile, Arena-Run, alle Götter
+NODE_PATH=$(npm root -g) node tests/flow.js        # alle Menüs per Tastatur
+NODE_PATH=$(npm root -g) node tests/lineup.js out.png  # alle Figuren nebeneinander
+NODE_PATH=$(npm root -g) node tests/perf.js        # Renderzeit pro Arena und Grafikstufe
 ```
-
----
 
 ## Erweiterungsmöglichkeiten
 
-- **Neue Waffe**: In `src/weapons.js` einen Eintrag in `WEAPONS` bzw. `RANGED` anlegen (Stil, Länge, Tempo, Schaden, Element, Preis, Level). Das Moveset wird aus dem Stil erzeugt, Shop und Loadout übernehmen die Waffe automatisch.
-- **Neuer Boss**: In `src/bosses.js` einen Eintrag in `BOSSES` (Look, Waffe, Phasen, Fähigkeiten) anlegen und in `ORDER` aufnehmen.
-- **Balancing**: alle Zahlen zentral in `src/balance.js`.
-- **Neuer Angriff**: Einen Eintrag in `SA.MOVES` (`src/combat.js`) mit Framedaten, `hit`-Gelenk und Keyframes anlegen. Die Eingabe kommt in `Fighter.tryAttacks` oder als `chain` in einen bestehenden Angriff.
-- **Neue Combo-Namen**: `SA.COMBO_NAMES` erweitern.
-- **Neuer Charakter**: In `SA.CHARACTERS` (`src/player.js`) Look, Accessoires, Werte und KI-Persönlichkeit anlegen.
-- **Neue Arena**: In `src/arena.js` ein `DEFS.<id>` mit `skyStatic`, `layers`, `ground`, `fg`, Wetter und Rim-Farben ergänzen und die ID in `SA.ARENA_ORDER` aufnehmen.
-- **Weiterer Special Move**: `SA.SPECIALS` erweitern und in `Fighter.updateSpecial` bzw. `specialHit` einbauen.
-- Ideen für später: Würfe gegen Dauerblocken, Story- oder Turniermodus, lokales 2-Spieler-Versus (der Controller ist dafür schon abstrahiert), Gamepad-Support über die Gamepad API, Replays (die deterministische Simulation eignet sich dafür).
+- **Neue Waffe**: Eintrag in `src/weapons.js` (Stil, Länge, Tempo, Element, Preis, Level). Moveset und Reichweiten werden erzeugt.
+- **Neuer Gott**: Eintrag in `BOSSES` (`src/bosses.js`) mit Look, Waffe, KI-Profil und Phasen, in `ORDER` aufnehmen. Neue Fähigkeiten in `MOVES` + `act` / `actUpdate` / `moveHit`.
+- **Neuer Gegner**: Archetyp in `src/enemies.js` (Look, Waffen, KI-Profil mit Intents, Mobility und Combos).
+- **Neue Arena**: `DEFS` in `src/arenas_egypt.js`.

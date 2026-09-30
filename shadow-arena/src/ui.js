@@ -77,8 +77,9 @@
     ctx.restore();
   }
 
-  const ACCENT = '#d7263d';
-  const GOLD = '#e9c27a';
+  // Egyptian palette: turquoise (faience) accents and burnished gold
+  const ACCENT = '#2fc4b2';
+  const GOLD = '#e0b24a';
 
   class Menu {
     constructor(items, o) {
@@ -210,8 +211,9 @@
         skewRect(ctx, r.x, r.y + lift, r.w, r.h, 16);
         if (sel) {
           const g = ctx.createLinearGradient(r.x, 0, r.x + r.w, 0);
-          g.addColorStop(0, 'rgba(215,38,61,0.95)');
-          g.addColorStop(1, 'rgba(120,14,30,0.75)');
+          // selected card: burnished gold into lapis
+          g.addColorStop(0, 'rgba(196,142,42,0.96)');
+          g.addColorStop(1, 'rgba(26,52,110,0.8)');
           ctx.fillStyle = g;
         } else ctx.fillStyle = 'rgba(10,6,12,0.66)';
         ctx.fill();
@@ -288,6 +290,7 @@
           Object.assign({ label: 'SCREEN SHAKE' }, onOff('shake')),
           Object.assign({ label: 'DAMAGE NUMBERS' }, onOff('damageNumbers')),
           Object.assign({ label: 'VIBRATION' }, onOff('vibration')),
+          Object.assign({ label: 'DEBUG OVERLAY' }, onOff('debugOverlay')),
           { label: 'TOUCH CONTROLS', value: () => S().settings.touchControls.toUpperCase(),
             left: () => { S().settings.touchControls = cycle(['auto', 'on', 'off'], S().settings.touchControls, -1); SA.Save.save(); },
             right: () => { S().settings.touchControls = cycle(['auto', 'on', 'off'], S().settings.touchControls, 1); SA.Save.save(); } },
@@ -639,7 +642,7 @@
       skewRect(ctx, x - 3, y - 3, bw + 6, bh + 6, side === 0 ? skew : -skew);
       ctx.fillStyle = 'rgba(5,4,8,0.7)';
       ctx.fill();
-      ctx.strokeStyle = full ? 'rgba(220,190,255,0.9)' : 'rgba(255,255,255,0.22)';
+      ctx.strokeStyle = full ? 'rgba(255,226,150,0.95)' : 'rgba(255,255,255,0.22)';
       ctx.lineWidth = 2;
       ctx.stroke();
       skewRect(ctx, x, y, bw, bh, side === 0 ? skew : -skew);
@@ -647,8 +650,9 @@
       const fw = bw * e;
       const fx = side === 0 ? x : x + bw - fw;
       const gr = ctx.createLinearGradient(x, 0, x + bw, 0);
-      gr.addColorStop(0, '#5a2dbf'); gr.addColorStop(1, '#c9a8ff');
-      ctx.fillStyle = full ? `hsl(${265 + Math.sin(this.t * 6) * 12},100%,${72 + Math.sin(this.t * 9) * 10}%)` : gr;
+      // turquoise energy that turns to glowing gold when the special is ready
+      gr.addColorStop(0, '#12806f'); gr.addColorStop(1, '#5ff0dc');
+      ctx.fillStyle = full ? `hsl(${42 + Math.sin(this.t * 6) * 6},95%,${60 + Math.sin(this.t * 9) * 10}%)` : gr;
       ctx.fillRect(fx - skew, y, fw + skew * 2, bh);
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
       for (let i = 1; i < 4; i++) ctx.fillRect(x + (bw * i) / 4 - 1, y, 3, bh);
@@ -656,15 +660,15 @@
       if (full) {
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = 0.25 + 0.15 * Math.sin(this.t * 6);
-        ctx.drawImage(SA.glowSprite('#9a6bff'), x - 40, y - 60, bw + 80, 136);
+        ctx.drawImage(SA.glowSprite('#ffc24a'), x - 40, y - 60, bw + 80, 136);
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
       }
       const align = side === 0 ? 'left' : 'right';
       const lx = side === 0 ? x : x + bw;
       const special = SA.SPECIALS[f.specialId] ? SA.SPECIALS[f.specialId].name : '';
-      if (full && f.isPlayer) text(ctx, `${special}  READY  ·  ${touch ? 'TAP SPECIAL' : 'SPACE'}`, lx, y - 20, { size: 19, weight: 800, spacing: 4, color: '#e6d6ff', align });
-      else text(ctx, `ENERGY  ·  ${special}`, lx, y - 20, { size: 16, weight: 700, spacing: 4, color: 'rgba(230,214,255,0.55)', align });
+      if (full && f.isPlayer) text(ctx, `${special}  READY  ·  ${touch ? 'TAP SPECIAL' : 'SPACE'}`, lx, y - 20, { size: 19, weight: 800, spacing: 4, color: '#ffe3a0', align });
+      else text(ctx, `ENERGY  ·  ${special}`, lx, y - 20, { size: 16, weight: 700, spacing: 4, color: 'rgba(200,240,232,0.55)', align });
     }
 
     drawCombo(ctx, side) {
@@ -743,16 +747,28 @@
 
     drawTitle(ctx, x, y, scale) {
       const s = scale || 1;
-      // red sun behind the title
+      // winged sun disc of Ra behind the title
+      const cx = x + 460 * s, cy = y - 40 * s;
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.35;
-      ctx.drawImage(SA.glowSprite('#ff3a2a'), x + 330 * s - 300 * s, y - 20 * s - 300 * s, 600 * s, 600 * s);
+      ctx.globalAlpha = 0.4;
+      ctx.drawImage(SA.glowSprite('#ffb13a'), cx - 300 * s, cy - 300 * s, 600 * s, 600 * s);
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = ACCENT;
+      ctx.fillStyle = '#8a5a1a';
+      for (const d of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + d * 90 * s, cy - 20 * s);
+        ctx.quadraticCurveTo(cx + d * 260 * s, cy - 60 * s, cx + d * 330 * s, cy - 10 * s);
+        ctx.lineTo(cx + d * 300 * s, cy + 6 * s);
+        ctx.quadraticCurveTo(cx + d * 220 * s, cy + 10 * s, cx + d * 90 * s, cy + 30 * s);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = GOLD;
       ctx.beginPath();
-      ctx.arc(x + 460 * s, y - 40 * s, 120 * s, 0, SA.TAU);
+      ctx.arc(cx, cy, 110 * s, 0, SA.TAU);
       ctx.fill();
+      ctx.strokeStyle = ACCENT; ctx.lineWidth = 6 * s;
+      ctx.beginPath(); ctx.arc(cx, cy, 96 * s, 0, SA.TAU); ctx.stroke();
       text(ctx, 'SHADOW', x, y, { size: 150 * s, weight: 900, spacing: 22 * s, color: '#f4ede4', stroke: 'rgba(0,0,0,0.5)', strokeWidth: 6 });
       text(ctx, 'ARENA', x + 6, y + 108 * s, { size: 64 * s, weight: 300, spacing: 58 * s, color: '#f4ede4' });
       ctx.fillStyle = ACCENT;
@@ -769,7 +785,7 @@
       }
       if (scr === 'main') {
         this.drawTitle(ctx, 140, 205, 0.86);
-        text(ctx, 'A SILHOUETTE FIGHTING GAME', 150, 375, { size: 18, weight: 600, spacing: 9, color: 'rgba(255,255,255,0.55)' });
+        text(ctx, 'CURSE OF THE MUMMY  ·  GODS OF THE UNDERWORLD', 150, 375, { size: 18, weight: 600, spacing: 9, color: 'rgba(255,255,255,0.55)' });
         this.menus.main.draw(ctx, t);
         const touch = this.game.input.touchActive;
         text(ctx, touch ? 'TAP A CARD TO START' : 'ARROWS / WASD  SELECT    ·    ENTER / J  CONFIRM    ·    ESC  BACK', 150, H - 36,
@@ -928,6 +944,7 @@
 
     drawDebug(ctx) {
       const g = this.game, d = g.debug;
+      if (SA.Save.data.settings.debugOverlay && g.scene === 'fight' && g.p1 && !d.overlay) this.drawMiniDebug(ctx);
       if (d.fps || d.overlay) {
         text(ctx, `${Math.round(g.fps)} FPS`, W - 24, 24, { size: 18, weight: 700, color: g.fps < 55 ? '#ff6b5b' : '#7dff9a', align: 'right', font: 'monospace' });
       }
@@ -956,6 +973,22 @@
       }
     }
   }
+
+  // Compact on-device overlay (Settings > DEBUG OVERLAY): FPS, states, distance, attack, AI intent.
+  UI.prototype.drawMiniDebug = function (ctx) {
+    const g = this.game, p1 = g.p1, p2 = g.p2;
+    const atk = (f) => (f.move ? f.move.id + ':' + f.phase : f.sp ? 'special:' + f.sp.phase : f.bm ? 'god:' + f.bm.id + ':' + f.bm.phase : '-');
+    const ai = g.ai2 && g.ai2.intent ? g.ai2.intent + ' / ' + g.ai2.state : '-';
+    const lines = [
+      `FPS ${Math.round(g.fps)}   DIST ${Math.round(Math.abs(p1.x - p2.x))}   MIN ${Math.round(SA.Physics.minDistance(p1, p2))}`,
+      `P1 ${p1.state}  ${atk(p1)}`,
+      `P2 ${p2.state}  ${atk(p2)}`,
+      `AI ${ai}`,
+    ];
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(24, 132, 470, lines.length * 26 + 16);
+    lines.forEach((l, i) => SA.text(ctx, l, 36, 152 + i * 26, { size: 18, weight: 600, font: 'monospace', color: i === 0 ? (g.fps < 50 ? '#ff6b5b' : '#7dff9a') : i === 3 ? '#ffd27a' : '#d8f5ff' }));
+  };
 
   UI.Menu = Menu;
   UI.CardMenu = CardMenu;

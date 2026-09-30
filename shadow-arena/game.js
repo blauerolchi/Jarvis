@@ -338,7 +338,8 @@
     // ---------- effects API used by combat ----------
     impactFlash(v) { this.flash = Math.max(this.flash || 0, v); }
     hitStop(frames) { this.hitstop = Math.max(this.hitstop, Math.round(frames)); }
-    shake(v) { this.camera.addTrauma(v); }
+    // gods shake the world harder
+    shake(v) { this.camera.addTrauma(v * (this.p2 && this.p2.isBoss && this.ranked ? 1.25 : 1)); }
     slowMo(scale, dur) {
       if (this.slowTimer > 0) this.slowScale = Math.min(this.slowScale, scale);
       else this.slowScale = scale;
@@ -384,6 +385,8 @@
       this.shake(0.2);
       SA.audio.play('special');
       SA.FX.special(this.particles, f.x, f.y, f.look.accent);
+      SA.FX.glyphBurst(this.particles, f.skel.hip.x, f.y - 150 * f.look.scale, '#ffd27a', 10, 520);
+      if (f.look.kind === 'mummy') { SA.audio.play('whisper', 1); f.bandageFlare = 1; }
       this.ui.showBanner(SA.SPECIALS[f.specialId].name, f.side, f.look.accent);
       if (f.isPlayer) SA.Device.vibrate(25);
     }
@@ -547,6 +550,9 @@
       for (const [a, b] of [[p1, p2], [p2, p1]]) {
         if (a.combo.hits > 0 && !b.isStunned()) this.endCombo(a);
         if (a.energy >= 100 && Math.random() < 0.4 * ts) SA.FX.aura(this.particles, a.x, a.y, a.look.accent);
+        // special ready: golden hieroglyphs rise around the fighter
+        if (a.energy >= 100 && Math.random() < 0.12 * ts) SA.FX.glyphRise(this.particles, a.x + SA.M.rand(-70, 70), a.y - SA.M.rand(0, 120), '#ffd27a');
+        this.movementFx(a, ts);
       }
       if (this.bossFx && this.bossFx.phase > 0 && Math.random() < 0.25 * this.bossFx.phase) {
         SA.FX.aura(this.particles, p2.x, p2.y, p2.look.accent);
@@ -559,6 +565,24 @@
       cam.update(realDt, p1, p2);
       this.darken = Math.max(0, this.darken - realDt * 1.6);
       this.flash = Math.max(0, (this.flash || 0) - realDt * 4);
+    }
+
+    // Sand kicked up by dashes / sprints / rolls, sand footsteps, bandage flare decay.
+    movementFx(f, ts) {
+      if (f.bandageFlare > 0) f.bandageFlare = Math.max(0, f.bandageFlare - ts / 40);
+      if (!f.grounded || f.vanished) return;
+      const st = f.state, sp = Math.abs(f.vx);
+      const fast = st === 'dash' || st === 'sprint' || st === 'roll' || st === 'evade' || st === 'slide';
+      if (fast && sp > 500 && Math.random() < 0.55 * ts) SA.FX.sandTrail(this.particles, f.x - Math.sign(f.vx) * 30, -6, -Math.sign(f.vx), this.arena.def.sand || '#cfae78');
+      if (st === 'walk' || st === 'run' || st === 'sprint') {
+        f.stepAcc = (f.stepAcc || 0) + sp * ts / 60;
+        const stride = st === 'walk' ? 120 : 190;
+        if (f.stepAcc > stride) {
+          f.stepAcc = 0;
+          SA.audio.play('step', st === 'walk' ? 0.6 : 1);
+          if (st !== 'walk') SA.FX.dust(this.particles, f.x, 0, 0.2, -f.facing);
+        }
+      }
     }
 
     // Turn to face the opponent once it is clearly behind (deadzone = no left/right flicker when the

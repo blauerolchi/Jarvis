@@ -14,6 +14,8 @@
       this.shakeEnabled = true;
       this.t = 0;
       this.sx = 0; this.sy = 0; this.sr = 0;
+      this.lead = 0;           // look-ahead in the direction of fast movement (dashes, sprints)
+      this.speedZoom = 0;      // zooms out a little while someone sprints
     }
 
     baseY(zoom) {
@@ -38,8 +40,18 @@
         tz = this.focus.zoom;
         ty = this.baseY(tz) + (this.focus.y || 0);
       } else {
-        tx = (a.x + b.x) / 2;
-        tz = this.targetZoom(Math.abs(a.x - b.x));
+        // lead: the camera drifts ahead of a dashing / sprinting fighter, so the move feels fast
+        let lead = 0, fast = 0;
+        for (const f of [a, b]) {
+          const st = f.state;
+          if (st === 'dash' || st === 'sprint' || st === 'run' || st === 'roll' || (st === 'bossmove' && Math.abs(f.vx) > 1200)) lead += clamp(f.vx * 0.06, -110, 110);
+          if (st === 'sprint' || (st === 'dash' && Math.abs(f.vx) > 1200)) fast = Math.max(fast, 1);
+          else if (st === 'run') fast = Math.max(fast, 0.5);
+        }
+        this.lead = damp(this.lead, clamp(lead, -130, 130), 4, dt);
+        this.speedZoom = damp(this.speedZoom, fast, 3, dt);
+        tx = (a.x + b.x) / 2 + this.lead;
+        tz = this.targetZoom(Math.abs(a.x - b.x)) - this.speedZoom * 0.05;
         const top = Math.min(a.y, b.y);
         if (top < -220) tz -= Math.min(0.18, (-220 - top) / 2000);
         ty = this.baseY(tz) + Math.min(0, top + 220) * 0.35;

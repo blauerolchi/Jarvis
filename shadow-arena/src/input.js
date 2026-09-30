@@ -51,6 +51,12 @@
         this.codes.add(e.code);
         this.refreshHeld();
         this.queue.push(a);
+        // double-tap left / right = quick dash (forward) or backstep (the fighter decides from the held direction)
+        if (a === 'left' || a === 'right') {
+          const now = performance.now();
+          if (this.lastTapDir === a && now - this.lastTapT < 230) { this.queue.push('dash'); this.lastTapT = 0; }
+          else { this.lastTapDir = a; this.lastTapT = now; }
+        }
       }, { passive: false });
 
       window.addEventListener('keyup', (e) => {

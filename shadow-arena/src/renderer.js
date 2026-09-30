@@ -111,8 +111,10 @@
     if (!f.accessories) createAccessories(f);
     const wind = (arena && arena.wind) || 0;
     const fast = f.state === 'dash' || f.state === 'sprint' || f.state === 'roll' || f.state === 'special';
-    const drag = -f.vx * (fast ? 0.75 : 0.45);
-    const lift = f.state === 'special' ? 2600 : fast ? 900 : 0;
+    // special activation: the bandages whip back and rise (bandageFlare decays in game.movementFx)
+    const flare = f.bandageFlare || 0;
+    const drag = -f.vx * (fast ? 0.75 : 0.45) - f.facing * flare * 2600;
+    const lift = (f.state === 'special' ? 2600 : fast ? 900 : 0) + flare * 1800;
     for (const a of f.accessories) {
       if (!a.ropes) continue;
       a.ropes.forEach((r, i) => {

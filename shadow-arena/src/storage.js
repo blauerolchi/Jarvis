@@ -38,7 +38,7 @@
       settings: {
         master: 0.8, sfx: 1, music: 0.45,
         shake: true, damageNumbers: true,
-        graphics: 'auto', vibration: true, touchControls: 'auto', touchSize: 1,
+        graphics: 'auto', vibration: true, touchControls: 'auto', touchSize: 1, debugOverlay: false,
       },
     };
   }
