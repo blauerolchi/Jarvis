@@ -145,10 +145,12 @@ window.SA = window.SA || {};
     get isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
     get canFullscreen() {
       const d = document.documentElement;
-      if (document.fullscreenEnabled === false && !document.webkitFullscreenEnabled) return false;   // e.g. an iframe without permission
       return !!(d.requestFullscreen || d.webkitRequestFullscreen);
     },
+    // the browser allows it here (an embedded preview / iframe without permission does not)
+    get fullscreenAllowed() { return document.fullscreenEnabled !== false || !!document.webkitFullscreenEnabled; },
     toggleFullscreen() {
+      if (!this.fullscreenAllowed) { this.fsBlockedT = performance.now(); return; }
       try {
         if (this.isFullscreen) {
           (document.exitFullscreen || document.webkitExitFullscreen).call(document);

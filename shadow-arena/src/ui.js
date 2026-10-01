@@ -889,8 +889,11 @@
           ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.stroke();
           ctx.restore();
           text(ctx, SA.Device.isFullscreen ? 'EXIT FULLSCREEN' : 'FULLSCREEN', r.x + r.w / 2 + 6, r.y + r.h / 2, { size: 19, weight: 800, spacing: 3, color: '#fff', align: 'center' });
-          if (SA.Device.fsBlockedT && performance.now() - SA.Device.fsBlockedT < 4000) {
-            text(ctx, 'FULLSCREEN BLOCKED HERE · OPEN THE LINK IN THE BROWSER', r.x + r.w, r.y + r.h + 30, { size: 16, weight: 700, spacing: 2, color: '#ffd27a', align: 'right' });
+          if (SA.Device.fsBlockedT && performance.now() - SA.Device.fsBlockedT < 5000) {
+            // embedded preview: the app does not allow fullscreen -> tell the player how to get it
+            const k = SA.Device.isPhone ? 1.4 : 1;
+            text(ctx, 'VOLLBILD IST IN DIESER VORSCHAU GESPERRT', r.x + r.w, r.y + r.h + 32 * k, { size: Math.round(17 * k), weight: 800, spacing: 2, color: '#ffd27a', align: 'right' });
+            text(ctx, 'LINK IM BROWSER (CHROME) ÖFFNEN', r.x + r.w, r.y + r.h + 60 * k, { size: Math.round(15 * k), weight: 700, spacing: 2, color: 'rgba(255,230,170,0.85)', align: 'right' });
           }
         }
       } else if (scr === 'settings') {
