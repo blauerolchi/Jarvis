@@ -62,7 +62,8 @@
       const cs = getComputedStyle(stage);
       const aw = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       const ah = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-      const w = Math.max(1, Math.min(aw, ah * 16 / 9)), h = w * 9 / 16;
+      const asp = SA.W / SA.H;
+      const w = Math.max(1, Math.min(aw, ah * asp)), h = w / asp;
       this.canvas.style.width = Math.round(w) + 'px';
       this.canvas.style.height = Math.round(h) + 'px';
       const dpr = Math.min(window.devicePixelRatio || 1, 2);

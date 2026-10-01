@@ -544,8 +544,14 @@
       ctx.fillStyle = topGrad;
       ctx.fillRect(0, 0, W, 190);
 
-      this.drawBar(ctx, g.p1, 0);
-      this.drawBar(ctx, g.p2, 1);
+      // phones: the same HUD, scaled up around its anchors (left / right / top centre) so names,
+      // bars and the timer stay readable on a small screen; the bars shrink to leave the centre free
+      const k = this.hudK = SA.Device.isPhone ? 1.3 : 1;
+      this.barW = Math.round(Math.min(660, (W / 2 - 92 * k) / k - 172));
+      const about = (ax, fn) => { ctx.save(); ctx.translate(ax, 0); ctx.scale(k, k); ctx.translate(-ax, 0); fn(); ctx.restore(); };
+      about(0, () => { this.drawBar(ctx, g.p1, 0); this.drawEnergy(ctx, g.p1, 0); });
+      about(W, () => { this.drawBar(ctx, g.p2, 1); this.drawEnergy(ctx, g.p2, 1); });
+      ctx.save(); ctx.translate(W / 2, 0); ctx.scale(k, k); ctx.translate(-W / 2, 0);
 
       // timer / mode
       const touch = g.input.touchActive;
@@ -590,12 +596,10 @@
             }
           }
         }
-        if (g.mode === 'arena') this.drawArenaInfo(ctx);
-        else text(ctx, `ROUND ${m.round}  ·  ${g.arena.name}`, W / 2, 172, { size: 16, weight: 700, spacing: 5, color: 'rgba(255,255,255,0.55)', align: 'center' });
+        if (g.mode !== 'arena') text(ctx, `ROUND ${m.round}  ·  ${g.arena.name}`, W / 2, 172, { size: 16, weight: 700, spacing: 5, color: 'rgba(255,255,255,0.55)', align: 'center' });
       }
-
-      this.drawEnergy(ctx, g.p1, 0);
-      this.drawEnergy(ctx, g.p2, 1);
+      ctx.restore();
+      if (g.mode === 'arena') this.drawArenaInfo(ctx);
       if (!touch && g.mode === 'fight' && m.round === 1 && SA.Save.data.statistics.fights < 3 && m.phase !== 'matchEnd') {
         const a = clamp(Math.min(m.t / 0.5, (9 - m.t) / 1), 0, 1);
         if (a > 0) text(ctx, 'J  PUNCH   ·   K  HEAVY   ·   L  KICK   ·   U  BLOCK / PARRY   ·   I  DASH   ·   SPACE  SPECIAL', W / 2, H - 118,
@@ -670,7 +674,7 @@
     }
 
     drawBar(ctx, f, side) {
-      const bw = 660, bh = 28, y = 58, skew = 14;
+      const bw = this.barW || 660, bh = 28, y = 58, skew = 14;
       const PR = 52, pcx = side === 0 ? 88 : W - 88, pcy = 84;
       const x = side === 0 ? 160 : W - 160 - bw;
       const r = this.hpShown[side], lag = this.lag[side];
@@ -720,7 +724,7 @@
 
     drawEnergy(ctx, f, side) {
       // compact energy bar right under the health bar (like the concept HUD): the arena stays free
-      const bw = 430, bh = 11, y = 100, skew = 10;
+      const bw = Math.min(430, Math.round((this.barW || 660) * 0.65)), bh = 11, y = 100, skew = 10;
       const x = side === 0 ? 160 : W - 160 - bw;
       const e = clamp(f.energy / 100, 0, 1);
       const full = e >= 1;

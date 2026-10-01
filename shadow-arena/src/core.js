@@ -6,7 +6,16 @@
 window.SA = window.SA || {};
 
 (function (SA) {
-  SA.W = 1920;
+  // Logical canvas: always 1080 high. 16:9 / 16:10 screens use 1920 wide; wider phone screens
+  // (19.5:9, 20:9 …) get a wider logical canvas so the game fills the whole display instead of
+  // being letterboxed. Decided once at load from the landscape aspect (rotation never changes it).
+  (function () {
+    const a = Math.max(screen.width || 16, screen.height || 9) / Math.max(1, Math.min(screen.width || 16, screen.height || 9));
+    const vw = Math.max(window.innerWidth || 16, window.innerHeight || 9) / Math.max(1, Math.min(window.innerWidth || 16, window.innerHeight || 9));
+    const touch = ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0;
+    const asp = touch ? Math.max(a, vw) : vw;
+    SA.W = Math.round(Math.min(2.2, Math.max(16 / 9, asp)) * 1080 / 2) * 2;
+  })();
   SA.H = 1080;
   SA.STEP = 1 / 60;            // fixed simulation step; all frame data is in 60 fps frames
   SA.ARENA_HALF = 1250;        // world x range is [-ARENA_HALF, ARENA_HALF], ground is y = 0 (up is negative)
@@ -129,6 +138,9 @@ window.SA = window.SA || {};
   // Device helpers: touch detection, fullscreen, orientation, haptics.
   SA.Device = {
     isTouch: ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0,
+    // phone: a touch screen whose short side is small. Same controls as the tablet, scaled up.
+    isPhone: (('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0) &&
+      Math.min(screen.width || 9999, screen.height || 9999) < 560,
     get isPortrait() { return window.innerHeight > window.innerWidth * 1.05; },
     get isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
     get canFullscreen() {

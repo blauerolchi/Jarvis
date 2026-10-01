@@ -81,7 +81,8 @@
 
       const z = this.viewZoom();
       const half = SA.W / 2 / z;
-      this.x = clamp(this.x, -SA.ARENA_HALF + half, SA.ARENA_HALF - half);
+      // wide phone screens may show more than the arena: then keep it centred
+      this.x = half >= SA.ARENA_HALF ? 0 : clamp(this.x, -SA.ARENA_HALF + half, SA.ARENA_HALF - half);
 
       const s = this.shakeEnabled ? this.trauma * this.trauma : 0;
       this.sx = s * 38 * noise1(this.t * 32);

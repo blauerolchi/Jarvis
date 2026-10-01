@@ -25,6 +25,13 @@ Alle Skripte sind klassische `<script>`-Dateien ohne ES-Module, weil Chrome Modu
 2. `index.html` in Chrome öffnen, z. B. über die Dateien-App oder `file:///sdcard/Download/shadow-arena/index.html` in der Adresszeile.
 3. Tablet quer halten und oben rechts im Hauptmenü **FULLSCREEN** antippen.
 
+### Auf dem Handy spielen
+
+Genau wie auf dem Tablet (Variante A oder B unten), Handy quer halten. Das Spiel erkennt Handys automatisch:
+- **Vollbild ohne schwarze Ränder:** bei breiten Handy-Displays (19,5:9, 20:9 …) wird die Spielfläche breiter statt mit Balken gefüllt.
+- **Gleiche Steuerung wie auf dem Tablet** (Joystick-Gesten, ATTACK / KICK / SHOOT / SPECIAL), alle Touch-Elemente 25 % größer für Daumen; *TOUCH BUTTON SIZE* in den Settings wirkt zusätzlich.
+- **HUD größer** (Porträts, Namen, Leisten, Timer), Pause-Knopf immer am rechten Rand.
+
 **Variante B: als App installieren (PWA, voll offline)**
 1. Den Ordner auf einen Webspace legen (GitHub Pages, Netlify, eigener Server) oder im WLAN bereitstellen, z. B. am PC mit `python3 -m http.server 8000` im Ordner `shadow-arena/`.
 2. Die Adresse im Chrome des Tablets öffnen und **„App installieren“ / „Zum Startbildschirm hinzufügen“** wählen.
@@ -332,6 +339,7 @@ NODE_PATH=$(npm root -g) node tests/touch.js       # echter Multitouch: Joystick
 NODE_PATH=$(npm root -g) node tests/platforms.js   # One-Way-Plattformen, Durchfallen, Fast Fall, Kanten, Kamera, Abnahmetest 54
 NODE_PATH=$(npm root -g) node tests/flowcombat.js  # Abnahmetest 55, Schießen ohne State-Lock, Auto-Reload, Dive, Crescent Moonfall, Flow-Combos
 NODE_PATH=$(npm root -g) node tests/aiplatform.js  # KI auf Plattformen + Abnahmetest 56 (30 s KI gegen KI)
+NODE_PATH=$(npm root -g) node tests/phone.js       # Handy (844×390, 19,5:9): Vollbild, skalierte Steuerung, Multitouch
 NODE_PATH=$(npm root -g) node tests/choreo.js      # Abnahmetest 74 + Airtime, Apex Hang, Double Jump, Coyote Time, Jump Buffer
 NODE_PATH=$(npm root -g) node tests/ai.js          # Intents, Spacing, Reaktionszeiten, Combos, Ecke
 NODE_PATH=$(npm root -g) node tests/bosses.js      # jede Götter-Fähigkeit trifft und hat einen Konter, Intro, Phasen

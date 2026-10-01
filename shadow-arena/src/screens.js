@@ -456,15 +456,16 @@
       const g = this.game, run = g.arenaRun;
       if (!run) return;
       const e = run.enemy;
-      text(ctx, `STAGE ${run.stage}`, W / 2, 168, { size: 24, weight: 900, spacing: 6, color: e.kind === 'boss' ? '#ff5a4a' : e.kind === 'elite' ? GOLD : '#fff', align: 'center' });
+      const k = this.hudK || 1;   // phone HUD scale (see drawHUD)
+      text(ctx, `STAGE ${run.stage}`, W / 2, 168 * k, { size: Math.round(24 * k), weight: 900, spacing: 6, color: e.kind === 'boss' ? '#ff5a4a' : e.kind === 'elite' ? GOLD : '#fff', align: 'center' });
       const nx = SA.ArenaMode.nextLabel(run.stage);
-      text(ctx, nx, W / 2, 196, { size: 14, weight: 800, spacing: 3, color: 'rgba(255,255,255,0.55)', align: 'center' });
+      text(ctx, nx, W / 2, 196 * k, { size: Math.round(14 * k), weight: 800, spacing: 3, color: 'rgba(255,255,255,0.55)', align: 'center' });
       // player side: streak + run coins
-      const ly = 140;
-      text(ctx, `STREAK ${run.streak}   ·   ${run.coins} ¤`, 160, ly, { size: 16, weight: 800, spacing: 3, color: GOLD });
+      const ly = 140 * k;
+      text(ctx, `STREAK ${run.streak}   ·   ${run.coins} ¤`, 160 * k, ly, { size: Math.round(16 * k), weight: 800, spacing: 3, color: GOLD });
       // enemy side: type chips
       const chips = [e.label].concat(e.modifiers.map((m) => SA.ELITE_MODIFIERS[m].label));
-      let cx = W - 160;
+      let cx = W - 160 * k;
       for (let i = chips.length - 1; i >= 0; i--) {
         const c = chips[i];
         ctx.font = `800 15px ${SA.FONT}`;

@@ -38,7 +38,9 @@
     { id: 'ranged', action: 'ranged', x: 1520, y: 712, r: 74, label: 'SHOOT', icon: 'gun' },
     { id: 'special', action: 'special', x: 1792, y: 600, r: 76, label: 'SPECIAL', icon: 'moon' },
   ];
-  const PAUSE = { x: 1868, y: 236, r: 40 };
+  // button x positions are authored for 1920 and anchored to the right edge (wide phone canvases)
+  for (const b of BUTTONS) b.rx = 1920 - b.x;
+  const PAUSE = { rx: 52, y: 236, r: 40, get x() { return SA.W - this.rx; } };
 
   // angle of the stick in degrees: 0 = right, 90 = up, 180 = left, 270 = down
   function zoneOf(nx, ny, mag) {
@@ -66,7 +68,8 @@
       this.hintT = 0;
     }
 
-    get scale() { return SA.Save.data.settings.touchSize || 1; }
+    // phones: same layout as the tablet, everything a quarter bigger for thumbs on a small screen
+    get scale() { return (SA.Save.data.settings.touchSize || 1) * (SA.Device.isPhone ? 1.25 : 1); }
 
     // Is the in-fight overlay live right now?
     get active() {
@@ -85,7 +88,7 @@
     geom(b) {
       // scale buttons around the bottom-right corner so they stay reachable at any size
       const k = this.scale;
-      return { x: SA.W - (SA.W - b.x) * k, y: SA.H - (SA.H - b.y) * k, r: b.r * k };
+      return { x: SA.W - b.rx * k, y: SA.H - (SA.H - b.y) * k, r: b.r * k };
     }
 
     buttonAt(x, y, slack) {
