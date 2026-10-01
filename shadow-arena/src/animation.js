@@ -229,6 +229,14 @@
       [1, P({ torso: 0.1, head: -0.1, aF1: 1.2, aF2: 0.9, aB1: -0.6, aB2: 0.9, lF1: 0.7, lF2: -1.2, lB1: -0.2, lB2: -0.8 }), 'smooth'],
     ];
     // flip leap: stretched layout flip, long arms, opens into a landing reach
+    // double jump: knees snap up, arms sweep, the body opens again (tilt only; djB is a full backflip)
+    ACRO.dj = [
+      [0, P({ torso: 0.25, head: -0.15, aF1: 2.2, aF2: 0.6, aB1: -0.6, aB2: 0.9, lF1: 0.6, lF2: -1.0, lB1: -0.3, lB2: -0.8 })],
+      [0.3, P({ torso: 0.55, head: -0.25, aF1: 1.4, aF2: 1.5, aB1: 0.6, aB2: 1.7, lF1: 1.9, lF2: -2.3, lB1: 1.5, lB2: -2.2 }), 'out'],
+      [0.7, P({ torso: 0.35, head: -0.2, aF1: 1.6, aF2: 1.0, aB1: -0.4, aB2: 1.1, lF1: 1.2, lF2: -1.6, lB1: 0.6, lB2: -1.4 })],
+      [1, P({ torso: 0.15, head: -0.1, aF1: 1.3, aF2: 0.9, aB1: -0.7, aB2: 0.9, lF1: 0.7, lF2: -1.1, lB1: -0.2, lB2: -0.8 }), 'smooth'],
+    ];
+    ACRO.djB = ACRO.back;
     ACRO.leap = [
       [0, P({ torso: 0.45, head: -0.15, aF1: 2.8, aF2: 0.2, aB1: 2.6, aB2: 0.3, lF1: 0.1, lF2: -0.1, lB1: -0.6, lB2: -0.1 })],
       [0.3, P({ torso: 0.5, aF1: 2.9, aF2: 0.1, aB1: 2.7, aB2: 0.2, lF1: 0.3, lF2: -0.2, lB1: -0.4, lB2: -0.2 }), 'smooth'],
@@ -254,6 +262,7 @@
   // rotation profile for flips / rolls: smooth start and end, peak speed only 1.5x the average,
   // so the spin reads as one continuous motion instead of a snap in the middle
   const easeInOut = (t) => t * t * (3 - 2 * t);
+  const flipCurve = (t) => 0.5 * easeInOut(t) + 0.5 * (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
   // ---------- skeleton solve ----------
   function createSkeleton() {
@@ -394,13 +403,14 @@
       const F = f.flip.F, u = clamp(f.st / F.rotFrames, 0, 1);
       if (!ACRO.front) buildAcro();
       sampleU(ACRO[f.flip.kind], u, target);
-      target.rot = F.dir * SA.TAU * easeInOut(u);
+      // rotation curve: slow take-off, fast middle, soft opening (between smoothstep and cubic)
+      target.rot = F.tilt ? F.dir * F.tilt * Math.sin(Math.PI * u) : F.dir * SA.TAU * flipCurve(u);
       // enter from the take-off crouch over 3 frames, then follow the keys exactly
       const w = SA.M.smooth(clamp(f.st / 3, 0, 1));
       if (w < 1) { const r = target.rot; lerpPose(target, f.pose, target, w); target.rot = r; }
       copyPose(f.pose, target);
       direct = true;
-      name = f.flip.kind === 'hand' ? 'handspring' : f.flip.kind === 'spin' ? 'spinjump' : f.flip.kind + 'flip';
+      name = f.flip.kind === 'hand' ? 'handspring' : f.flip.kind === 'spin' ? 'spinjump' : f.flip.kind === 'dj' || f.flip.kind === 'djB' ? 'doublejump' : f.flip.kind + 'flip';
     } else if (st === 'airdash') {
       if (!ACRO.front) buildAcro();
       copyPose(target, ACRO.airdash);
@@ -429,7 +439,9 @@
       if (u < 0.72) copyPose(target, POSES.roll);
       else if (u < 0.88) lerpPose(target, POSES.roll, POSES.crouch, SA.M.smooth((u - 0.72) / 0.16));
       else lerpPose(target, POSES.crouch, POSES.stance, SA.M.smooth((u - 0.88) / 0.12));
-      const rot = (f.rollDir || 1) * SA.TAU * easeInOut(clamp(u / 0.9, 0, 1));
+      // a roll straight out of a tilted landing (dive) starts from that tilt and blends it out
+      const r0 = f.rollRot0 || 0;
+      const rot = (f.rollDir || 1) * SA.TAU * easeInOut(clamp(u / 0.9, 0, 1)) + r0 * (1 - SA.M.smooth(clamp(f.st / 7, 0, 1)));
       dampPose(f.pose, target, f.st < 4 ? 26 : 40, dt);
       f.pose.rot = rot;
       copyPose(target, f.pose);
@@ -541,21 +553,41 @@
       target.aF1 += 0.5 * w; target.aF2 += 0.5 * w; target.wg -= 0.7 * w;
     }
     // attacks: anticipation pull-back, commit on the strike, follow-through after it
-    if (st === 'attack' && f.move && !f.move.air && !f.move.ranged) {
-      const m = f.move, pw = clamp(m.power || 0.5, 0.2, 1.2);
+    // The whole body fights: wind-up pulls hips and torso back (the back leg loads), the strike
+    // drives hips + torso through with the legs spreading, the follow-through lets torso and weapon
+    // swing on. Heavies exaggerate all of it; air attacks open the silhouette.
+    if (st === 'attack' && f.move && !f.move.ranged) {
+      const m = f.move, pw = clamp(m.power || 0.5, 0.2, 1.2), air = !!m.air;
+      const heavy = pw >= 0.8 ? 1.6 : 1;
+      const kick = !!(m.hit && /foot|knee/.test(m.hit.joint || ''));   // kicks keep their authored legs (hitbox)
       if (f.mt < m.startup) {
         const u = f.mt / Math.max(1, m.startup);
-        const a = Math.sin(u * Math.PI) * 0.1 * pw;
-        target.torso -= a; target.hipX -= a * 60;
+        const a = Math.sin(u * Math.PI * 0.5) * 0.14 * pw * heavy;
+        target.torso -= a; target.hipX -= a * 70; target.head += a * 0.5;
+        target.wg -= a * 1.2;
+        if (!air && !kick) { target.lB1 -= a * 0.6; target.lF1 += a * 0.3; }
       } else if (f.mt < m.startup + m.active) {
-        target.torso += 0.07 * pw; target.hipX += 6 * pw;
+        const a = 0.12 * pw * heavy;
+        target.torso += a; target.hipX += a * 90; target.head -= a * 0.6;
+        if (!kick) {
+          if (air) { target.lF1 += 0.25 * pw; target.lB1 -= 0.3 * pw; }
+          else { target.lF1 += a * 0.9; target.lB1 -= a * 0.9; }
+        }
       } else {
         const u = (f.mt - m.startup - m.active) / Math.max(1, m.recovery);
-        const a = Math.max(0, 1 - u * 2.2) * 0.1 * pw;
-        target.torso += a; target.head += a * 0.8;
+        const a = Math.max(0, 1 - u * 1.6) * 0.12 * pw * heavy;
+        target.torso += a; target.head -= a * 0.5;
+        target.wg += a * 1.5;
+        if (!air && !kick) { target.lF1 += a * 0.6; target.lB1 -= a * 0.6; }
+      }
+      // falling attacks: the body turns down toward the target
+      if (f.dive) {
+        const r0 = f.entryPose.rot || 0;
+        target.rot = r0 + ((f.dive === 'heavy' ? 0.95 : 0.6) - r0) * SA.M.smooth(clamp(f.mt / 7, 0, 1));
       }
     }
 
+    if (f.animName !== name) { f.blendFrom = f.animName; f.blendAt = f.animTime || 0; }
     f.animName = name;
     // the first frames after touching down blend a little softer (the landing squash carries it)
     if (!direct && f.landT > 5) k = Math.min(k, 14);

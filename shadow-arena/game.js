@@ -342,17 +342,27 @@
     // Move data asks for 3–12 frames; the freeze is compressed to 1–4 frames (≈17–67 ms), a god's heavy
     // blow may hold 5–6 frames (≈100 ms) — long enough to feel the impact, never long enough to look stuck.
     hitStop(frames) {
-      const cap = this.p2 && this.p2.isBoss ? 6 : 4;
-      const f = clamp(Math.round(frames * 0.5), 1, cap);
+      // light ~17 ms, medium ~33 ms, heavy 50-67 ms: the big moments come from the time controller
+      const cap = this.p2 && this.p2.isBoss ? 5 : 4;
+      const f = clamp(Math.round(frames * 0.4), 1, cap);
       this.hitstop = Math.max(this.hitstop, f);
     }
     // gods shake the world harder
     shake(v) { this.camera.addTrauma(v * (this.p2 && this.p2.isBoss && this.ranked ? 1.25 : 1)); }
-    slowMo(scale, dur) {
+    // CombatTimeController: short focus moments. timeScale drops to `scale` for `hold` seconds of
+    // real time, then eases back to 1 over `recover` seconds. Inputs keep running in real time
+    // (the buffer ages per real tick), so the player can queue the next action during the moment.
+    // Non-forced focuses respect a short cooldown, so it never becomes constant slow motion.
+    focus(scale, hold, recover, forced) {
+      if (!forced && this.focusCd > 0) return false;
       if (this.slowTimer > 0) this.slowScale = Math.min(this.slowScale, scale);
       else this.slowScale = scale;
-      this.slowTimer = Math.max(this.slowTimer, dur);
+      this.slowTimer = Math.max(this.slowTimer, hold);
+      this.slowRecover = Math.max(0.06, recover || 0.12);
+      if (!forced) this.focusCd = 0.55;
+      return true;
     }
+    slowMo(scale, dur) { this.focus(scale, dur, 0.15, true); }
     label(textStr, x, y, color, fighter, scale) {
       SA.FX.label(this.particles, x, y, textStr, color, scale);
     }
@@ -572,11 +582,13 @@
         cam.update(realDt, p1, p2);
         return;
       }
+      if (this.focusCd > 0) this.focusCd -= realDt;
       if (this.slowTimer > 0) {
         this.slowTimer -= realDt;
         this.timeScale = this.slowScale;
-      } else {
-        this.timeScale = approach(this.timeScale, 1, realDt * 3);
+      } else if (this.timeScale < 1) {
+        // smooth return: ease-out over slowRecover seconds
+        this.timeScale = approach(this.timeScale, 1, realDt / (this.slowRecover || 0.15) * Math.max(0.25, 1 - this.timeScale));
       }
       const ts = this.timeScale;
       const dt = realDt * ts;
@@ -959,8 +971,15 @@
       SA.Render.drawGhosts(ctx, p2);
       // the attacker is drawn on top so strikes overlap the victim
       const order = p1.state === 'attack' || p1.state === 'special' ? [p2, p1] : [p1, p2];
-      const rims = SA.GFX.rims > 1 ? arena.rims : arena.rims.slice(0, 1);
-      for (const f of order) if (!f.vanished) SA.Render.drawFighter(ctx, f, rims);
+      // lighting: the arena's warm key rim on both; the player adds a cool moonlight rim on the other
+      // side, the enemy a warmer, stronger one -> both silhouettes read clearly against the sky
+      const R = this._rims && this._rims.arena === arena ? this._rims : (this._rims = {
+        arena,
+        player: [arena.rims[0], { color: 'rgba(160,210,255,0.85)', dx: -3, dy: -2 }],
+        enemy: [{ color: arena.rims[0].color, dx: arena.rims[0].dx + 1, dy: arena.rims[0].dy }, { color: 'rgba(255,120,60,0.45)', dx: -2, dy: 1 }],
+        low: arena.rims.slice(0, 1),
+      });
+      for (const f of order) if (!f.vanished) SA.Render.drawFighter(ctx, f, SA.GFX.rims > 1 ? (f.isPlayer || f === p1 ? R.player : R.enemy) : R.low);
       this.projectiles.draw(ctx);
       this.particles.draw(ctx, true);
       if (this.debug.hitboxes) this.drawHitboxes(ctx);

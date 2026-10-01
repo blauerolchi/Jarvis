@@ -333,12 +333,36 @@
     g.lineTo(w + 4, T - 2);
     g.closePath();
     g.fill();
-    // front face
+    // front face: sandstone with broken corners and an uneven lower edge (no UI tile)
     const face = g.createLinearGradient(0, 4, 0, T);
     face.addColorStop(0, look.face);
     face.addColorStop(1, look.faceDark);
     g.fillStyle = face;
-    g.fillRect(0, 4, w, T - 4);
+    const cut0 = 6 + rng() * 10, cut1 = 6 + rng() * 10;
+    g.beginPath();
+    g.moveTo(cut0 * 0.6, 4);
+    g.lineTo(w - cut1 * 0.5, 4);
+    g.lineTo(w, 4 + cut1);
+    g.lineTo(w - 2, T - 6);
+    for (let x = w - 10; x > 10; x -= 18 + rng() * 22) g.lineTo(x, T - rng() * 5);
+    g.lineTo(cut0 * 0.4, T - 3);
+    g.lineTo(0, 4 + cut0);
+    g.closePath();
+    g.fill();
+    // weathering: darker patches and hairline cracks
+    g.globalAlpha = 0.18;
+    g.fillStyle = '#3a2410';
+    for (let i = 0; i < w / 60; i++) { g.beginPath(); g.ellipse(rng() * w, 8 + rng() * (T - 12), 8 + rng() * 20, 3 + rng() * 5, 0, 0, SA.TAU); g.fill(); }
+    g.globalAlpha = 0.45;
+    g.strokeStyle = '#3a2410';
+    g.lineWidth = 1;
+    for (let i = 0; i < w / 120; i++) {
+      let x = rng() * w, y = 6;
+      g.beginPath(); g.moveTo(x, y);
+      while (y < T - 4) { x += (rng() - 0.5) * 8; y += 4 + rng() * 5; g.lineTo(x, y); }
+      g.stroke();
+    }
+    g.globalAlpha = 1;
     // block joints
     g.strokeStyle = 'rgba(40,20,10,0.35)';
     g.lineWidth = 1.5;
@@ -349,23 +373,23 @@
     g.lineCap = 'round';
     for (let x = 22; x < w - 16; x += 30) glyph(g, Math.floor(rng() * 8), x, 22, 13);
     // gold trims + top lip
+    // worn gold inlay (broken in places) and a chipped, sunlit top edge
     g.fillStyle = look.gold;
-    g.fillRect(0, 9, w, 2.5);
-    g.fillRect(0, T - 4, w, 2.5);
+    for (let x = 14; x < w - 14; x += 40 + rng() * 50) g.fillRect(x, 9, 22 + rng() * 40, 2);
     const lip = g.createLinearGradient(0, 0, 0, 7);
     lip.addColorStop(0, look.lip);
     lip.addColorStop(1, look.face);
     g.fillStyle = lip;
-    g.fillRect(-3, 0, w + 6, 7);
-    g.fillStyle = 'rgba(255,255,255,0.35)';
-    g.fillRect(-3, 0, w + 6, 1.5);
-    // end caps
-    for (const ex of [-6, w - 6]) {
-      g.fillStyle = look.faceDark;
-      g.fillRect(ex, -2, 12, T + 2);
-      g.fillStyle = look.gold;
-      g.fillRect(ex, -4, 12, 4);
-    }
+    g.beginPath();
+    g.moveTo(cut0 * 0.6, 0);
+    for (let x = 20; x < w - 20; x += 26 + rng() * 30) g.lineTo(x, rng() < 0.25 ? 2.5 : 0);
+    g.lineTo(w - cut1 * 0.5, 0);
+    g.lineTo(w - cut1 * 0.5 + 2, 7);
+    g.lineTo(cut0 * 0.6 - 2, 7);
+    g.closePath();
+    g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.32)';
+    g.fillRect(cut0 * 0.6, 0, w - cut0 * 0.6 - cut1 * 0.5, 1.5);
     return { canvas: c, res, PAD, H };
   }
 
@@ -401,6 +425,13 @@
       if (d.fg) this.fg = this.paintLayer(d.fg, 999);
       this.buildSkyCache();
       this.buildOverlay();
+      // haze colour = the sky near the horizon (sampled once)
+      try {
+        const sc = this.skyCache, c = SA.makeCanvas(1, 1), cg = c.getContext('2d');
+        cg.drawImage(sc.canvas, 0, sc.canvas.height * 0.62, sc.canvas.width, sc.canvas.height * 0.1, 0, 0, 1, 1);
+        const d = cg.getImageData(0, 0, 1, 1).data;
+        this.haze = `rgb(${d[0]},${d[1]},${d[2]})`;
+      } catch (e) { this.haze = null; }
       const res = 0.8;
       this.groundCanvas = SA.makeCanvas(GW * res, GH * res);
       const g = this.groundCanvas.getContext('2d');
@@ -572,7 +603,17 @@
         ctx.stroke();
         ctx.globalCompositeOperation = 'source-over';
       }
-      for (const L of this.layers) this.drawLayer(ctx, L, cam);
+      for (const L of this.layers) {
+        this.drawLayer(ctx, L, cam);
+        // atmospheric perspective: distant layers sink into the sky colour (less contrast)
+        if (L.p < 0.75 && this.haze && (!SA.GFX || SA.GFX.rays !== false)) {
+          const { gy } = this.xf(cam, L.p);
+          ctx.globalAlpha = 0.34 * (1 - L.p);
+          ctx.fillStyle = this.haze;
+          ctx.fillRect(0, 0, SA.W, Math.min(SA.H, gy + 40 * (1 - L.p)));
+          ctx.globalAlpha = 1;
+        }
+      }
       this.drawLiveLights(ctx, cam);
     }
 

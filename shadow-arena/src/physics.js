@@ -24,6 +24,7 @@
   const MAX_STEP = 26;        // max correction per tick for deep overlaps (soft resolve, no snapping)
   const OTHER_SHARE = 0.12;
   const FAST_FALL = 1650;
+  const APEX_V = 130, APEX_G = 0.55;
   const EDGE = 10;            // feet may overhang a platform edge this much   // share of the correction the standing fighter takes when only one walks
 
   // A fighter's movement collider (width/height in world px), cached per state.
@@ -62,7 +63,14 @@
     integrate(f, dt, game) {
       if (f.state === 'rushed') return;
       // falling is a bit faster than rising: snappy, weighty jumps
-      if (!f.grounded) f.vy += SA.GRAVITY * (f.vy > 0 ? 1.18 : 1) * (f.gravMul === undefined ? 1 : f.gravMul) * dt;
+      if (!f.grounded) {
+        // a touch heavier on the way down; a short apex hang (~0.1 s at reduced gravity) gives the
+        // platform-fighter float at the top of every jump without making it mushy
+        let g = SA.GRAVITY * (f.vy > 0 ? 1.08 : 1) * (f.gravMul === undefined ? 1 : f.gravMul);
+        if (Math.abs(f.vy) < APEX_V && !f.fastFall && !f.dive && f.state !== 'launched' && f.state !== 'hitstun') g *= APEX_G;
+        f.vy += g * dt;
+        f.gravNow = g / SA.GRAVITY;
+      } else f.gravNow = 0;
       // fast fall (joystick down in the air): a hard, steady drop
       if (f.fastFall && !f.grounded && f.gravMul !== 0) f.vy = Math.max(f.vy, FAST_FALL);
       const y0 = f.y;

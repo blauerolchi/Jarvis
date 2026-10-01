@@ -137,7 +137,7 @@
       if (!a.ropes) continue;
       for (let i = 0; i < a.ropes.length; i++) { const r = a.ropes[i];
         const p = anchorOf(f, a, i);
-        r.update(p.x, p.y, dt, wind * (a.windMul || 1) + drag, (a.lift || 0) + lift, floor);
+        r.update(p.x, p.y, dt, wind * (a.windMul || 1) + drag, (a.lift || 0) + lift + (f.grounded ? 0 : a.airLift || 0), floor);
       }
     }
   }
@@ -465,23 +465,23 @@
 
   // ---------- flat silhouette (rims, afterimages, flashes, shadows) ----------
   function drawFlat(ctx, P, look, colFront, colBack, w) {
-    const b = (look.bulk || 1) * look.scale * (look.limb || 1);
+    const b = (look.bulk || 1) * look.scale * (look.limb || 1), ub = b * (look.upper || 1);
     if (w) drawWeapons(ctx, P, w, colBack, 'B', false, look.scale);
     ctx.fillStyle = colBack;
-    limb(ctx, P.sh, P.elbB, 24 * b, 18 * b);
+    limb(ctx, P.sh, P.elbB, 24 * ub, 17 * b);
     limb(ctx, P.elbB, P.handB, 18 * b, 13 * b);
     dot(ctx, P.handB, 12 * b);
-    limb(ctx, P.hip, P.kneeB, 34 * b, 23 * b);
-    limb(ctx, P.kneeB, P.footB, 23 * b, 14 * b);
+    limb(ctx, P.hip, P.kneeB, 34 * ub, 22 * b);
+    limb(ctx, P.kneeB, P.footB, 22 * b, 14 * b);
     limb(ctx, P.footB, P.toeB, 14 * b, 8 * b);
     ctx.fillStyle = colFront;
-    torso(ctx, P.hip, P.neck, 38 * b, 62 * b, b);
+    torso(ctx, P.hip, P.neck, 38 * b, 62 * b * (look.chest || 1), b);
     limb(ctx, P.neck, P.head, 18 * b, 16 * b);
     dot(ctx, P.head, SA.DIM.headR * look.scale * (look.headScale || 1));
-    limb(ctx, P.hip, P.kneeF, 34 * b, 23 * b);
-    limb(ctx, P.kneeF, P.footF, 23 * b, 14 * b);
+    limb(ctx, P.hip, P.kneeF, 34 * ub, 22 * b);
+    limb(ctx, P.kneeF, P.footF, 22 * b, 14 * b);
     limb(ctx, P.footF, P.toeF, 14 * b, 8 * b);
-    limb(ctx, P.sh, P.elbF, 24 * b, 18 * b);
+    limb(ctx, P.sh, P.elbF, 24 * ub, 17 * b);
     limb(ctx, P.elbF, P.handF, 18 * b, 13 * b);
     if (w) drawWeapons(ctx, P, w, colFront, 'F', false, look.scale);
     ctx.fillStyle = colFront;
@@ -637,6 +637,7 @@
     nemes: 'head', turban: 'head', jackalMask: 'head', jackalHead: 'head', cobraHood: 'headBack', execHood: 'head', mandibles: 'head',
     crocHead: 'head', lionHead: 'head', falconHead: 'head', setHead: 'head', sunDisc: 'headBack', atef: 'head', mane: 'headBack',
     pauldron: 'front', bracers: 'front', wings: 'back', moonHood: 'head', crescentEmblem: 'body',
+    kneeGuardB: 'backLeg', kneeGuardF: 'frontLeg', guardHelm: 'head', shoulderCloth: 'body',
     hat: 'head', horns: 'head', hood: 'head', helmet: 'head', topknot: 'head',
   };
 
@@ -777,10 +778,12 @@
         // round bronze-rimmed hide shield strapped to the back arm
         const c = { x: (P.elbB.x + P.handB.x) / 2, y: (P.elbB.y + P.handB.y) / 2 };
         ctx.fillStyle = col(a.rim || pal.metal);
-        ctx.beginPath(); ctx.ellipse(c.x, c.y, 34 * sc, 46 * sc, 0, 0, SA.TAU); ctx.fill();
+        const zs = sc * (a.size || 1);
+        ctx.beginPath(); ctx.ellipse(c.x, c.y, 34 * zs, 46 * zs, 0, 0, SA.TAU); ctx.fill();
         if (!flat) {
           ctx.fillStyle = a.color || '#5c4a2c';
-          ctx.beginPath(); ctx.ellipse(c.x, c.y, 29 * sc, 41 * sc, 0, 0, SA.TAU); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(c.x, c.y, 29 * zs, 41 * zs, 0, 0, SA.TAU); ctx.fill();
+          if (a.boss) { ctx.strokeStyle = a.rim || pal.metal; ctx.lineWidth = 3 * sc; ctx.beginPath(); ctx.ellipse(c.x, c.y, 18 * zs, 26 * zs, 0, 0, SA.TAU); ctx.stroke(); }
           ctx.fillStyle = a.rim || pal.metal;
           ctx.beginPath(); ctx.arc(c.x, c.y, 7 * sc, 0, SA.TAU); ctx.fill();
         }
@@ -917,10 +920,15 @@
         // white hood: peaked brim forward, falls over the back of the head onto the shoulders,
         // the face stays in shadow (the eyes glow out of it), a moon-silver crescent on the brow
         ctx.fillStyle = col(a.color || '#efe9dc');
-        poly([hp(1.05, 0.25), hp(0.55, 1.15), hp(-0.35, 1.35), hp(-1.2, 0.7), hp(-1.55, -0.45), hp(-1.25, -1.45), hp(-0.2, -1.5), hp(0.35, -1.05), hp(0.75, -0.65)]);
+        // pointed, forward-leaning hood; cloth falls on the neck and shoulders
+        poly([hp(1.2, 0.35), hp(0.65, 1.35), hp(-0.2, 1.75), hp(-0.65, 1.95), hp(-1.35, 0.85), hp(-1.75, -0.5), hp(-1.55, -1.8), hp(-0.4, -2.0), hp(0.4, -1.4), hp(0.85, -0.75)]);
         if (!flat) {
           ctx.fillStyle = a.shade || '#c9c0ae';
-          poly([hp(-0.35, 1.3), hp(-1.2, 0.7), hp(-1.55, -0.45), hp(-1.25, -1.45), hp(-0.7, -1.45), hp(-0.85, -0.3), hp(-0.6, 0.8)]);
+          poly([hp(-0.2, 1.7), hp(-0.65, 1.95), hp(-1.35, 0.85), hp(-1.75, -0.5), hp(-1.55, -1.8), hp(-0.9, -1.85), hp(-1.0, -0.4), hp(-0.65, 0.9)]);
+          // fold lines
+          ctx.strokeStyle = 'rgba(80,70,60,0.35)'; ctx.lineWidth = 1.6 * sc;
+          const f0 = hp(0.4, 1.2), f1 = hp(-0.9, -0.6);
+          ctx.beginPath(); ctx.moveTo(f0.x, f0.y); ctx.quadraticCurveTo(hp(-0.5, 0.6).x, hp(-0.5, 0.6).y, f1.x, f1.y); ctx.stroke();
           ctx.fillStyle = '#0b0a10';
           const c = hp(0.5, -0.12);
           ctx.beginPath(); ctx.ellipse(c.x, c.y, hr * 0.62, hr * 0.78, Math.atan2(hf.uy, hf.ux), 0, SA.TAU); ctx.fill();
@@ -930,6 +938,57 @@
           const m = hp(0.45, 0.85);
           ctx.strokeStyle = a.mark || '#e8f2ff'; ctx.lineWidth = 2.2 * sc;
           ctx.beginPath(); ctx.arc(m.x, m.y, hr * 0.22, Math.atan2(hf.fy, hf.fx) + 0.6, Math.atan2(hf.fy, hf.fx) + 0.6 + Math.PI * 1.15); ctx.stroke();
+        }
+        break;
+      }
+      case 'kneeGuardF': case 'kneeGuardB': {
+        // silver knee plates hide the knee joint (no visible rig balls)
+        const B = a.type === 'kneeGuardB';
+        const k = P[B ? 'kneeB' : 'kneeF'], ft = P[B ? 'footB' : 'footF'];
+        const ang = Math.atan2(ft.y - k.y, ft.x - k.x);
+        ctx.fillStyle = col(B ? shade(a.color || '#c9d2de', -0.35) : a.color || '#c9d2de');
+        ctx.beginPath(); ctx.ellipse(k.x + Math.cos(ang) * 6 * b, k.y + Math.sin(ang) * 6 * b, 15 * b, 12 * b, ang, 0, SA.TAU); ctx.fill();
+        if (!flat && !B) {
+          ctx.strokeStyle = a.trim || '#d9b25a'; ctx.lineWidth = 2 * sc;
+          ctx.beginPath(); ctx.ellipse(k.x + Math.cos(ang) * 6 * b, k.y + Math.sin(ang) * 6 * b, 15 * b, 12 * b, ang, -1.2, 1.2); ctx.stroke();
+        }
+        break;
+      }
+      case 'shoulderCloth': {
+        // cloth mantle over both shoulders: widens the upper silhouette, covers the shoulder joints
+        const dx = P.neck.x - P.hip.x, dy = P.neck.y - P.hip.y, L = Math.hypot(dx, dy) || 1;
+        const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+        const c = { x: P.neck.x - ux * 14 * b, y: P.neck.y - uy * 14 * b };
+        const w = 46 * b;
+        ctx.fillStyle = col(a.color || '#e6dfcf');
+        ctx.beginPath();
+        ctx.moveTo(c.x + nx * w + ux * 10 * b, c.y + ny * w + uy * 10 * b);
+        ctx.quadraticCurveTo(c.x + ux * 22 * b, c.y + uy * 22 * b, c.x - nx * w + ux * 10 * b, c.y - ny * w + uy * 10 * b);
+        ctx.lineTo(c.x - nx * w * 0.8 - ux * 26 * b, c.y - ny * w * 0.8 - uy * 26 * b);
+        ctx.quadraticCurveTo(c.x - ux * 40 * b, c.y - uy * 40 * b, c.x + nx * w * 0.8 - ux * 26 * b, c.y + ny * w * 0.8 - uy * 26 * b);
+        ctx.closePath(); ctx.fill();
+        if (!flat && a.trim) {
+          ctx.strokeStyle = a.trim; ctx.lineWidth = 2.4 * sc;
+          ctx.beginPath();
+          ctx.moveTo(c.x - nx * w * 0.8 - ux * 26 * b, c.y - ny * w * 0.8 - uy * 26 * b);
+          ctx.quadraticCurveTo(c.x - ux * 40 * b, c.y - uy * 40 * b, c.x + nx * w * 0.8 - ux * 26 * b, c.y + ny * w * 0.8 - uy * 26 * b);
+          ctx.stroke();
+        }
+        break;
+      }
+      case 'guardHelm': {
+        // tomb guard: tall crested bronze helm with cheek guards - a clearly different head shape
+        ctx.fillStyle = col(a.color || '#8a6a38');
+        poly([hp(1.05, 0.1), hp(0.7, 1.2), hp(-0.2, 2.3), hp(-0.65, 2.2), hp(-1.25, 0.9), hp(-1.2, -0.6), hp(-0.3, -1.25), hp(0.45, -0.9), hp(0.6, -0.15)]);
+        if (!flat) {
+          ctx.fillStyle = a.crest || '#2a1c10';
+          poly([hp(-0.05, 1.9), hp(-1.6, 2.6), hp(-1.8, 1.4), hp(-0.7, 1.4)]);
+          ctx.fillStyle = '#0c0a08';
+          const e = hp(0.55, 0.05);
+          ctx.beginPath(); ctx.ellipse(e.x, e.y, hr * 0.42, hr * 0.22, Math.atan2(hf.fy, hf.fx), 0, SA.TAU); ctx.fill();
+          ctx.strokeStyle = a.trim || '#d6b066'; ctx.lineWidth = 2.5 * sc;
+          const t0 = hp(1.0, 0.3), t1 = hp(-1.2, 0.8);
+          ctx.beginPath(); ctx.moveTo(t0.x, t0.y); ctx.lineTo(t1.x, t1.y); ctx.stroke();
         }
         break;
       }
@@ -1044,6 +1103,7 @@
   function drawMaterial(ctx, f) {
     const look = f.look, P = f.skel, pal = paletteOf(look);
     const sc = look.scale, b = (look.bulk || 1) * sc * (look.limb || 1);
+    const ub = b * (look.upper || 1);       // shoulders / thighs: stronger at the root, tapering to the joint
     const wk = pal.wraps;
     const metal = (f.weapon && f.weapon.metal) || '#c9a25a';
     const grip = (f.weapon && f.weapon.grip) || '#3a2616';
@@ -1053,24 +1113,26 @@
     drawLayer(ctx, f, P, 'headBack', pal, null);
     if (f.weapon) drawWeapons(ctx, P, f.weapon, shade(metal, -0.25), 'B', true, sc, shade(grip, -0.2));
     // far limbs (darker)
-    matLimb(ctx, P.sh, P.elbB, 24 * b, 18 * b, pal, true, 11, wk, sc);
+    matLimb(ctx, P.sh, P.elbB, 24 * ub, 17 * b, pal, true, 11, wk, sc);
     matLimb(ctx, P.elbB, P.handB, 18 * b, 13 * b, pal, true, 12, wk, sc);
     ctx.fillStyle = pal.skinBack; dot(ctx, P.handB, 12 * b);
     drawLayer(ctx, f, P, 'backArm', pal, null);
-    matLimb(ctx, P.hip, P.kneeB, 34 * b, 23 * b, pal, true, 13, wk, sc);
-    matLimb(ctx, P.kneeB, P.footB, 23 * b, 14 * b, pal, true, 14, wk, sc);
+    matLimb(ctx, P.hip, P.kneeB, 34 * ub, 22 * b, pal, true, 13, wk, sc);
+    matLimb(ctx, P.kneeB, P.footB, 22 * b, 14 * b, pal, true, 14, wk, sc);
     matLimb(ctx, P.footB, P.toeB, 14 * b, 8 * b, pal, true, 15, wk * 0.6, sc);
+    drawLayer(ctx, f, P, 'backLeg', pal, null);
     // body
-    matTorso(ctx, P, pal, b, wk, sc);
+    matTorso(ctx, P, pal, b * (look.chest || 1), wk, sc);
     matLimb(ctx, P.neck, P.head, 18 * b, 16 * b, pal, false, 16, wk, sc);
     matHead(ctx, f, P, pal, wk, sc);
     drawLayer(ctx, f, P, 'body', pal, null);
     drawLayer(ctx, f, P, 'head', pal, null);
     // near limbs
-    matLimb(ctx, P.hip, P.kneeF, 34 * b, 23 * b, pal, false, 21, wk, sc);
-    matLimb(ctx, P.kneeF, P.footF, 23 * b, 14 * b, pal, false, 22, wk, sc);
+    matLimb(ctx, P.hip, P.kneeF, 34 * ub, 22 * b, pal, false, 21, wk, sc);
+    matLimb(ctx, P.kneeF, P.footF, 22 * b, 14 * b, pal, false, 22, wk, sc);
     matLimb(ctx, P.footF, P.toeF, 14 * b, 8 * b, pal, false, 23, wk * 0.6, sc);
-    matLimb(ctx, P.sh, P.elbF, 24 * b, 18 * b, pal, false, 24, wk, sc);
+    drawLayer(ctx, f, P, 'frontLeg', pal, null);
+    matLimb(ctx, P.sh, P.elbF, 24 * ub, 17 * b, pal, false, 24, wk, sc);
     matLimb(ctx, P.elbF, P.handF, 18 * b, 13 * b, pal, false, 25, wk, sc);
     if (f.weapon) drawWeapons(ctx, P, f.weapon, metal, 'F', true, sc, grip);
     ctx.fillStyle = wk > 0.5 ? pal.wrap : pal.skin;
@@ -1096,7 +1158,9 @@
     drawLayer(ctx, f, P, 'back', pal, color);
     drawLayer(ctx, f, P, 'headBack', pal, color);
     drawLayer(ctx, f, P, 'backArm', pal, color);
+    drawLayer(ctx, f, P, 'backLeg', pal, color);
     drawFlat(ctx, P, f.look, color, color, f.weapon);
+    drawLayer(ctx, f, P, 'frontLeg', pal, color);
     drawLayer(ctx, f, P, 'body', pal, color);
     drawLayer(ctx, f, P, 'head', pal, color);
     drawLayer(ctx, f, P, 'front', pal, color);

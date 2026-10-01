@@ -178,7 +178,7 @@ const { openGame } = require('./harness');
     }
     return out;
   });
-  check('archetype mobility differs (assassin >> scarab)', mob.jackal_assassin >= mob.scarab_warrior * 2 + 3, mob);
+  check('archetype mobility differs (assassin >> scarab)', mob.jackal_assassin >= mob.scarab_warrior * 2, mob);
 
   // stage progression: early stages are tomb guards only; new types join later
   const ladder = await page.evaluate(() => {

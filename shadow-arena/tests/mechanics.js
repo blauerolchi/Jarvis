@@ -87,12 +87,12 @@ const { openGame } = require('./harness');
     out.evadeHeavy = g.p1.hp === g.p1.maxHp ? 'evaded' : 'hit';
 
     // 7) jump attacks
-    fresh(0, 360); T.run(1, { press: ['up'], hold: ['right'] }); T.run(20, { hold: ['right'] }); T.run(1, { press: ['kick'] }); T.run(50);
+    fresh(0, 420); T.run(1, { press: ['up'], hold: ['right'] }); T.run(34, { hold: ['right'] }); T.run(1, { press: ['kick'] }); T.run(50);
     out.flyingKick = { hit: hit(), dmg: g.p2.maxHp - g.p2.hp };
     fresh(0, 460); T.run(1, { press: ['up'], hold: ['right'] }); T.run(32, { hold: ['right'] }); T.run(1, { press: ['light'] }); T.run(50);
     out.airPunch = { hit: hit(), dmg: g.p2.maxHp - g.p2.hp };
     // overhead vs crouch block
-    fresh(0, 330); g.ai2.forceHold = ['block', 'down']; T.run(1, { press: ['up'], hold: ['right'] }); T.run(20, { hold: ['right'] }); T.run(1, { press: ['kick'] }); T.run(50);
+    fresh(0, 420); g.ai2.forceHold = ['block', 'down']; T.run(1, { press: ['up'], hold: ['right'] }); T.run(34, { hold: ['right'] }); T.run(1, { press: ['kick'] }); T.run(50);
     out.overheadVsCrouchBlock = hit() && g.p2.hp < g.p2.maxHp - 20 ? 'hit' : 'blocked';
 
     // 8) specials

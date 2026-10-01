@@ -224,9 +224,10 @@
       const fac = f ? f.facing : 1;
       const fwd = (z) => ((z === 'upR' || z === 'downR') ? 1 : -1) * fac > 0;
       // zone actions fire once per entry (re-armed by the centre or by changing zone)
-      if (zone === 'up') { if (!air && (s.armed || prev !== 'up')) { Q.push('gJump'); s.g.fired = true; } }
+      // up in the air = double jump (diagonal: the held side gives it a direction)
+      if (zone === 'up') { if (s.armed || prev !== 'up' || air) { Q.push('gJump'); s.g.fired = true; } }
       else if (zone === 'upR' || zone === 'upL') {
-        if (!air) { Q.push(fwd(zone) ? 'gFlipF' : 'gFlipB'); s.g.fired = true; }
+        Q.push(air ? 'gJump' : fwd(zone) ? 'gFlipF' : 'gFlipB'); s.g.fired = true;
       } else if (zone === 'downR' || zone === 'downL') {
         if (air) Q.push('gDown');
         else Q.push(fwd(zone) ? 'gRollF' : 'gRollB');

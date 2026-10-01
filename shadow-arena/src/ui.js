@@ -1081,10 +1081,13 @@
       row('P1', p1), '   ' + fd(p1),
       row('P2', p2), '   ' + fd(p2),
       `DIST ${Math.round(Math.abs(p1.x - p2.x))}  MIN ${Math.round(SA.Physics.minDistance(p1, p2))}  hitstop ${g.hitstop}  AI ${ai}`,
+      `anim ${p1.animName || '-'} t ${Math.floor(p1.st)}  blend ${p1.blendFrom || '-'} > ${p1.animName || '-'} ${Math.round(Math.min(1, ((p1.animTime || 0) - (p1.blendAt || 0)) / 0.1) * 100)}%`,
+      `grav x${(p1.gravNow || 0).toFixed(2)}  air ${(p1.airTime || 0).toFixed(2)}s  jumps ${p1.airJumps | 0}  coyote ${Math.max(0, p1.coyote | 0)}  time x${g.timeScale.toFixed(2)}${g.slowTimer > 0 ? ' FOCUS' : ''}`,
+      `buffer ${p1.ctrl.describe()}  cancel ${p1.state === 'attack' && p1.move ? (p1.cancelOpen() ? 'OPEN' : 'closed') : '-'}`,
     ];
     ctx.fillStyle = 'rgba(0,0,0,0.62)';
     ctx.fillRect(24, 132, 760, lines.length * 25 + 16);
-    lines.forEach((l, i) => SA.text(ctx, l, 36, 152 + i * 25, { size: 17, weight: 600, font: 'monospace', color: i === 0 ? (g.fps < 50 ? '#ff6b5b' : '#7dff9a') : i === 5 ? '#ffd27a' : i % 2 === 0 ? '#e8d9b0' : '#d8f5ff' }));
+    lines.forEach((l, i) => SA.text(ctx, l, 36, 152 + i * 25, { size: 17, weight: 600, font: 'monospace', color: i === 0 ? (g.fps < 50 ? '#ff6b5b' : '#7dff9a') : i === 5 ? '#ffd27a' : i > 5 ? '#bfe8ff' : i % 2 === 0 ? '#e8d9b0' : '#d8f5ff' }));
   };
 
   UI.Menu = Menu;

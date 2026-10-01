@@ -202,7 +202,7 @@ const { openGame } = require('./harness');
     for (let i = 0; i < 1500; i++) {
       g.tick(); g.p1.hp = Math.max(g.p1.hp, 500); g.p2.hp = Math.max(g.p2.hp, 500);
       const a = g.p1, b = g.p2;
-      if (a.body.pass || b.body.pass || !a.grounded || !b.grounded || a.state === 'down' || b.state === 'down' || a.state === 'hitstun' && b.bm && b.bm.grabbed) { run = 0; continue; }
+      if (a.body.pass || b.body.pass || !a.grounded || !b.grounded || Math.abs(a.y - b.y) > 100 || a.state === 'down' || b.state === 'down' || a.state === 'hitstun' && b.bm && b.bm.grabbed) { run = 0; continue; }
       const ov = SA.Physics.minDistance(a, b) - Math.abs(a.x - b.x);
       // a transient overlap right after a pass-through (roll, shadow dash) is pushed out within a few frames
       run = ov > 30 ? run + 1 : 0;

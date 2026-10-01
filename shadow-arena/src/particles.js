@@ -250,6 +250,18 @@
       }
     },
 
+    // double jump: a crescent of moonlight and a sand puff under the feet
+    moonBurst(ps, x, y, color) {
+      ps.spawn({ type: 'ring', x, y, size: 110, life: 0.28, color: '#ffffff', len: 4, alpha: 0.85, rot: 0.32 });
+      ps.spawn({ type: 'ring', x, y, size: 170, life: 0.36, color, len: 3, alpha: 0.6, rot: 0.32 });
+      ps.spawn({ type: 'flash', x, y: y - 6, size: 120, life: 0.16, color, alpha: 0.7 });
+      for (let i = 0; i < 10; i++) {
+        const a = Math.PI / 2 + rand(-1.2, 1.2), sp = rand(200, 520);
+        ps.spawn({ type: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.4, drag: 6, grav: 300, life: rand(0.18, 0.3), size: rand(2, 3.5), color: i % 2 ? color : '#ffffff', len: 1 });
+        ps.spawn({ type: 'dust', x: x + rand(-30, 30), y: y + rand(-6, 6), vx: rand(-160, 160), vy: rand(20, 120), drag: 3, life: rand(0.35, 0.6), size: rand(14, 24), color: '#c8b08a', add: false, alpha: 0.5, front: false });
+      }
+    },
+
     // dive impact: flat shock ring on the floor, a sand fountain and crescent sparks
     impact(ps, x, y, power, color) {
       ps.spawn({ type: 'flash', x, y: y - 10, size: 160 + power * 200, life: 0.18, color: '#fff4dc', alpha: 0.8 });

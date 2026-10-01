@@ -99,6 +99,17 @@ Jeder Finger wird über seine `pointerId` verfolgt und per `setPointerCapture` f
 
 **Eingabepuffer:** Jeder Tastendruck wird 150 ms gespeichert, zusammen mit der Richtung, die in diesem Moment gehalten wurde. Ein Angriff, der kurz vor dem Ende der laufenden Animation gedrückt wird, kommt im nächsten gültigen Cancel-Fenster, und zwar mit der Richtung des Drucks. Ein interner Mobilitätswert verhindert Ausweich-Spam: Wer viele Ausweichbewegungen hintereinander macht, rollt etwas kürzer und erholt sich langsamer, eine sichtbare Stamina-Leiste gibt es nicht.
 
+### Sprung, Double Jump & Luftkontrolle
+
+- **Airtime statt Hektik:** normaler Sprung ~0,93 s, akrobatischer Sprung / Flips 1,0–1,1 s, am höchsten Punkt ein kurzer **Apex Hang** (~0,1 s mit reduzierter Schwerkraft). Flips drehen langsam an, schnell in der Mitte, weich aus (eigene Rotationskurve) und sind jederzeit durch einen Angriff unterbrechbar.
+- **Double Jump:** in der Luft erneut ↑ (Touch) bzw. W. Schwächer als der erste Sprung (~0,6 s zusätzliche Luftzeit), Knie ziehen an, Mondlicht-Ring und Sandwolke unter den Füßen. Neutral = senkrecht, mit Richtung = diagonal, nach hinten = Rückwärtssalto. Er frischt den Luftangriff auf und kann die Erholung eines Luftangriffs abbrechen.
+- **Luftkontrolle ~40 %:** Beschleunigung auf eine begrenzte Luftgeschwindigkeit, leichter Luftwiderstand, kein sofortiger 180°-Wechsel; Schwung aus Flips und Dashes bleibt erhalten, auch während Luftangriffen.
+- **Coyote Time** (~100 ms nach dem Verlassen einer Kante zählt ein Sprung noch als Bodensprung) und **Jump Buffer** (↑ kurz vor der Landung springt beim Aufsetzen).
+- **Boden:** ~95 % Zielgeschwindigkeit in ~110 ms, Abbremsen in ~120 ms, ruhigere Lauf-/Sprinttempi. Das Spektakel kommt aus Dashes, Flips, Combos und Trails, nicht aus hektischem Grundtempo.
+- **Landung:** nur Pose (Knie, Squash), kein Lock; ein verfehlter Luftangriff kostet ~100 ms.
+- **Zeitlupen-Momente (CombatTimeController):** schwere Lufttreffer, Sturzangriffe, Combo-Finisher, Perfect Dodge, Schuss aus Backflip/Double Jump: kurz 0,36–0,6× für 60–140 ms Echtzeit, dann weich zurück. Leichte Treffer nie. Eingaben laufen in Echtzeit weiter, die nächste Aktion kann während der Zeitlupe gepuffert werden. Hitstop ist kürzer (leicht ~17 ms, schwer 50–67 ms).
+- **Kamera:** gewichteter Mittelpunkt (Spieler etwas stärker), **Deadzone** horizontal und vertikal, ruhiges Nachziehen, dezenter Look-Ahead (Lauf, Sprung nach oben, Sturz nach unten).
+
 ### Plattformen
 
 Jede Arena hat neben dem Boden **3–4 schwebende Sandsteinplattformen** (Layouts *temple*, *bridge*, *steps*, *four*). Sie sind **one-way**: von unten durchspringen, von oben landen. Von der Kante laufen, rollen oder dashen = Fallen (nie hängenbleiben), ↓ auf der Plattform = durchfallen, Fast Fall fällt ebenfalls hindurch. Die untere Ebene erreicht man vom Boden mit Sprung oder Flip, die obere von einer unteren Plattform. Die Kamera zoomt und hebt sich weich mit, Schatten liegen auf der Fläche unter dem Kämpfer, Wurfgeschosse und Schüsse nach unten schlagen auf Plattformen ein.
@@ -267,7 +278,7 @@ Lokal in `localStorage`, versioniert (aktuell Version 4). Alte Spielstände werd
 
 | Taste / Einstellung | Funktion |
 |---|---|
-| *Settings → DEBUG OVERLAY* | Overlay auch auf dem Tablet: FPS, Frame-Zeit (aktuell / Maximum), Interpolations-Alpha, Zustand, Geschwindigkeit, Boden/Luft und Mobilität beider Kämpfer, aktueller Move mit Phase, Frame x/Startup+Active+Recovery, offenes Cancel-Fenster und Blend-Anteil, Distanz, Hitstop, KI-Intent |
+| *Settings → DEBUG OVERLAY* | Overlay auch auf dem Tablet: FPS, Frame-Zeit (aktuell / Maximum), Interpolations-Alpha, Zustand, Geschwindigkeit, Boden/Luft und Mobilität beider Kämpfer, aktueller Move mit Phase, Frame x/Startup+Active+Recovery, offenes Cancel-Fenster und Blend-Anteil, Distanz, Hitstop, KI-Intent, Animation + Zeit, Blend-Quelle → Ziel in %, Schwerkraft-Faktor, Airtime, verbleibende Sprünge, Coyote, TimeScale / FOCUS, Eingabepuffer |
 | **F1** | ausführliches Debug-Overlay (Zustände, Animation, Buffer, Hitstop …) |
 | **F2** | Hitboxen: **blau** Movement Collider, **grün** Hurtbox, **rot** Angriff (gestrichelt: Nah-Hitbox), **gelb** Projektile, **orange** Waffenreichweite, dazu Distanz / Mindestabstand / Blickrichtung |
 | **F3** | KI-Intent und Plan über dem Gegner |
@@ -321,6 +332,7 @@ NODE_PATH=$(npm root -g) node tests/touch.js       # echter Multitouch: Joystick
 NODE_PATH=$(npm root -g) node tests/platforms.js   # One-Way-Plattformen, Durchfallen, Fast Fall, Kanten, Kamera, Abnahmetest 54
 NODE_PATH=$(npm root -g) node tests/flowcombat.js  # Abnahmetest 55, Schießen ohne State-Lock, Auto-Reload, Dive, Crescent Moonfall, Flow-Combos
 NODE_PATH=$(npm root -g) node tests/aiplatform.js  # KI auf Plattformen + Abnahmetest 56 (30 s KI gegen KI)
+NODE_PATH=$(npm root -g) node tests/choreo.js      # Abnahmetest 74 + Airtime, Apex Hang, Double Jump, Coyote Time, Jump Buffer
 NODE_PATH=$(npm root -g) node tests/ai.js          # Intents, Spacing, Reaktionszeiten, Combos, Ecke
 NODE_PATH=$(npm root -g) node tests/bosses.js      # jede Götter-Fähigkeit trifft und hat einen Konter, Intro, Phasen
 NODE_PATH=$(npm root -g) node tests/smooth.js     # Abnahmetests A–G: keine Posen-/Positionssprünge, Übergänge ohne Idle, Interpolation, Frame-Zeiten

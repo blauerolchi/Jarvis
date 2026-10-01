@@ -26,7 +26,7 @@
       this.x = (a.x + b.x) / 2;
       this.zoom = this.targetZoom(Math.abs(a.x - b.x));
       this.y = this.baseY(this.zoom);
-      this.lead = 0; this.speedZoom = 0;
+      this.lead = 0; this.speedZoom = 0; this.look = 0; this.dzx = this.x;
       this.snapshotRender();
     }
 
@@ -42,31 +42,39 @@
         tz = this.focus.zoom;
         ty = this.baseY(tz) + (this.focus.y || 0);
       } else {
-        // lead: the camera drifts ahead of a dashing / sprinting fighter, so the move feels fast
-        let lead = 0, fast = 0;
+        // weighted midpoint (the player a little heavier) with a dead zone: small movements inside
+        // it don't move the camera at all, outside it the camera follows smoothly
+        let lead = 0, fast = 0, look = 0;
         for (let fi = 0; fi < 2; fi++) {
           const f = fi ? b : a;
           const st = f.state;
-          if (st === 'dash' || st === 'sprint' || st === 'run' || st === 'roll' || (st === 'bossmove' && Math.abs(f.vx) > 1200)) lead += clamp(f.vx * 0.06, -110, 110);
-          if (st === 'sprint' || (st === 'dash' && Math.abs(f.vx) > 1200)) fast = Math.max(fast, 1);
-          else if (st === 'run') fast = Math.max(fast, 0.5);
+          if (st === 'dash' || st === 'sprint' || st === 'run' || st === 'roll') lead += clamp(f.vx * 0.035, -55, 55);
+          if (st === 'sprint' || (st === 'dash' && Math.abs(f.vx) > 1200)) fast = Math.max(fast, 0.6);
         }
-        this.lead = damp(this.lead, clamp(lead, -130, 130), 4, dt);
-        this.speedZoom = damp(this.speedZoom, fast, 3, dt);
-        tx = (a.x + b.x) / 2 + this.lead;
-        tz = this.targetZoom(Math.abs(a.x - b.x)) - this.speedZoom * 0.05;
-        // vertical: platforms / air. Zoom out so both fighters (heads + a margin) fit, and lift the
-        // view smoothly when the fight moves up (the floor may leave the screen on the high tier)
-        const top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
+        // subtle vertical look: up while rising high, down on a dive / fast fall (the player only)
+        if (!a.grounded) look = a.vy < -700 ? -28 : (a.dive || a.fastFall) ? 30 : 0;
+        this.lead = damp(this.lead, clamp(lead, -70, 70), 3, dt);
+        this.look = damp(this.look || 0, look, 3, dt);
+        this.speedZoom = damp(this.speedZoom, fast, 2, dt);
+        const mid = a.x * 0.56 + b.x * 0.44 + this.lead;
+        const DZ = 70;
+        if (this.dzx === undefined) this.dzx = mid;
+        if (mid > this.dzx + DZ) this.dzx = mid - DZ;
+        else if (mid < this.dzx - DZ) this.dzx = mid + DZ;
+        tx = this.dzx;
+        tz = this.targetZoom(Math.abs(a.x - b.x)) - this.speedZoom * 0.04;
+        // vertical: platforms / air. Zoom out so both fighters (heads + a margin) fit; the view only
+        // lifts once someone is clearly up high (vertical dead zone)
+        const top = Math.min(a.grounded ? a.y : a.y + 60, b.grounded ? b.y : b.y + 60), bottom = Math.max(a.y, b.y);
         const need = (bottom - top) + 470;
         tz = Math.max(0.74, Math.min(tz, SA.H * 0.97 / need));
-        if (top < -220) tz -= Math.min(0.1, (-220 - top) / 3000);
-        ty = Math.min(this.baseY(tz), (top - 290 + bottom + 170) / 2);
+        if (top < -240) tz -= Math.min(0.08, (-240 - top) / 3500);
+        ty = Math.min(this.baseY(tz), top < -170 ? (top - 290 + bottom + 170) / 2 : this.baseY(tz)) + this.look;
       }
-      const k = this.focus ? 5 : 7;
+      const k = this.focus ? 5 : 4.2;
       this.x = damp(this.x, tx, k, dt);
-      this.zoom = damp(this.zoom, tz, this.focus ? 4 : 3.2, dt);
-      this.y = damp(this.y, ty, this.focus ? 6 : 4.5, dt);
+      this.zoom = damp(this.zoom, tz, this.focus ? 4 : 2.2, dt);
+      this.y = damp(this.y, ty, this.focus ? 6 : 3.4, dt);
 
       this.zoomKick = damp(this.zoomKick, 0, 9, dt);
       this.trauma = Math.max(0, this.trauma - dt * 1.7);

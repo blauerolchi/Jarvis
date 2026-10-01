@@ -362,7 +362,17 @@
     // Checks a's active hit against b and resolves it.
     check(a, b, game, atk) {
       atk = atk || a.activeHit();
-      if (!atk || a.hitList.has(b) || !b.canBeHit(a)) return;
+      if (!atk || a.hitList.has(b)) return;
+      if (!b.canBeHit(a)) {
+        // perfect dodge: the attack passes through a rolling / backstepping / flik-flakking player
+        if (b.isPlayer && b.invuln > 0 && b.dodgeSeen !== a.move && (b.state === 'roll' || b.state === 'evade' || b.state === 'flip') &&
+            hurtRegion(atk.rect, b)) {
+          b.dodgeSeen = a.move;
+          if (game.focus(0.5, 0.14, 0.18)) game.label('PERFECT DODGE', b.x, b.y - 300, '#cfe8ff', b, 0.9);
+          b.addEnergy(6);
+        }
+        return;
+      }
       let hit = hurtRegion(atk.rect, b);
       // close-range hitbox (forearm / hilt / shin) only counts in front of a grounded attacker,
       // so point-blank attacks connect but nothing ever hits behind the fighter
@@ -478,7 +488,7 @@
       if (!(a.flowT > 0)) a.flow.length = 0;
       a.flow.push(comboTag(a, m, opts));
       if (a.flow.length > 8) a.flow.shift();
-      a.flowT = 66;
+      a.flowT = 80;
       b.flowT = 0;
       a.moveContact = 'hit';
 
@@ -512,6 +522,13 @@
           // knockback reads the attack: a dive spikes an airborne victim down / bounces a grounded one
           // up, heavy air attacks send further
           if (spike) { b.vy = airborne ? 1150 : -780; b.vx = dir * 170; }
+          // dive kick / falling slash: the attacker bounces off -> double jump -> air slash
+          if (spike && a.dive !== 'heavy' && !a.grounded) {
+            a.cancelMove(); a.setState('air');
+            a.dive = false; a.flipAtk = 0; a.gravMul = 1;
+            a.vy = -820; a.vx = -dir * 160;
+            a.airAttackUsed = false;
+          }
           else if (!a.grounded && (m.power || 0.5) >= 0.8) b.vx *= 1.2;
         } else {
           b.setState('hitstun');
@@ -529,6 +546,13 @@
       b.addEnergy(dmg * 0.07);
       this.applyElement(a, b, m, hit, game);
 
+      // focus moments (CombatTimeController): heavy air hits, dives, combo enders - never light hits
+      if (!opts.projectile && !opts.keepState) {
+        const airHeavy = !a.grounded && (m.power || 0.5) >= 0.8;
+        if (a.dive || m.id === 'diveImpact') game.focus(0.36, 0.1, 0.16);
+        else if (airHeavy) game.focus(0.38, 0.07, 0.14);
+        else if ((m.knockdown || ko) && a.combo.hits >= 4) game.focus(0.5, 0.08, 0.14);
+      }
       let stop = (m.hitstop || 3) + (counter ? 2 : 0);
       if (ko) stop = 12;
       game.hitStop(stop);

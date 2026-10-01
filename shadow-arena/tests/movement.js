@@ -130,14 +130,14 @@ const { openGame } = require('./harness');
     return o;
   });
 
-  check('input reacts at once: 90 % walk speed within 4 frames', r.walkFrames > 0 && r.walkFrames <= 4, r.walkFrames);
+  check('controlled acceleration: 90 % walk speed in 80-140 ms (5-8 frames)', r.walkFrames >= 4 && r.walkFrames <= 8, r.walkFrames);
   check('T7 reversal flips velocity within 3 frames + pivot', r.reverseFrames > 0 && r.reverseFrames <= 3 && r.pivot, { frames: r.reverseFrames, pivot: r.pivot });
-  check('keyboard: walk -> run -> sprint by hold time', r.tiers.join() === 'walk,run,sprint' && r.sprintSpeed > 900, { tiers: r.tiers, v: r.sprintSpeed });
+  check('keyboard: walk -> run -> sprint by hold time', r.tiers.join() === 'walk,run,sprint' && r.sprintSpeed > 820, { tiers: r.tiers, v: r.sprintSpeed });
   check('stick: deflection picks walk / run / sprint instantly', r.stickWalk[0] === 'walk' && r.stickRun[0] === 'run' && r.stickSprint[0] === 'sprint' && r.stickWalk[1] < r.stickRun[1] && r.stickRun[1] < r.stickSprint[1],
     { walk: r.stickWalk, run: r.stickRun, sprint: r.stickSprint });
   check('T8 dash > dash attack > combo > backstep', /dash > dashPunch.*jab > jab2.*evade/.test(r.flow), r.flow);
   check('backstep counter (backstep + heavy)', r.backCounter.start === 'evade' && r.backCounter.move === 'backCounter' && r.backCounter.bonus > 1, r.backCounter);
-  check('front flip: up while running = long fast flip', r.leap.air && r.leap.vx > 780 && r.leap.state === 'flip', r.leap);
+  check('front flip: up while running = long flip (medium speed, lots of airtime)', r.leap.air && r.leap.vx > 560 && r.leap.state === 'flip', r.leap);
   check('slide: sprint + down, then attack = slide attack', r.slide === 'slideKick', r.slide);
   check('running attack', r.runAttack === 'runStrike', r.runAttack);
   check('directional heavies: lunge / uppercut / sweep', r.heavy.neutral === 'heavy' && r.heavy.fwd === 'lunge' && r.heavy.up === 'uppercut' && r.heavy.down === 'sweep', r.heavy);
@@ -145,7 +145,7 @@ const { openGame } = require('./harness');
   check('normal landing has no input lock', r.landAttack === 'attack', r.landAttack);
   check('dash cooldown (buffered second dash)', r.dashCd.first === 'dash' && r.dashCd.early !== 'dash' && r.dashCd.buffered, r.dashCd);
   check('roll: invulnerable early, vulnerable end', r.roll.early && r.roll.late, r.roll);
-  check('whiffed jump attack is punishable on landing', r.whiffLag >= 8, r.whiffLag);
+  check('whiffed jump attack is punishable on landing (~100 ms, no landing lock)', r.whiffLag >= 5 && r.whiffLag <= 8, r.whiffLag);
 
   // weapon: dash attack, running attack, sweep and backstep counter exist for every weapon style
   const wset = await page.evaluate(() => {

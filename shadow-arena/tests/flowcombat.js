@@ -67,16 +67,16 @@ const { openGame } = require('./harness');
     R.runShot = { ammo: a0 - p.rangedState.ammo, state: p.state, shootT: p.shootT > 0 };
     // salto shot: fire inside a front flip, the flip continues
     T.place(-600, 300); T.run(3);
-    T.run(1, { press: ['gFlipF'] }); T.run(8);
+    T.run(1, { press: ['gFlipF'] }); T.run(14);
     const rot0 = p.pose.rot;
     T.run(1, { press: ['ranged'] }); T.run(3);
     R.saltoShot = { state: p.state, kind: p.flip && p.flip.kind, shootT: p.shootT > 0, rotating: Math.abs(p.pose.rot - rot0) > 0.3 };
     // falling shot: down + shoot in the air aims down and holds the fall a moment
-    T.place(-600, 300); T.run(3);
+    T.place(-100, 500); T.run(3);   // not under a platform (a downward shot would hit its top)
     T.run(1, { press: ['gJump'] }); T.run(22);
     const vy0 = p.vy;
     T.run(1, { press: ['ranged'], hold: ['down'] });
-    const pr = g.projectiles.pool.filter((q) => q.alive && q.owner === p).pop();
+    const pr = g.projectiles.pool.filter((q) => q.alive && q.owner === p).sort((a, b) => a.life - b.life)[0];
     R.fallShot = { aimDown: pr ? pr.vy > 600 : false, vyBefore: Math.round(vy0), vyAfter: Math.round(p.vy) };
     // roll exit shot
     T.place(-600, 300); T.run(3);
@@ -119,7 +119,7 @@ const { openGame } = require('./harness');
       { press: ['light'] }, { until: (x) => x.state === 'air', max: 40 },
       { press: ['heavy'], hold: ['down'] }, { until: (x) => x.grounded, max: 60, hold: ['down'] }, { n: 10 },
     ]).best;
-    R.moonGunner = play(() => T.place(300, 470), [
+    R.moonGunner = play(() => T.place(250, 400), [
       { press: ['gFlipB'] }, { n: 8 },
       { press: ['ranged'] }, { n: 8 }, { press: ['ranged'] },
       { until: (x) => x.grounded, max: 60 },

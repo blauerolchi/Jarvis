@@ -15,12 +15,18 @@
   const A = SA.Anim;
 
   // Movement tuning (px/s, frames). Responsive input: target speeds are reached within ~3 frames.
-  const WALK_FWD = 430, WALK_BACK = 350, RUN_SPEED = 760, SPRINT_SPEED = 960;
-  const ACCEL = 60, DECEL = 40;
-  const JUMP_VY = -1480, JUMP_VX = 540;
-  const DASH_CD = 12;
+  // Ground: ~95 % of the target speed in ~110 ms, a clean stop in ~120 ms (no velocity jumps).
+  const WALK_FWD = 400, WALK_BACK = 330, RUN_SPEED = 700, SPRINT_SPEED = 870;
+  const ACCEL = 27, DECEL = 25;
+  // Jump: ~0.95 s in the air (rise 0.44 s, short apex hang, fall 0.43 s); double jump ~0.6 s
+  const JUMP_VY = -1500, JUMP_VX = 470;
+  const DJUMP_VY = -1160, DJUMP_VX = 430;
+  const COYOTE = 6, LAND_JUMP_H = 70;
+  const DASH_CD = 6;   // short: the hidden mobility meter is what stops dodge spam
   const RUN_AFTER = 9, SPRINT_AFTER = 38;      // keyboard: hold forward to break into a run / sprint
-  const AIR_STEER = 1250, AIR_MAX = 620;   // air control ≈ 40 % of ground control
+  // Air control ≈ 40 % of ground control: acceleration toward a capped air speed, a light drag
+  // without input, never an instant 180° turn. Momentum above the cap (flips, dashes) is kept.
+  const AIR_ACCEL = 1900, AIR_MAX = 520, AIR_DRAG = 0.7;
 
   // ---------- root motion ----------
   // Mobility moves don't use flat speeds: each has a velocity *shape* v(u) over its duration, turned
@@ -58,14 +64,18 @@
   for (const k in MOB) MOB[k].curve = makeCurve(MOB[k].shape);
   // acrobatics: take-off velocity, gravity scale, rotation frames, attack allowed from frame, invulnerable frames
   const FLIPS = {
-    front: { vy: -1420, vx: 820, grav: 1, rotFrames: 30, atkFrom: 8, dir: 1, cost: 18 },
-    back: { vy: -1400, vx: -600, grav: 1.05, rotFrames: 28, atkFrom: 14, dir: -1, cost: 18 },
+    // flips: medium horizontal speed, lots of airtime (~1.0-1.1 s), rotation spread over most of it
+    front: { vy: -1600, vx: 640, grav: 0.9, rotFrames: 44, atkFrom: 6, dir: 1, cost: 18 },
+    back: { vy: -1520, vx: -520, grav: 0.92, rotFrames: 42, atkFrom: 8, dir: -1, cost: 18 },
     // handspring (flik-flak): low, fast arc backwards over the hands
-    hand: { vy: -520, vx: -820, grav: 0.9, rotFrames: 19, atkFrom: 99, dir: -1, invuln: [2, 11], cost: 30 },
+    hand: { vy: -600, vx: -700, grav: 0.85, rotFrames: 26, atkFrom: 99, dir: -1, invuln: [2, 13], cost: 30 },
     // joystick up: acrobatic jump with a small tucked spin; horizontal speed from the held direction
-    spin: { vy: -1560, vx: 0, steer: true, grav: 1, rotFrames: 26, atkFrom: 5, dir: 1, cost: 0 },
+    spin: { vy: -1560, vx: 0, steer: true, grav: 1, rotFrames: 34, atkFrom: 4, dir: 1, cost: 0 },
+    // double jump: knees tucked, a quick half-turn, much less force than the first jump
+    dj: { vy: DJUMP_VY, vx: 0, steer: true, steerVx: DJUMP_VX, grav: 1, rotFrames: 26, atkFrom: 3, dir: 1, tilt: 0.55, cost: 0 },
+    djB: { vy: DJUMP_VY, vx: 0, steer: true, steerVx: DJUMP_VX, grav: 1, rotFrames: 26, atkFrom: 3, dir: -1, cost: 0 },
     // double ↗: flip leap, long and high (platform to platform)
-    leap: { vy: -1640, vx: 960, grav: 0.96, rotFrames: 34, atkFrom: 8, dir: 1, cost: 22 },
+    leap: { vy: -1660, vx: 820, grav: 0.9, rotFrames: 46, atkFrom: 8, dir: 1, cost: 22 },
   };
   const FAST_FALL = 1650;
   const ROLL = MOB.roll;
@@ -154,7 +164,7 @@
     }
 
     reset(x, facing) {
-      this.x = x; this.y = 0; this.vx = 0; this.vy = 0; this.plat = null; this.dropT = 0; this.fastFall = false; this.shootT = 0; this.shotCd = 0; this.dive = false;
+      this.x = x; this.y = 0; this.vx = 0; this.vy = 0; this.plat = null; this.dropT = 0; this.fastFall = false; this.shootT = 0; this.shotCd = 0; this.dive = false; this.airJumps = 1; this.coyote = 0;
       this.prevX = x; this.prevY = 0;
       this.facing = facing;
       this.grounded = true;
@@ -295,6 +305,7 @@
       this.moveContact = null;
       this.lunged = false;
       this.whooshed = false;
+      this.cineDone = false;
       this.fired = false;
       this.effectDone = false;
       this.trail.length = 0;
@@ -395,7 +406,7 @@
       }
 
       SA.Physics.integrate(this, dt, game);
-      c.tick(ts);
+      c.tick(1);   // the input buffer runs on real time: during slow motion the next action can be queued
     }
 
     updateStatus(dt, game) {
@@ -713,8 +724,11 @@
       if (r.proj.returns) rs.out = true;
       const air = !this.grounded;
       const o = game.p1 === this ? game.p2 : game.p1;
+      // in the air the shooter turns to the target it flew over (mid-air turn shot)
+      if (air && o && Math.abs(o.x - this.x) > 40 && Math.sign(o.x - this.x) !== this.facing) this.facing = Math.sign(o.x - this.x);
       let aim = 0;
-      if (air && c.held('down')) aim = 0.85;            // falling shot
+      const downShot = air && c.held('down');
+      if (downShot) aim = 0.85;                          // falling shot
       else if (c.held('up')) aim = -0.45;               // anti-air
       else if (o) {
         // light aim assist toward the opponent's chest (platform height differences)
@@ -723,13 +737,17 @@
       }
       this.shotHand = r.dual ? 1 - (this.shotHand || 0) : 1;
       game.projectiles.fire(this, r, game, aim);
+      // bullet time: a shot out of a backflip / double jump at a close enough target
+      if (air && this.isPlayer && this.flip && (this.flip.kind === 'back' || this.flip.kind === 'dj' || this.flip.kind === 'djB') && o && Math.abs(o.x - this.x) < 800) {
+        game.focus(0.6, 0.1, 0.14);
+      }
       this.shootAim = aim;
       this.shootT = this.shootMax = 14;
       this.shotCd = r.rate || Math.max(7, Math.round((r.startup + r.recovery) * 0.6));
       const rec = r.recoil || (r.kind === 'gun' ? 100 : 40);
       if (air) {
         this.vx -= this.facing * rec * 0.55 * Math.cos(aim);
-        if (aim > 0.3) { this.vy = Math.min(this.vy, 0) - 160 - rec * 0.5; this.fastFall = false; }   // shooting down pushes up
+        if (downShot) { this.vy = Math.min(this.vy, 0) - 160 - rec * 0.5; this.fastFall = false; }   // shooting down pushes up
         else if (this.vy > 0) this.vy *= 0.6;                                                          // a short air stall
       } else {
         this.vx -= this.facing * rec * 0.6;
@@ -851,6 +869,7 @@
     }
 
     startRoll(game, dir) {
+      this.rollRot0 = Math.atan2(Math.sin(this.pose.rot || 0), Math.cos(this.pose.rot || 0));
       this.setState('roll');
       this.rollDir = dir;
       this.startRoot('roll', dir);
@@ -891,13 +910,14 @@
       this.y -= 1;
       this.vy = F.vy;
       const sd = F.steer ? (this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0) : 0;
-      this.vx = this.facing * (F.steer ? sd * JUMP_VX : F.vx) * this.speedMul;
+      this.vx = this.facing * (F.steer ? sd * (F.steerVx || JUMP_VX) : F.vx) * this.speedMul;
       this.gravMul = F.grav;
       this.fastFall = false;
       this.airAttackUsed = false; this.diveUsed = false;
       this.airWhiff = false;
       this.airDashUsed = kind === 'hand';
       this.airTime = 0;
+      if (kind !== 'dj' && kind !== 'djB') { this.airJumps = 1; this.coyote = 0; }
       this.jumpDir = F.steer ? sd : F.dir;
       if (F.invuln) this.invuln = Math.max(this.invuln, F.invuln[1]);
       if (kind === 'hand') this.dashCd = Math.max(this.dashCd, 22 + DASH_CD);
@@ -910,13 +930,8 @@
     // air: steering, air attacks (light / kick / heavy, down + heavy = dive), air throw, one air dash
     updateAir(ts, dt, game) {
       const flip = this.state === 'flip' ? this.flip : null;
-      // air control: ~40 % of ground control; flips steer even less
-      const steer = this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0;
-      const k = flip ? 0.5 : 1;
-      if (steer) {
-        const lim = Math.max(AIR_MAX, Math.abs(this.vx));
-        this.vx = clamp(this.vx + this.facing * steer * AIR_STEER * k * dt, -lim, lim);
-      }
+      if (this.coyote > 0) this.coyote -= ts;
+      this.airControl(dt, flip ? 0.6 : 1);
       // ↗ again right after a front flip's take-off: the flip becomes a long flip leap
       if (flip && flip.kind === 'front' && this.st < 9 && this.ctrl.consume('gFlipF')) {
         const L = FLIPS.leap;
@@ -926,15 +941,52 @@
         this.gravMul = L.grav;
         SA.audio.play('whoosh_medium', 0.8);
       }
-      if (flip && flip.kind === 'hand' && this.st < flip.F.rotFrames) return;   // committed until the hands leave the floor
-      if (flip && this.st < flip.F.atkFrom) return;
+      if (flip && flip.kind === 'hand' && this.st < flip.F.rotFrames * 0.7) return;   // committed until the hands leave the floor
+      if (flip && this.st < Math.min(flip.F.atkFrom, 6)) return;
       if (this.airActions(game, false)) return;
       // flip finished: normal air state (the body opens up, attacks stay available)
       if (flip && this.st >= flip.F.rotFrames + 4) { this.setState('air'); this.flip = null; }
     }
 
+    // air steering: accelerate toward the capped air speed in the held direction, keep any faster
+    // momentum the fighter already has (flip, dash) but let it decay a little
+    airControl(dt, k) {
+      const steer = this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0;
+      if (steer) {
+        const target = this.facing * steer * AIR_MAX * this.speedMul;
+        if (Math.sign(this.vx) !== Math.sign(target) || Math.abs(this.vx) < Math.abs(target)) {
+          const d = target - this.vx, a = AIR_ACCEL * k * dt;
+          this.vx += clamp(d, -a, a);
+        }
+      } else {
+        this.vx *= Math.exp(-AIR_DRAG * dt);
+      }
+    }
+
+    // second jump in the air (stick up again / up flick / W): neutral = straight up, with a direction
+    // = diagonal. Refreshes the air attack, so air combos can continue.
+    tryDoubleJump(game) {
+      const c = this.ctrl;
+      if (!c.has('gJump') && !c.has('up')) return false;
+      // coyote time: just walked off a platform -> this is still a ground jump
+      if (this.coyote > 0) { c.consume('gJump'); c.consume('up'); this.coyote = 0; this.startFlip('spin', game); this.airJumps = 1; return true; }
+      if (!(this.airJumps > 0)) return false;
+      // about to land: keep the press buffered, it becomes a ground jump on touchdown (jump buffer)
+      if (this.vy > 0 && SA.Physics.floorAt(this.x, this.y) - this.y < LAND_JUMP_H) return false;
+      c.consume('gJump'); c.consume('up');
+      this.airJumps--;
+      const dash = this.airDashUsed;
+      this.startFlip(this.backHeld() ? 'djB' : 'dj', game);
+      this.airDashUsed = dash;
+      SA.FX.moonBurst(game.particles, this.x, this.y + 4, this.look.trail || '#cfe8ff');
+      this.bandageFlare = Math.max(this.bandageFlare || 0, 0.45);
+      SA.audio.play('jump', 1.2);
+      return true;
+    }
+
     airActions(game, fromDash) {
       const c = this.ctrl, ms = this.moveset;
+      if (!fromDash && this.tryDoubleJump(game)) return true;
       if (!fromDash && this.tryGesture(game)) return true;
       // one air attack per jump, plus one falling attack (down + attack) after it
       const down = c.held('down');
@@ -949,7 +1001,7 @@
           const dive = down;
           // a flip slash keeps rotating: remember where the flip's rotation is (in its own direction)
           let r0 = this.pose.rot;
-          const fd = fromFlip && this.flip ? this.flip.F.dir : 0;
+          const fd = fromFlip && this.flip && !this.flip.F.tilt ? this.flip.F.dir : 0;
           if (fd) { while (r0 * fd < 0) r0 += fd * SA.TAU; }
           this.startMove(id);
           this.flipAtk = fd;
@@ -1006,6 +1058,7 @@
       // neutral / forward jump (run + jump = front flip, back + jump = backflip, see above)
       this.vy = JUMP_VY;
       this.vx = dir * this.facing * JUMP_VX * this.speedMul;
+      this.airJumps = 1; this.coyote = 0;
       this.grounded = false;
       this.plat = null;
       this.y -= 1;
@@ -1027,6 +1080,12 @@
           const v = this.facing * m.lunge[1] * this.speedMul;
           if (Math.sign(this.vx) !== Math.sign(v) || Math.abs(this.vx) < Math.abs(v)) this.vx = v;
         }
+      }
+      // cinematic air attack: a heavy (or flip) air strike about to land slows the world for a beat
+      if (m.air && !this.cineDone && this.isPlayer && this.mt >= m.startup - 2 && ((m.power || 0.5) >= 0.8 || this.flipAtk || this.dive)) {
+        this.cineDone = true;
+        const o = game.p1 === this ? game.p2 : game.p1;
+        if (o && Math.abs(o.x - this.x) < (m.reach || 200) + 40 && Math.abs((o.y - 120) - (this.y - 100)) < 260) game.focus(0.6, 0.06, 0.1);
       }
       if (!this.whooshed && m.whoosh && this.mt >= m.startup - 3) {
         this.whooshed = true;
@@ -1060,6 +1119,17 @@
         SA.FX.aura(game.particles, this.x, this.y, '#c9d3e0');
       }
       if (this.grounded) this.vx = damp(this.vx, 0, m.friction || 9, dt);
+      else if (m.air && !this.dive) {
+        // air attacks keep the jump's momentum and some steering; after the strike a double jump
+        // (stick up / W) cancels the recovery: flip -> slash -> double jump -> kick ...
+        this.airControl(dt, 0.5);
+        if (this.mt >= m.startup + m.active && this.airJumps > 0 && (c.has('gJump') || c.has('up')) && this.tryDoubleJump(game)) return;
+        // ... and ↓ + attack cancels the recovery into the falling attack
+        if (this.mt >= m.startup + m.active && !this.diveUsed && c.held('down') && (c.has('heavy') || c.has('light') || c.has('kick'))) {
+          this.cancelMove(); this.flipAtk = 0; this.setState('air');
+          if (this.airActions(game, false)) return;
+        }
+      }
 
       // a hit may always be cancelled into movement (dash / roll / backstep), a block only off cooldown
       if (this.moveContact && this.grounded && ((m.power || 0.5) < 0.8 || this.moveContact === 'hit') && !m.ranged &&
@@ -1143,12 +1213,13 @@
       this.vy = 0;
       this.dropT = 0;
       this.airTime = 0;
+      this.airJumps = 1; this.coyote = 0;
       switch (this.state) {
         case 'air': {
           // a whiffed jump attack still costs a short landing recovery (no jump-attack mashing)
           if (this.airWhiff) {
             this.airWhiff = false;
-            this.stun = 8; this.landT = 10;
+            this.stun = 6; this.landT = 10;   // ~100 ms
             this.scaleY = 0.84; this.scaleX = 1.1;
             SA.FX.dust(game.particles, this.x, this.y, 0.5, 0);
             this.setState('landing');
@@ -1189,7 +1260,7 @@
             this.setState(this.ctrl.held('down') ? 'crouch' : 'idle');
           } else {
             // a whiffed jump attack is punishable on landing
-            this.stun = dive ? 12 : 8;
+            this.stun = dive ? 8 : 6;
             this.setState('landing');
           }
           break;
@@ -1262,6 +1333,8 @@
     leaveGround(game) {
       const st = this.state;
       this.airTime = 0;
+      this.airJumps = 1;
+      this.coyote = COYOTE;     // a jump right after walking off still counts as a ground jump
       if (NEUTRAL[st] || MOVING[st] || st === 'landing' || st === 'roll' || st === 'slide' || st === 'evade' || st === 'prejump') {
         this.rm = null;
         this.cancelMove();
