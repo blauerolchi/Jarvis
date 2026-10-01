@@ -179,8 +179,8 @@
       hitstop: 6, shake: 0.35, zoom: 0.04, sound: 'hit_heavy', whoosh: 'heavy', power: 0.85,
       keys: [
         [0, J],
-        [5, P({ torso: -0.35, head: -0.2, aF1: 3.0, aF2: 0.4, aB1: 2.8, aB2: 0.5, lF1: 1.1, lF2: -1.6, lB1: 0.3, lB2: -1.4 }, J)],
-        [8, P({ torso: 0.75, head: 0.3, aF1: 1.0, aF2: 0.1, aB1: 0.8, aB2: 0.2, lF1: 0.9, lF2: -1.2, lB1: 0.1, lB2: -1.0 }, J), 'out'],
+        [4, P({ torso: -0.35, head: -0.2, aF1: 3.0, aF2: 0.4, aB1: 2.8, aB2: 0.5, lF1: 1.1, lF2: -1.6, lB1: 0.3, lB2: -1.4 }, J)],
+        [8, P({ torso: 0.75, head: 0.3, aF1: 1.0, aF2: 0.1, aB1: 0.8, aB2: 0.2, lF1: 0.9, lF2: -1.2, lB1: 0.1, lB2: -1.0 }, J), 'smooth'],
         [16, P({ torso: 0.78, head: 0.3, aF1: 0.95, aF2: 0.12, aB1: 0.78, aB2: 0.22, lF1: 0.9, lF2: -1.2, lB1: 0.1, lB2: -1.0 }, J)],
         [26, SA.POSES.fall],
       ],
@@ -552,6 +552,8 @@
         if (a.dive || m.id === 'diveImpact') game.focus(0.36, 0.1, 0.16);
         else if (airHeavy) game.focus(0.38, 0.07, 0.14);
         else if ((m.knockdown || ko) && a.combo.hits >= 4) game.focus(0.5, 0.08, 0.14);
+        // heavy ground hits: a short hitstop, then ~120 ms at 0.55x instead of a long freeze
+        else if ((m.power || 0.5) >= 0.8 && !m.launch && !(m.kbY < -700)) game.focus(0.55, 0.12, 0.1);
       }
       let stop = (m.hitstop || 3) + (counter ? 2 : 0);
       if (ko) stop = 12;

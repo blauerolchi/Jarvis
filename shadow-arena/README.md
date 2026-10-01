@@ -247,6 +247,8 @@ Acht prozedurale ägyptische Arenen mit Himmel, Parallax-Ebenen, Boden, Vordergr
 ## Präsentation
 
 - **Moon Guardian**: weiße/cremefarbene Bandagen über dunkler Unterschicht, weiße Kapuze mit Goldkante und Mondsichel auf der Stirn, Gesicht im Schatten mit leuchtenden mondblauen Augen, kurzer Umhang (Verlet-Kette als Stoffbahn mit dunklem Futter und Goldsaum), goldene Mondsichel auf der Brust, silberner Schulterpanzer und Armschienen, lose Bandagen-Enden, kräftigere Gliedmaßen mit Licht- und Schattenkante. Waffenspuren sind Mondsicheln aus Silberlicht.
+- **CharacterRendererV2 (Moon Guardian):** kein sichtbares Bone-Rig mehr. Die Gelenke steuern nur noch geschichtete, anatomische Formen: V-Torso (dunkler Unteranzug, weiße Leinenwicklung, silberner Gürtel mit Goldschnalle, Mondsichel auf der Brust), kräftige Oberarme/Oberschenkel mit Muskelwölbung, gewickelte Unterarme mit Silberarmschienen, Handschuhe, Stiefel mit Silbermanschette, eckige Knie- und Schulterplatten, Schultermantel, Tabard-Bahnen (Secondary Motion), große spitze Kapuze mit Schattengesicht und grauer Maske. Glieder überlappen in gleicher Farbe, es gibt keine Gelenkkugeln. Dazu ein großer asymmetrischer Umhang (stark gedämpfte Verlet-Kette, saubere Bögen statt Flattern, leichter Drift im Stand) und vier lose Bandagen (Unterarm, Taille, Schulter, Bein). Kapuze und Tabard ziehen bei Bewegung nach. Figuren werden 14 % größer gezeichnet als ihr Collider (Hitboxen unverändert).
+- **Animation:** Idle mit ~2,9 s Atmung, unregelmäßiger Gewichtsverlagerung (Gewicht hinten, Knie weich), Waffen-/Hand-Sway, Head Tracking zum Gegner mit Nachziehen und seltenen Secondary Idles (Waffe neu greifen, Schulter lockern, Kopf neigen). Run mit Contact/Down/Passing/Up, Gegenrotation von Rumpf und Armen (Waffenarm ruhiger), Flugphase ohne Becken-Absacken, Fußverankerung nur in der Standphase (kein Rutschen). Luftposen Aufstieg/Apex/Fall, Landung je nach Fallhöhe, Ausholen → Durchziehen ohne Pose-Sprung, Inertialisierung beim Wechsel in geschlüsselte Posen (Kampf ~70 ms, Bewegung ~120 ms).
 - **HUD** wie im Konzept: oben links/rechts Porträt-Medaillon, Name, Lebensleiste und direkt darunter die Energie, in der Mitte Timer und Stage. Weniger Text, mehr Platz für die Arena.
 - **Animation**: Idle mit Atmung und Gewichtsverlagerung, Lauf/Sprint mit Vorlage, Wende-Pivot, Angriffe mit Ausholen, Schlag, Impact, Nachschwung und Erholung.
 - **Kamera**: folgt Dashes und Sprints mit Vorlauf, zoomt beim Sprinten leicht heraus, folgt Sprüngen, Zoom-Punch bei harten Treffern, stärkeres Beben bei Göttern.
@@ -286,6 +288,7 @@ Lokal in `localStorage`, versioniert (aktuell Version 4). Alte Spielstände werd
 | Taste / Einstellung | Funktion |
 |---|---|
 | *Settings → DEBUG OVERLAY* | Overlay auch auf dem Tablet: FPS, Frame-Zeit (aktuell / Maximum), Interpolations-Alpha, Zustand, Geschwindigkeit, Boden/Luft und Mobilität beider Kämpfer, aktueller Move mit Phase, Frame x/Startup+Active+Recovery, offenes Cancel-Fenster und Blend-Anteil, Distanz, Hitstop, KI-Intent, Animation + Zeit, Blend-Quelle → Ziel in %, Schwerkraft-Faktor, Airtime, verbleibende Sprünge, Coyote, TimeScale / FOCUS, Eingabepuffer |
+| *Settings → ANIM PLAYBACK (DEBUG)* | ganzes Spiel in 1× / 0,5× / 0,25× abspielen, um Übergänge Bild für Bild zu prüfen |
 | **F1** | ausführliches Debug-Overlay (Zustände, Animation, Buffer, Hitstop …) |
 | **F2** | Hitboxen: **blau** Movement Collider, **grün** Hurtbox, **rot** Angriff (gestrichelt: Nah-Hitbox), **gelb** Projektile, **orange** Waffenreichweite, dazu Distanz / Mindestabstand / Blickrichtung |
 | **F3** | KI-Intent und Plan über dem Gegner |
@@ -339,6 +342,7 @@ NODE_PATH=$(npm root -g) node tests/touch.js       # echter Multitouch: Joystick
 NODE_PATH=$(npm root -g) node tests/platforms.js   # One-Way-Plattformen, Durchfallen, Fast Fall, Kanten, Kamera, Abnahmetest 54
 NODE_PATH=$(npm root -g) node tests/flowcombat.js  # Abnahmetest 55, Schießen ohne State-Lock, Auto-Reload, Dive, Crescent Moonfall, Flow-Combos
 NODE_PATH=$(npm root -g) node tests/aiplatform.js  # KI auf Plattformen + Abnahmetest 56 (30 s KI gegen KI)
+NODE_PATH=$(npm root -g) node tests/visual.js      # Idle 15 s lebt ohne Jitter, Run 10 s ohne Fußrutschen, Übergänge ohne Pops, Silhouetten-Bilder
 NODE_PATH=$(npm root -g) node tests/phone.js       # Handy (844×390, 19,5:9): Vollbild, skalierte Steuerung, Multitouch
 NODE_PATH=$(npm root -g) node tests/choreo.js      # Abnahmetest 74 + Airtime, Apex Hang, Double Jump, Coyote Time, Jump Buffer
 NODE_PATH=$(npm root -g) node tests/ai.js          # Intents, Spacing, Reaktionszeiten, Combos, Ecke

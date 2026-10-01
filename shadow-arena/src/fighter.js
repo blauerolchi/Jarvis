@@ -1214,6 +1214,7 @@
       this.dropT = 0;
       this.airTime = 0;
       this.airJumps = 1; this.coyote = 0;
+      this.landPow = clamp(impactVy / 1700, 0.3, 1.15);   // landing compression follows the fall
       switch (this.state) {
         case 'air': {
           // a whiffed jump attack still costs a short landing recovery (no jump-attack mashing)
@@ -1699,15 +1700,18 @@
       const gait = this.grounded && (st === 'idle' || st === 'walk' || st === 'run' || st === 'sprint' || st === 'crouch' || st === 'block');
       const L = this._lock || (this._lock = { footF: { on: false, x: 0 }, footB: { on: false, x: 0 } });
       const S = this.skel;
-      const max = st === 'run' || st === 'sprint' ? 10 : 16;
+      const max = st === 'run' || st === 'sprint' ? 26 : 16;
       for (let fi = 0; fi < 2; fi++) {
         const k = FEET[fi];
         const lk = L[k], foot = S[k];
-        const contact = gait && foot.y > this.y - 7 * this.look.scale;
+        // walking / running: only the foot in its stance phase is planted (a swinging foot near the
+        // ground is never held back); standing: any foot on the ground
+        const contact = gait && foot.y > this.y - (this.gaitLock ? 12 : 7) * this.look.scale && (!this.gaitLock || (fi === 0 ? this.stanceF : this.stanceB));
         if (!contact) { lk.on = false; continue; }
         if (!lk.on) { lk.on = true; lk.x = foot.x; continue; }
         let d = lk.x - foot.x;
-        if (Math.abs(d) > max) { lk.x = foot.x - Math.sign(d) * max * 0.5; d = lk.x - foot.x; }
+        // beyond the limit the foot is held at the limit (it slides at most a little, never pops)
+        if (Math.abs(d) > max) { lk.x = foot.x + Math.sign(d) * max; d = lk.x - foot.x; }
         const toe = S[k === 'footF' ? 'toeF' : 'toeB'], knee = S[k === 'footF' ? 'kneeF' : 'kneeB'];
         foot.x += d; toe.x += d; knee.x += d * 0.5;
       }

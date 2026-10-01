@@ -13,25 +13,21 @@
     mummy: {
       id: 'mummy', name: 'MOON GUARDIAN', title: 'Warden of the Crescent',
       look: {
-        kind: 'mummy', mat: { skin: '#3a3644', wrap: '#ebe4d4', metal: '#d9b25a', cloth: '#efe9dc' },
+        kind: 'mummy', v2: true, mat: { skin: '#3a3644', wrap: '#eeebe4', metal: '#c7cfdb', cloth: '#eeebe4' }, eyeFwd: 0.62,
         wraps: 0.97, tatters: 0.08, limb: 1.1, upper: 1.18, chest: 1.12, wrapCover: 0.9, moonTrail: true,
         eye: '#cfeeff', eyeCore: '#ffffff', accent: '#d9b25a', trail: '#cfe0ff', spark: '#e8f4ff',
         body: '#17151d', back: '#24212c', scale: 1, bulk: 1.04, victory: 1,
         accessories: [
           // short cape from the shoulders: a cloth panel on a verlet chain (cream outside, dark lining)
-          { anchor: 'neck', cape: true, color: '#ece5d6', lining: '#2a2633', trim: '#d9b25a', windMul: 0.9, airLift: 900,
-            rope: [{ n: 7, seg: 17, w0: 58, w1: 44, at: [-16, 10] }] },
-          bandage('hip', 6, [-14, -4], false, 6),
-          bandage('elbB', 4, [0, 0], false, 5),
-          bandage('handF', 4, [-8, 0], true, 5),
-          { type: 'moonHood', color: '#efe9dc', shade: '#c9c0ae', trim: '#d9b25a', mark: '#e8f2ff' },
-          { type: 'shoulderCloth', color: '#e6dfcf', trim: '#d9b25a' },
-          { type: 'crescentEmblem', color: '#d9b25a', glow: '#cfeeff' },
-          { type: 'kneeGuardB', color: '#c9d2de' },
-          { type: 'kneeGuardF', color: '#c9d2de', trim: '#d9b25a' },
-          { type: 'belt', color: '#d9b25a', flap: '#2a2633' },
-          { type: 'bracers', color: '#c9d2de' },
-          { type: 'pauldron', color: '#c9d2de', gem: '#bfe8ff' },
+          // CharacterRendererV2 draws body, hood, mask, mantle, tabard, armour; the accessories are
+          // only the simulated cloth: a big asymmetric cape (heavily damped -> clean arcs, no
+          // flutter) and four light bandage ends (forearm, waist, shoulder, leg)
+          { anchor: 'neck', cape: true, asym: true, color: '#eeebe4', lining: '#2a2633', trim: '#d8b45e', windMul: 0.8, airLift: 1100,
+            damp: 0.885, iters: 6, rope: [{ n: 8, seg: 18, w0: 84, w1: 100, at: [-20, 12] }] },
+          bandage('hip', 6, [-16, -6], false, 6),
+          bandage('sh', 5, [-12, 4], false, 5),
+          bandage('kneeB', 4, [0, 4], false, 5),
+          bandage('handF', 4, [-10, 0], true, 5),
         ],
       },
       stats: { maxHp: 1000, damageMul: 1, speedMul: 1 },

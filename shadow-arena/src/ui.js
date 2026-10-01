@@ -324,6 +324,10 @@
           Object.assign({ label: 'DAMAGE NUMBERS' }, onOff('damageNumbers')),
           Object.assign({ label: 'VIBRATION' }, onOff('vibration')),
           Object.assign({ label: 'DEBUG OVERLAY' }, onOff('debugOverlay')),
+          // developer: play the whole game slowed down to judge transitions frame by frame
+          { label: 'ANIM PLAYBACK (DEBUG)', value: () => ({ 1: '1x', 0.5: '0.5x', 0.25: '0.25x' })[S().settings.debugPlayback || 1] || '1x',
+            left: () => { S().settings.debugPlayback = cycle([1, 0.5, 0.25], S().settings.debugPlayback || 1, -1); SA.Save.save(); },
+            right: () => { S().settings.debugPlayback = cycle([1, 0.5, 0.25], S().settings.debugPlayback || 1, 1); SA.Save.save(); } },
           { label: 'TOUCH CONTROLS', value: () => S().settings.touchControls.toUpperCase(),
             left: () => { S().settings.touchControls = cycle(['auto', 'on', 'off'], S().settings.touchControls, -1); SA.Save.save(); },
             right: () => { S().settings.touchControls = cycle(['auto', 'on', 'off'], S().settings.touchControls, 1); SA.Save.save(); } },

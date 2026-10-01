@@ -17,6 +17,7 @@ window.SA = window.SA || {};
     SA.W = Math.round(Math.min(2.2, Math.max(16 / 9, asp)) * 1080 / 2) * 2;
   })();
   SA.H = 1080;
+  SA.VIS_SCALE = 1.14;          // fighters are drawn this much bigger than their collider
   SA.STEP = 1 / 60;            // fixed simulation step; all frame data is in 60 fps frames
   SA.ARENA_HALF = 1250;        // world x range is [-ARENA_HALF, ARENA_HALF], ground is y = 0 (up is negative)
   SA.WALL = SA.ARENA_HALF - 70;

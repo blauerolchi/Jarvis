@@ -344,12 +344,13 @@
     // blow may hold 5–6 frames (≈100 ms) — long enough to feel the impact, never long enough to look stuck.
     hitStop(frames) {
       // light ~17 ms, medium ~33 ms, heavy 50-67 ms: the big moments come from the time controller
-      const cap = this.p2 && this.p2.isBoss ? 5 : 4;
+      const cap = this.p2 && this.p2.isBoss ? 4 : 3;   // <= 50 ms; longer moments use slow motion
       const f = clamp(Math.round(frames * 0.4), 1, cap);
       this.hitstop = Math.max(this.hitstop, f);
     }
     // gods shake the world harder
-    shake(v) { this.camera.addTrauma(v * (this.p2 && this.p2.isBoss && this.ranked ? 1.25 : 1)); }
+    // clean camera: light hits barely shake, heavy ones a few pixels, gods more
+    shake(v) { this.camera.addTrauma(v * 0.62 * (this.p2 && this.p2.isBoss && this.ranked ? 1.3 : 1)); }
     // CombatTimeController: short focus moments. timeScale drops to `scale` for `hold` seconds of
     // real time, then eases back to 1 over `recover` seconds. Inputs keep running in real time
     // (the buffer ages per real tick), so the player can queue the next action during the moment.
@@ -460,7 +461,9 @@
       if (Math.abs(raw - SA.STEP) < 0.0012) raw = SA.STEP;
       // long hitch (tab switch, GC): run at most 3 steps, the game slows instead of teleporting
       const dt = Math.min(0.05, Math.max(0, raw));
-      this.acc += dt;
+      // debug playback (Settings): the simulation itself runs slower, interpolation keeps it smooth
+      const pb = this.scene === 'fight' ? (SA.Save.data.settings.debugPlayback || 1) : 1;
+      this.acc += dt * pb;
       let steps = 0;
       if (this.manual) this.acc = 0; // tests step the simulation themselves
       while (this.acc >= SA.STEP && steps < 4) {

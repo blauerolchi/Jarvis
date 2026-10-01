@@ -123,26 +123,47 @@
   // ---------- procedural locomotion ----------
   const tmp = P();
   // Idle: breathing chest, weight shifting between the legs, restless guard hands, small head moves.
-  function idlePose(t, out) {
-    const b = Math.sin(t * 2.4);                 // breath
-    const w = Math.sin(t * 0.9);                 // slow weight shift
-    const h = Math.sin(t * 1.7 + 1.3);           // hands
+  // Living idle: ~2.9 s breathing, a slow irregular weight shift with ~60 % of the weight on the
+  // back leg (knees soft), small guard / weapon sway, and every ~8 s of standing still a rare
+  // secondary idle (re-grip the weapon, roll a shoulder, tilt the head). Subtle, never nervous.
+  function idlePose(t, out, idleT) {
+    const br = Math.sin(t * SA.TAU / 2.9);
+    const ws = Math.sin(t * SA.TAU / 6.3 + 0.7 * Math.sin(t * 0.31));
     copyPose(out, STANCE);
-    out.torso += b * 0.03 + w * 0.02;
-    out.head += Math.sin(t * 2.4 - 0.7) * 0.05 + Math.sin(t * 0.63) * 0.04;
-    out.hipX += w * 5;
-    out.aF1 += h * 0.08; out.aF2 += b * 0.09 - h * 0.06;
-    out.aB1 -= h * 0.06; out.aB2 += Math.sin(t * 2.4 + 0.8) * 0.08;
-    out.lF1 += (b + 1) * 0.03 + w * 0.04;
-    out.lF2 -= (b + 1) * 0.07 + Math.max(0, w) * 0.08;
-    out.lB2 -= (b + 1) * 0.07 + Math.max(0, -w) * 0.08;
-    out.wg += h * 0.08;
+    // weight on the back leg: hips back, back knee loaded, front leg light
+    out.hipX += -6 + ws * 4;
+    out.lB1 += 0.06 + ws * 0.04; out.lB2 -= 0.2 + Math.max(0, -ws) * 0.1;
+    out.lF1 += 0.02 - ws * 0.03; out.lF2 += 0.06 - Math.max(0, ws) * 0.1;
+    // breathing: chest rises a little, shoulders follow
+    out.torso += -br * 0.018 + ws * 0.012;
+    out.head += br * 0.012;
+    out.aF1 += br * 0.025; out.aB1 += br * 0.03;
+    // guard hands and weapon sway (off-hand circles a little, weapon hand stabilises)
+    out.aB1 += Math.sin(t * 1.3) * 0.05; out.aB2 += Math.sin(t * 1.1 + 1) * 0.05;
+    out.aF2 += Math.sin(t * 0.9 + 0.4) * 0.03;
+    out.wg += Math.sin(t * 0.8 + 0.4) * 0.06;
+    // secondary idles, only after standing still for a while
+    if (idleT > 5) {
+      const cyc = (idleT - 5) % 8.5, u = cyc / 1.4;
+      if (u < 1) {
+        const env = Math.sin(u * Math.PI), kind = Math.floor((idleT - 5) / 8.5) % 3;
+        if (kind === 0) { out.aF2 += 0.45 * env; out.wg += 0.9 * env; out.aF1 -= 0.15 * env; }         // re-grip the weapon
+        else if (kind === 1) { out.torso -= 0.1 * env; out.aB1 -= 0.35 * env; out.head -= 0.08 * env; }  // shoulder roll
+        else { out.head += 0.22 * env; out.torso += 0.04 * env; }                                       // head tilt
+      }
+    }
     return out;
   }
+  // three air phases: ascending (legs under the body), apex (body opens), falling (legs reach for
+  // the ground)
+  const AIR_APEX = P({ torso: 0.05, head: -0.1, aF1: 1.55, aF2: 0.7, aB1: -1.15, aB2: 0.55, lF1: 0.75, lF2: -0.95, lB1: -0.35, lB2: -0.6 });
+  const AIR_FALL = P({ torso: 0.16, head: -0.05, aF1: 1.15, aF2: 1.15, aB1: -0.65, aB2: 0.95, lF1: 0.6, lF2: -0.5, lB1: -0.12, lB2: -0.35 });
   // Gait wave for one leg: during the stance part of the cycle the foot moves backwards at a
   // constant rate (so it can stay planted while the body moves at constant speed), then it swings
   // forward on an eased curve and lifts. G.x: -1..1 (back..front), G.lift: 0..1.
   const G = { x: 0, lift: 0 };
+  // which foot is in its stance phase this frame (drives the foot planting: only a stance foot locks)
+  const GS = { F: false, B: false };
   function gait(phase, stance) {
     let u = (phase / SA.TAU) % 1;
     if (u < 0) u += 1;
@@ -162,6 +183,7 @@
     const fx = G.x, fl = G.lift;
     gait(ph + Math.PI, 0.62);
     const bx = G.x, bl = G.lift;
+    GS.F = fl === 0; GS.B = bl === 0;
     out.lF1 = 0.46 + fx * 0.36 + fl * 0.12;
     out.lB1 = -0.3 + bx * 0.36 + bl * 0.12;
     out.lF2 = -0.82 - fl * 0.7;
@@ -178,19 +200,26 @@
   // Run / sprint: strong forward lean, big leg amplitude, pumping arms (sprint: even more).
   function runPose(phase, out, sprint) {
     copyPose(out, STANCE);
-    const amp = sprint ? 1.05 : 0.92, lift = sprint ? 1.7 : 1.5;
+    // contact angle ~0.5 rad (not a hurdle split): a natural bob of ~20 px, more steps per second
+    const amp = sprint ? 0.48 : 0.42, lift = sprint ? 1.75 : 1.55;
     gait(phase, 0.42);
     const fx = G.x, fl = G.lift;
     gait(phase + Math.PI, 0.42);
     const bx = G.x, bl = G.lift;
-    out.lF1 = 0.3 + amp * fx + fl * 0.35; out.lF2 = -0.3 - lift * fl;
-    out.lB1 = 0.3 + amp * bx + bl * 0.35; out.lB2 = -0.3 - lift * bl;
-    out.torso = sprint ? 0.78 : 0.58;
-    out.head = sprint ? -0.42 : -0.3;
+    GS.F = fl === 0; GS.B = bl === 0;
+    // contact -> down -> passing -> up: the stance knee flexes in the middle of the stance (down)
+    // and extends at push-off (up); the swing knee folds while passing
+    const fd = fl === 0 ? Math.sin(Math.PI * (1 - fx) / 2) : 0, bd = bl === 0 ? Math.sin(Math.PI * (1 - bx) / 2) : 0;
+    out.lF1 = 0.12 + amp * fx + fl * 0.55 + fd * 0.08; out.lF2 = -0.22 - lift * fl - fd * 0.2;
+    out.lB1 = 0.12 + amp * bx + bl * 0.55 + bd * 0.08; out.lB2 = -0.22 - lift * bl - bd * 0.2;
+    // torso counter-rotates against the stride, the head stays stable
+    const cr = Math.sin(phase * 2) * 0.035;
+    out.torso = (sprint ? 0.78 : 0.58) + cr;
+    out.head = (sprint ? -0.42 : -0.3) - cr * 0.8;
     const arm = sprint ? 1.2 : 1.0;
-    // arms pump against the legs
-    out.aF1 = 0.55 + arm * bx; out.aF2 = 1.5 + Math.max(0, -bx) * 0.5;
-    out.aB1 = 0.55 + arm * fx; out.aB2 = 1.5 + Math.max(0, -fx) * 0.5;
+    // arms pump against the legs; the weapon arm swings less (it stays ready)
+    out.aF1 = 0.55 + arm * 0.65 * bx; out.aF2 = 1.5 + Math.max(0, -bx) * 0.45;
+    out.aB1 = 0.55 + arm * 1.15 * fx; out.aB2 = 1.5 + Math.max(0, -fx) * 0.55;
     out.hipX = 8;
     out.wg = -0.9 + bx * 0.08;
     return out;
@@ -350,7 +379,7 @@
   const sampled = P();
   // Gait cycles advance with the distance travelled (px per radian of the cycle), not with time:
   // the planted foot moves backwards exactly as fast as the body moves forwards -> no skating.
-  const STRIDE = { walk: 28, back: 34, run: 84, sprint: 112, dash: 120 };
+  const STRIDE = { walk: 28, back: 34, run: 45, sprint: 52, dash: 60 };
   const ARM_KEYS = ['aF1', 'aF2', 'aB1', 'aB2'];
   SA.STRIDE = STRIDE;
 
@@ -362,6 +391,8 @@
     let attackPose = false;
     const st = f.state;
     f.animTime += dt;
+    f.idleT = st === 'idle' ? (f.idleT || 0) + dt : 0;
+    f.gaitLock = false;
 
     let name = st;
     if (st === 'intro' && f.introWalk) {
@@ -373,10 +404,11 @@
       sampleKeys(f.isBoss ? INTRO_BOSS : INTRO, f.st, target);
       k = 14;
     } else if (st === 'idle') {
-      idlePose(f.animTime, target);
+      idlePose(f.animTime, target, f.idleT || 0);
     } else if (st === 'walk') {
       f.walkPhase += Math.abs(f.vx) * dt / (f.walkDir > 0 ? STRIDE.walk : STRIDE.back);
       walkPose(f.walkPhase, f.walkDir, target);
+      f.gaitLock = true; f.stanceF = GS.F; f.stanceB = GS.B;
       name = f.walkDir > 0 ? 'walk' : 'backwalk';
       // the gait is followed closely (a soft blend would shrink the steps and make the feet skate);
       // entering the walk from another pose still blends in over a few frames
@@ -385,6 +417,7 @@
       const sprint = st === 'sprint';
       f.walkPhase += Math.abs(f.vx) * dt / (sprint ? STRIDE.sprint : STRIDE.run);
       runPose(f.walkPhase, target, sprint);
+      f.gaitLock = true; f.stanceF = GS.F; f.stanceB = GS.B;
       name = st;
       k = f.st < 5 ? 24 : 40;
     } else if (st === 'crouch') {
@@ -421,8 +454,10 @@
       target.torso += Math.sin(f.animTime * 30) * 0.02;
       k = f.st < 4 ? 20 : 32;
     } else if (st === 'air') {
-      const u = clamp((f.vy + 900) / 1600, 0, 1);
-      lerpPose(target, POSES.jump, POSES.fall, u);
+      // ascending -> apex -> falling (landing prep), blended by vertical speed
+      const vy = f.vy;
+      if (vy < -350) lerpPose(target, POSES.jump, AIR_APEX, SA.M.smooth(clamp((vy + 1100) / 750, 0, 1)));
+      else lerpPose(target, AIR_APEX, AIR_FALL, SA.M.smooth(clamp((vy + 350) / 900, 0, 1)));
       name = f.vy < 0 ? 'jump' : 'fall';
       if (f.jumpDir !== 0) target.torso += 0.15 * f.jumpDir;
       k = 12;
@@ -532,10 +567,18 @@
       target.wg -= f.lean * 0.18;
       target.aB1 -= f.lean * 0.12;
     }
-    // landing: knees give way for a moment (visual only, input is live)
+    // landing: knees give way for a moment (visual only, input is live); strength from the fall
     if (f.landT > 0 && !direct && grounded) {
-      const w = clamp(f.landT / 10, 0, 1) * 0.75;
-      lerpPose(target, target, POSES.prejump, w);
+      const w = clamp(f.landT / 10, 0, 1) * 0.75 * clamp(f.landPow === undefined ? 1 : f.landPow, 0.35, 1.15);
+      lerpPose(target, target, POSES.prejump, Math.min(1, w));
+    }
+    // head tracking: the head looks at the opponent (small range) and lags behind fast moves
+    const opp = f.game ? (f.game.p1 === f ? f.game.p2 : f.game.p1) : null;
+    if (opp && !direct && st !== 'down' && st !== 'ko' && st !== 'getup' && st !== 'roll') {
+      const dyL = (opp.y - 190) - (f.y - 250), dxL = Math.max(80, Math.abs(opp.x - f.x));
+      const want = clamp(Math.atan2(dyL, dxL), -0.35, 0.35) * 0.7;
+      f.lookA = (f.lookA || 0) + (want - (f.lookA || 0)) * (1 - Math.exp(-5 * dt));
+      target.head += f.lookA;
     }
     // pivot: body turns first, head and weapon follow a beat later
     if (f.turnT > 0 && !direct) {
@@ -561,13 +604,16 @@
       const heavy = pw >= 0.8 ? 1.6 : 1;
       const kick = !!(m.hit && /foot|knee/.test(m.hit.joint || ''));   // kicks keep their authored legs (hitbox)
       if (f.mt < m.startup) {
+        // wind-up peaks early and releases by the strike frame (hitboxes stay where the keys put them)
         const u = f.mt / Math.max(1, m.startup);
-        const a = Math.sin(u * Math.PI * 0.5) * 0.14 * pw * heavy;
+        const a = Math.sin(Math.min(1, u * 1.25) * Math.PI) * 0.14 * pw * heavy;
         target.torso -= a; target.hipX -= a * 70; target.head += a * 0.5;
         target.wg -= a * 1.2;
         if (!air && !kick) { target.lB1 -= a * 0.6; target.lF1 += a * 0.3; }
       } else if (f.mt < m.startup + m.active) {
-        const a = 0.12 * pw * heavy;
+        // drive: from the loaded wind-up into the strike over ~2 frames (continuous, no pop)
+        const v = SA.M.smooth(clamp((f.mt - m.startup) / 2.5, 0, 1));
+        const a = 0.12 * pw * heavy * v;
         target.torso += a; target.hipX += a * 90; target.head -= a * 0.6;
         if (!kick) {
           if (air) { target.lF1 += 0.25 * pw; target.lB1 -= 0.3 * pw; }
@@ -583,7 +629,7 @@
       // falling attacks: the body turns down toward the target
       if (f.dive) {
         const r0 = f.entryPose.rot || 0;
-        target.rot = r0 + ((f.dive === 'heavy' ? 0.95 : 0.6) - r0) * SA.M.smooth(clamp(f.mt / 7, 0, 1));
+        target.rot = r0 + ((f.dive === 'heavy' ? 0.95 : 0.6) - r0) * SA.M.smooth(clamp(f.mt / 10, 0, 1));
       }
     }
 
@@ -604,6 +650,32 @@
       }
     } else if (direct) copyPose(f.pose, target);
     else dampPose(f.pose, target, k, dt);
+
+    // inertialization: when a snapping (keyed) state takes over, the jump between the last shown
+    // pose and the new one becomes an offset that decays (combat ~70 ms, locomotion ~120 ms) -
+    // the body keeps its momentum through the transition instead of popping
+    const inert = f.inert || (f.inert = {});
+    const last = f.lastPose || (f.lastPose = copyPose(P(), f.pose));
+    const activeNow = f.move && st === 'attack' && f.mt >= f.move.startup && f.mt < f.move.startup + f.move.active;
+    if ((direct || attackPose) && f.prevAnimName !== name && !activeNow) {
+      for (let i_key = 0, a_key = KEYS; i_key < a_key.length; i_key++) { const key = a_key[i_key];
+        if (key === 'hipX') continue;
+        let d = last[key] - f.pose[key];
+        if (key === 'rot') d = wrapA(d);
+        if (Math.abs(d) > 0.12) inert[key] = d;
+      }
+      f.inertTau = attackPose ? 0.07 : 0.12;
+    }
+    f.prevAnimName = name;
+    const dec = Math.exp(-dt / (f.inertTau || 0.1));
+    for (let i_key = 0, a_key = KEYS; i_key < a_key.length; i_key++) { const key = a_key[i_key];
+      const o = inert[key];
+      if (!o || key === 'hipX') continue;
+      if (activeNow) { inert[key] = 0; continue; }      // active frames stay exact (hitboxes)
+      f.pose[key] += o;
+      inert[key] = Math.abs(o) < 0.002 ? 0 : o * dec;
+    }
+    copyPose(last, f.pose);
 
     // shooting overlay: the gun arm points along the aim in world space, so it stays on target while
     // the body keeps flipping (salto shot); a short muzzle climb on the shot frames
@@ -636,6 +708,17 @@
     f.scaleX = damp(f.scaleX, 1, 14, dt);
 
     solveLocal(f.pose, f.local, f.look.bulk, f.wgeom);
+    // gait flight phase: the ground snap would drop the body onto a lifted foot (a big hip bob).
+    // While no foot is in its stance phase the pelvis may only sink slowly -> a real flight phase,
+    // a subtle bob, and the stance foot lands exactly on the ground again.
+    const L = f.local;
+    if (f.gaitLock) {
+      const prevHip = f.gaitHip === undefined ? L.hip.y : f.gaitHip;
+      // flight: sink slowly; stance: catch up fast but never in one jump (the foot may hover a frame)
+      const lim = prevHip + (!f.stanceF && !f.stanceB ? 2.2 : 7) * ts;
+      if (L.hip.y > lim) { const d = L.hip.y - lim; for (let i_k = 0, a_k = POINTS; i_k < a_k.length; i_k++) L[a_k[i_k]].y -= d; }
+      f.gaitHip = L.hip.y;
+    } else f.gaitHip = undefined;
   }
 
   const GETUP = [

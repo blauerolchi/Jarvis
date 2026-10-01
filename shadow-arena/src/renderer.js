@@ -44,12 +44,12 @@
       const w = windX * dt * dt;
       for (let i = 1; i < pts.length; i++) {
         const p = pts[i];
-        const vx = (p.x - p.px) * 0.93, vy = (p.y - p.py) * 0.93;
+        const vx = (p.x - p.px) * (this.damp || 0.93), vy = (p.y - p.py) * (this.damp || 0.93);
         p.px = p.x; p.py = p.y;
         p.x += vx + w * (0.6 + i * 0.12);
         p.y += vy + g - lift * dt * dt;
       }
-      for (let it = 0; it < 4; it++) {
+      for (let it = 0, nIt = this.iters || 4; it < nIt; it++) {
         for (let i = 1; i < pts.length; i++) {
           const a = pts[i - 1], b = pts[i];
           const dx = b.x - a.x, dy = b.y - a.y;
@@ -101,7 +101,7 @@
     const list = [];
     for (const a of f.look.accessories || []) {
       const item = Object.assign({}, a);
-      if (a.rope) item.ropes = a.rope.map((r) => new Rope(r.n, r.seg));
+      if (a.rope) item.ropes = a.rope.map((r) => { const o = new Rope(r.n, r.seg); o.damp = a.damp || 0.93; o.iters = a.iters || 4; return o; });
       list.push(item);
     }
     f.accessories = list;
@@ -133,11 +133,21 @@
     const drag = -f.vx * (fast ? 0.75 : 0.45) - f.facing * flare * 2600;
     const lift = (f.state === 'special' ? 2600 : fast ? 900 : 0) + flare * 1800;
     const floor = SA.Physics.floorAt(f.x, f.y);
+    if (f.look.v2) {
+      const fwdV = f.vx * f.facing;
+      const hoodT = clamp(-fwdV * 0.01, -9, 9) + clamp(f.vy * 0.003, -4, 5);
+      f.hoodLag = (f.hoodLag || 0) + (hoodT - (f.hoodLag || 0)) * (1 - Math.exp(-9 * dt));
+      const flapT = clamp(-fwdV / 800, -1, 1) * 0.65 + (f.grounded ? 0 : clamp(f.vy / 1600, -0.5, 0.5) * 0.4);
+      f.flapV = (f.flapV || 0) + ((flapT - (f.flapSwing || 0)) * 90 - (f.flapV || 0) * 11) * dt;
+      f.flapSwing = (f.flapSwing || 0) + f.flapV * dt;
+    }
     for (let i_a = 0, a_a = f.accessories; i_a < a_a.length; i_a++) { const a = a_a[i_a];
       if (!a.ropes) continue;
       for (let i = 0; i < a.ropes.length; i++) { const r = a.ropes[i];
         const p = anchorOf(f, a, i);
-        r.update(p.x, p.y, dt, wind * (a.windMul || 1) + drag, (a.lift || 0) + lift + (f.grounded ? 0 : a.airLift || 0), floor);
+        // the cape drapes back a little and drifts slowly even when standing (never dead, never nervous)
+        const drift = a.cape ? -f.facing * (140 + 70 * Math.sin((f.animTime || 0) * 0.9)) : 0;
+        r.update(p.x, p.y, dt, wind * (a.windMul || 1) + drag + drift, (a.lift || 0) + lift + (f.grounded ? 0 : a.airLift || 0), floor);
       }
     }
   }
@@ -1064,11 +1074,17 @@
       (CAPE_R[i] || (CAPE_R[i] = { x: 0, y: 0 })).x = x - ox; CAPE_R[i].y = y - oy;
       prevX = x; prevY = y;
     }
+    // asymmetric hem: one edge runs the full length, the other ends a segment earlier;
+    // edges are drawn as smooth curves (no polygon kinks)
+    const nr = a && a.asym ? n - 1 : n;
     const path = () => {
       ctx.beginPath();
       ctx.moveTo(CAPE_L[0].x, CAPE_L[0].y);
-      for (let i = 1; i < n; i++) ctx.lineTo(CAPE_L[i].x, CAPE_L[i].y);
-      for (let i = n - 1; i >= 0; i--) ctx.lineTo(CAPE_R[i].x, CAPE_R[i].y);
+      for (let i = 1; i < n - 1; i++) ctx.quadraticCurveTo(CAPE_L[i].x, CAPE_L[i].y, (CAPE_L[i].x + CAPE_L[i + 1].x) / 2, (CAPE_L[i].y + CAPE_L[i + 1].y) / 2);
+      ctx.lineTo(CAPE_L[n - 1].x, CAPE_L[n - 1].y);
+      ctx.lineTo(CAPE_R[nr - 1].x, CAPE_R[nr - 1].y);
+      for (let i = nr - 2; i > 0; i--) ctx.quadraticCurveTo(CAPE_R[i].x, CAPE_R[i].y, (CAPE_R[i].x + CAPE_R[i - 1].x) / 2, (CAPE_R[i].y + CAPE_R[i - 1].y) / 2);
+      ctx.lineTo(CAPE_R[0].x, CAPE_R[0].y);
       ctx.closePath();
     };
     if (a && a.lining) {
@@ -1084,7 +1100,7 @@
       ctx.strokeStyle = a.trim;
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(CAPE_L[n - 1].x, CAPE_L[n - 1].y); ctx.lineTo(CAPE_R[n - 1].x, CAPE_R[n - 1].y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(CAPE_L[n - 1].x, CAPE_L[n - 1].y); ctx.lineTo(CAPE_R[nr - 1].x, CAPE_R[nr - 1].y); ctx.stroke();
       // fold shading down the middle
       ctx.globalAlpha = 0.16;
       ctx.strokeStyle = '#000';
@@ -1099,8 +1115,340 @@
     }
   }
 
+  // ======================= CharacterRendererV2 (Moon Guardian) =======================
+  // The rig stays invisible: joints only drive layered, anatomical shapes. Order (back to front):
+  // cape -> back tabard -> far arm -> far leg -> torso (undersuit, linen wrap, belt, emblem) ->
+  // mantle -> hood / mask -> near leg -> front tabard -> near arm + weapon -> pauldron -> loose
+  // bandages. `flat` draws the identical silhouette in one colour (rim light, hit flash, ghosts).
+  const V2 = {
+    cloth: '#eeebe4', clothShade: '#cfcac0', clothBack: '#b9b3a8',
+    suit: '#2a2833', suitBack: '#1d1b24', silver: '#c7cfdb', silverDark: '#8c95a5',
+    gold: '#d8b45e', boot: '#2c2832', bootBack: '#201d26', glove: '#2e2a35', mask: '#3b404c',
+  };
+  // tapered limb with a muscle bulge on each side and round (same-colour) ends: segments overlap
+  // into one continuous shape, so no joint ever shows as a ball
+  function mlimb(ctx, ax, ay, bx, by, w0, wm, w1, bf, bb) {
+    const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 0.001;
+    const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+    const mx = ax + dx * 0.42, my = ay + dy * 0.42;
+    const th = Math.atan2(ny, nx);
+    ctx.beginPath();
+    ctx.moveTo(ax + nx * w0 / 2, ay + ny * w0 / 2);
+    ctx.quadraticCurveTo(mx + nx * (wm / 2 + bf), my + ny * (wm / 2 + bf), bx + nx * w1 / 2, by + ny * w1 / 2);
+    ctx.arc(bx, by, w1 / 2, th, th - Math.PI, true);
+    ctx.quadraticCurveTo(mx - nx * (wm / 2 + bb), my - ny * (wm / 2 + bb), ax - nx * w0 / 2, ay - ny * w0 / 2);
+    ctx.arc(ax, ay, w0 / 2, th + Math.PI, th, true);
+    ctx.closePath();
+  }
+  // shading inside a limb: a darker band on the far side, a thin light edge on the lit side
+  function limbShade(ctx, a, b, w0, w1, back) {
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 0.001;
+    let nx = -dy / L, ny = dx / L;
+    if (nx * 0.6 - ny * 0.8 < 0) { nx = -nx; ny = -ny; }       // n = lit side (light from up right)
+    ctx.fillStyle = 'rgba(10,8,20,' + (back ? 0.22 : 0.16) + ')';
+    mlimb(ctx, a.x - nx * w0 * 0.24, a.y - ny * w0 * 0.24, b.x - nx * w1 * 0.24, b.y - ny * w1 * 0.24, w0 * 0.5, w0 * 0.48, w1 * 0.5, 0, 0);
+    ctx.fill();
+    if (back) return;
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    mlimb(ctx, a.x + nx * w0 * 0.34, a.y + ny * w0 * 0.34, b.x + nx * w1 * 0.34, b.y + ny * w1 * 0.34, w0 * 0.18, w0 * 0.18, w1 * 0.18, 0, 0);
+    ctx.fill();
+  }
+  const LP = { x: 0, y: 0 };
+  // a flat band across a limb between t0 and t1 (bracers, boot cuffs): square ends, no round caps
+  function band(ctx, a, b, t0, t1, w0, w1) {
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 0.001;
+    const nx = -dy / L, ny = dx / L;
+    const x0 = a.x + dx * t0, y0 = a.y + dy * t0, x1 = a.x + dx * t1, y1 = a.y + dy * t1;
+    ctx.beginPath();
+    ctx.moveTo(x0 + nx * w0 / 2, y0 + ny * w0 / 2);
+    ctx.lineTo(x1 + nx * w1 / 2, y1 + ny * w1 / 2);
+    ctx.lineTo(x1 - nx * w1 / 2, y1 - ny * w1 / 2);
+    ctx.lineTo(x0 - nx * w0 / 2, y0 - ny * w0 / 2);
+    ctx.closePath();
+  }
+  const lerpPt = (a, b, t) => { LP.x = a.x + (b.x - a.x) * t; LP.y = a.y + (b.y - a.y) * t; return LP; };
+  // closed smooth curve through points (midpoint quadratic)
+  function smoothShape(ctx, pts) {
+    const n = pts.length;
+    ctx.beginPath();
+    ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+    for (let i = 0; i < n; i++) {
+      const p = pts[i], q = pts[(i + 1) % n];
+      ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
+    }
+    ctx.closePath();
+  }
+  const TPOOL = [], TP = [];
+  for (let i = 0; i < 12; i++) TPOOL.push({ x: 0, y: 0 });
+  // torso frame: a = 0 at the hip, 1 at the neck; f = px forward
+  function torsoPts(P, sc, dir, spec) {
+    const hx = P.hip.x, hy = P.hip.y, dx = P.neck.x - hx, dy = P.neck.y - hy;
+    const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    const fx = dir * -uy, fy = dir * ux;
+    TP.length = 0;
+    for (let i = 0; i < spec.length; i += 2) {
+      const p = TPOOL[i / 2];
+      p.x = hx + dx * spec[i] + fx * spec[i + 1] * sc;
+      p.y = hy + dy * spec[i] + fy * spec[i + 1] * sc;
+      TP.push(p);
+    }
+    return TP;
+  }
+  // athletic V-torso: narrow waist, broad chest and back
+  const TORSO = [0, -21, 0.3, -18, 0.6, -25, 0.86, -29, 1.04, -16, 1.03, 20, 0.82, 31, 0.6, 27, 0.33, 19, 0, 22];
+  const WRAP = [0.18, -19, 0.55, -24, 0.88, -27, 1.0, -8, 1.0, 18, 0.8, 29, 0.55, 25, 0.2, 18];
+  const MANTLE = [0.8, -33, 1.02, -27, 1.1, -4, 1.05, 24, 0.86, 35, 0.74, 14, 0.78, -14];
+  const BELT = [0.05, -23, 0.17, -21, 0.17, 22, 0.05, 25];
+
+  function heroFlap(ctx, P, sc, dir, front, swing, col) {
+    // linen tabard flap hanging from the belt; swings with movement (secondary motion)
+    const hx = P.hip.x, hy = P.hip.y, dx = P.neck.x - hx, dy = P.neck.y - hy;
+    const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    const fx = dir * -uy, fy = dir * ux;
+    const side = front ? 1 : -1;
+    const r0x = hx + dx * 0.08 + fx * side * 16 * sc, r0y = hy + dy * 0.08 + fy * side * 16 * sc;
+    const len = (front ? 56 : 66) * sc, a = swing * (front ? 1 : 1.25);
+    const ex = r0x - ux * len + fx * side * a * len * 0.6, ey = r0y - uy * len + fy * side * a * len * 0.6;
+    const w = (front ? 10 : 12) * sc;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(r0x - fx * w, r0y - fy * w);
+    ctx.lineTo(r0x + fx * w, r0y + fy * w);
+    ctx.quadraticCurveTo(ex + fx * w * 1.1, ey + fy * w * 1.1 + 6, ex + fx * w * 0.7, ey + fy * w * 0.7);
+    ctx.lineTo(ex, ey + 8 * sc);
+    ctx.lineTo(ex - fx * w * 0.8, ey - fy * w * 0.8);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function heroLeg(ctx, P, b, sc, near, flat) {
+    const hip = P.hip, k = P[near ? 'kneeF' : 'kneeB'], ft = P[near ? 'footF' : 'footB'], toe = P[near ? 'toeF' : 'toeB'];
+    // thigh: strong, linen trousers
+    ctx.fillStyle = flat || (near ? V2.cloth : V2.clothBack);
+    mlimb(ctx, hip.x, hip.y, k.x, k.y, 44 * b, 42 * b, 27 * b, 4 * b, 3 * b);
+    ctx.fill();
+    if (!flat) limbShade(ctx, hip, k, 44 * b, 27 * b, !near);
+    // shin with calf, wrapped
+    ctx.fillStyle = flat || (near ? V2.cloth : V2.clothBack);
+    mlimb(ctx, k.x, k.y, ft.x, ft.y, 27 * b, 26 * b, 19 * b, 2 * b, 6 * b);
+    ctx.fill();
+    // boot: lower shin + foot in dark leather with a silver cuff
+    const bt = lerpPt(k, ft, 0.52), btx = bt.x, bty = bt.y;
+    ctx.fillStyle = flat || (near ? V2.boot : V2.bootBack);
+    mlimb(ctx, btx, bty, ft.x, ft.y, 25 * b, 24 * b, 20 * b, 1 * b, 2 * b);
+    ctx.fill();
+    mlimb(ctx, ft.x, ft.y, toe.x + (toe.x - ft.x) * 0.35, toe.y + (toe.y - ft.y) * 0.35, 20 * b, 16 * b, 11 * b, 0, 0);
+    ctx.fill();
+    if (flat) return;
+    // wraps on the shin (a few crossing bands, not zebra stripes)
+    ctx.strokeStyle = near ? 'rgba(120,112,100,0.55)' : 'rgba(80,74,66,0.5)';
+    ctx.lineWidth = 1.6 * sc;
+    for (let i = 0; i < 3; i++) {
+      const p0 = lerpPt(k, ft, 0.12 + i * 0.13), x0 = p0.x, y0 = p0.y;
+      const p1 = lerpPt(k, ft, 0.2 + i * 0.13);
+      const dx = ft.x - k.x, dy = ft.y - k.y, L = Math.hypot(dx, dy) || 1;
+      const nx = -dy / L * 12 * b, ny = dx / L * 12 * b;
+      ctx.beginPath(); ctx.moveTo(x0 + nx, y0 + ny); ctx.lineTo(p1.x - nx, p1.y - ny); ctx.stroke();
+    }
+    ctx.fillStyle = near ? V2.silver : V2.silverDark;
+    band(ctx, k, ft, 0.5, 0.6, 27 * b, 26 * b);
+    ctx.fill();
+    // knee guard: a pointed plate shaped along the shin (covers the knee joint)
+    const dx = ft.x - k.x, dy = ft.y - k.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    let nx = -uy, ny = ux;
+    const fwd = (P.toeF.x - P.footF.x) * nx + (P.toeF.y - P.footF.y) * ny;
+    if (fwd < 0) { nx = -nx; ny = -ny; }
+    ctx.fillStyle = near ? V2.silver : V2.silverDark;
+    ctx.beginPath();
+    ctx.moveTo(k.x - ux * 10 * b + nx * 7 * b, k.y - uy * 10 * b + ny * 7 * b);
+    ctx.lineTo(k.x + nx * 14 * b, k.y + ny * 14 * b);
+    ctx.lineTo(k.x + ux * 18 * b + nx * 10 * b, k.y + uy * 18 * b + ny * 10 * b);
+    ctx.lineTo(k.x + ux * 14 * b + nx * 2 * b, k.y + uy * 14 * b + ny * 2 * b);
+    ctx.lineTo(k.x - ux * 4 * b + nx * 3 * b, k.y - uy * 4 * b + ny * 3 * b);
+    ctx.closePath();
+    ctx.fill();
+    if (near) {
+      ctx.strokeStyle = V2.gold; ctx.lineWidth = 1.6 * sc;
+      ctx.beginPath(); ctx.moveTo(k.x - ux * 10 * b + nx * 8 * b, k.y - uy * 10 * b + ny * 8 * b); ctx.lineTo(k.x + ux * 18 * b + nx * 9 * b, k.y + uy * 18 * b + ny * 9 * b); ctx.stroke();
+    }
+  }
+
+  function heroArm(ctx, P, b, sc, near, flat, f) {
+    const sh = P.sh, e = P[near ? 'elbF' : 'elbB'], h = P[near ? 'handF' : 'handB'];
+    // upper arm with deltoid, linen sleeve
+    ctx.fillStyle = flat || (near ? V2.cloth : V2.clothBack);
+    mlimb(ctx, sh.x, sh.y, e.x, e.y, 30 * b, 27 * b, 19 * b, 3 * b, 2 * b);
+    ctx.fill();
+    if (!flat) limbShade(ctx, sh, e, 30 * b, 19 * b, !near);
+    // forearm, wrapped, stronger toward the elbow
+    ctx.fillStyle = flat || (near ? V2.cloth : V2.clothBack);
+    mlimb(ctx, e.x, e.y, h.x, h.y, 20 * b, 21 * b, 15 * b, 3 * b, 1 * b);
+    ctx.fill();
+    if (!flat) {
+      limbShade(ctx, e, h, 20 * b, 15 * b, !near);
+      // bracer: silver, over the wrist end of the forearm
+      ctx.fillStyle = near ? V2.silver : V2.silverDark;
+      band(ctx, e, h, 0.55, 0.92, 22 * b, 18 * b);
+      ctx.fill();
+      if (near) {
+        ctx.strokeStyle = V2.gold; ctx.lineWidth = 1.5 * sc;
+        band(ctx, e, h, 0.6, 0.62, 22 * b, 22 * b); ctx.stroke();
+      }
+    }
+    // gloved hand: a closed fist shaped along the forearm (not a ball)
+    const dx = h.x - e.x, dy = h.y - e.y, L = Math.hypot(dx, dy) || 1;
+    ctx.fillStyle = flat || (near ? V2.glove : V2.suitBack);
+    ctx.beginPath();
+    ctx.ellipse(h.x + dx / L * 6 * b, h.y + dy / L * 6 * b, 12 * b, 9.5 * b, Math.atan2(dy, dx), 0, SA.TAU);
+    ctx.fill();
+    void f;
+  }
+
+  function heroHead(ctx, f, P, sc, flat) {
+    const hf = headFrame(f, P);
+    const hr = SA.DIM.headR * sc * 1.05;
+    const H = P.head;
+    const lag = f.hoodLag || 0;
+    const hp = (fw, up) => { LP.x = H.x + hf.fx * fw * hr + hf.ux * up * hr; LP.y = H.y + hf.fy * fw * hr + hf.uy * up * hr; return { x: LP.x, y: LP.y }; };
+    // neck (dark undersuit)
+    ctx.fillStyle = flat || V2.suit;
+    mlimb(ctx, P.neck.x, P.neck.y, H.x, H.y, 20 * sc, 20 * sc, 18 * sc, 0, 0);
+    ctx.fill();
+    // hood: big, peaked forward, cloth falling onto the shoulders; the tip trails movement a little
+    // pointed, forward-leaning peak (two close points keep the tip sharp through the smoothing)
+    const pts = [hp(1.38, 0.4), hp(0.9, 1.3), hp(0.42, 2.0), hp(0.2 - lag * 0.06, 2.42), hp(0.02 - lag * 0.06, 2.38), hp(-0.45 - lag * 0.05, 1.95),
+      hp(-1.15 - lag * 0.08, 1.5), hp(-1.65, 0.45), hp(-1.85, -0.75), hp(-1.7, -2.05), hp(-0.3, -2.25), hp(0.55, -1.55), hp(0.98, -0.7)];
+    ctx.fillStyle = flat || V2.cloth;
+    smoothShape(ctx, pts);
+    ctx.fill();
+    if (flat) return;
+    // inner fold / back shadow of the hood
+    ctx.fillStyle = V2.clothShade;
+    smoothShape(ctx, [hp(-0.3, 1.75), hp(-0.95, 1.6), hp(-1.55, 0.65), hp(-1.8, -0.75), hp(-1.55, -1.95), hp(-0.95, -1.6), hp(-1.05, -0.35), hp(-0.75, 0.9)]);
+    ctx.fill();
+    // face opening: deep shadow, then the dark grey mask with a moon-silver brow line
+    ctx.fillStyle = '#09080d';
+    smoothShape(ctx, [hp(1.12, 0.3), hp(0.55, 0.95), hp(-0.05, 0.55), hp(-0.15, -0.55), hp(0.3, -1.15), hp(0.85, -0.85)]);
+    ctx.fill();
+    ctx.fillStyle = V2.mask;
+    smoothShape(ctx, [hp(0.95, 0.15), hp(0.55, 0.62), hp(0.12, 0.35), hp(0.05, -0.5), hp(0.4, -0.95), hp(0.82, -0.7)]);
+    ctx.fill();
+    ctx.strokeStyle = V2.silver; ctx.lineWidth = 1.6 * sc;
+    const b0 = hp(0.95, 0.32), b1 = hp(0.25, 0.62);
+    ctx.beginPath(); ctx.moveTo(b0.x, b0.y); ctx.lineTo(b1.x, b1.y); ctx.stroke();
+    // hood trim + brow crescent
+    ctx.strokeStyle = V2.gold; ctx.lineWidth = 2 * sc;
+    const t0 = hp(1.38, 0.4), t1 = hp(0.9, 1.3), t2 = hp(0.3, 2.15);
+    ctx.beginPath(); ctx.moveTo(t0.x, t0.y); ctx.quadraticCurveTo(t1.x, t1.y, t2.x, t2.y); ctx.stroke();
+    const m = hp(0.5, 1.1);
+    ctx.strokeStyle = '#e8f2ff'; ctx.lineWidth = 2 * sc;
+    ctx.beginPath(); ctx.arc(m.x, m.y, hr * 0.22, Math.atan2(hf.fy, hf.fx) + 0.6, Math.atan2(hf.fy, hf.fx) + 0.6 + Math.PI * 1.15); ctx.stroke();
+    // a fold line down the side of the hood
+    ctx.strokeStyle = 'rgba(70,64,58,0.35)'; ctx.lineWidth = 1.6 * sc;
+    const f0 = hp(0.35, 1.3), f1 = hp(-1.1, -0.9), fc = hp(-0.55, 0.5);
+    ctx.beginPath(); ctx.moveTo(f0.x, f0.y); ctx.quadraticCurveTo(fc.x, fc.y, f1.x, f1.y); ctx.stroke();
+  }
+
+  function drawHeroV2(ctx, f, flat) {
+    const look = f.look, P = f.skel, pal = paletteOf(look);
+    const sc = look.scale, b = sc * (look.bulk || 1);
+    const dir = Math.sign(f.facing * (f.spinScale || 1)) || 1;
+    const metal = (f.weapon && f.weapon.metal) || '#c9a25a';
+    const grip = (f.weapon && f.weapon.grip) || '#3a2616';
+    const swing = f.flapSwing || 0;
+
+    drawRopes(ctx, f, false, flat, pal);                                         // cape + back bandages
+    heroFlap(ctx, P, sc, dir, false, swing, flat || V2.clothBack);
+    if (f.weapon) drawWeapons(ctx, P, f.weapon, flat || shade(metal, -0.25), 'B', !flat, sc, flat || shade(grip, -0.2));
+    heroArm(ctx, P, b, sc, false, flat, f);
+    heroLeg(ctx, P, b, sc, false, flat);
+    // torso: undersuit, linen wrap, belt, chest crescent
+    ctx.fillStyle = flat || V2.suit;
+    smoothShape(ctx, torsoPts(P, b, dir, TORSO));
+    ctx.fill();
+    if (!flat) {
+      ctx.fillStyle = V2.cloth;
+      smoothShape(ctx, torsoPts(P, b, dir, WRAP));
+      ctx.fill();
+      // wrap seams: two crossing folds of the linen (dark undersuit shows in the gaps)
+      const s = torsoPts(P, b, dir, [0.3, -20, 0.62, 24, 0.5, -24, 0.86, 22, 0.7, -26, 0.95, 4]);
+      ctx.strokeStyle = 'rgba(40,36,48,0.55)'; ctx.lineWidth = 2.2 * sc;
+      ctx.beginPath(); ctx.moveTo(s[0].x, s[0].y); ctx.lineTo(s[1].x, s[1].y); ctx.moveTo(s[2].x, s[2].y); ctx.lineTo(s[3].x, s[3].y); ctx.moveTo(s[4].x, s[4].y); ctx.lineTo(s[5].x, s[5].y); ctx.stroke();
+      // side shadow along the back
+      ctx.fillStyle = 'rgba(10,8,20,0.18)';
+      smoothShape(ctx, torsoPts(P, b, dir, [0.02, -21, 0.3, -18, 0.6, -25, 0.86, -29, 1.0, -16, 0.86, -14, 0.6, -10, 0.3, -6]));
+      ctx.fill();
+      ctx.fillStyle = V2.silver;
+      smoothShape(ctx, torsoPts(P, b, dir, BELT));
+      ctx.fill();
+      const bk = torsoPts(P, b, dir, [0.11, 21]);
+      ctx.fillStyle = V2.gold;
+      ctx.beginPath(); ctx.arc(bk[0].x, bk[0].y, 6 * sc, 0, SA.TAU); ctx.fill();
+      // chest crescent with a faint moonlight glow
+      const c = torsoPts(P, b, dir, [0.68, 14])[0];
+      const cx = c.x, cy = c.y, r = 10 * b, ang = dir > 0 ? 0 : Math.PI;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.25 + 0.08 * Math.sin(performance.now() / 300);
+      ctx.drawImage(SA.glowSprite('#cfeeff'), cx - r * 2.6, cy - r * 2.6, r * 5.2, r * 5.2);
+      ctx.restore();
+      ctx.fillStyle = V2.silver;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, ang - 2.4, ang + 2.4);
+      ctx.arc(cx + Math.cos(ang) * r * 0.45, cy + Math.sin(ang) * r * 0.45, r * 0.78, ang + 2.2, ang - 2.2, true);
+      ctx.closePath(); ctx.fill();
+    }
+    // shoulder mantle (broadens the V, hides the shoulder joint)
+    ctx.fillStyle = flat || V2.cloth;
+    smoothShape(ctx, torsoPts(P, b, dir, MANTLE));
+    ctx.fill();
+    if (!flat) {
+      ctx.fillStyle = V2.clothShade;
+      smoothShape(ctx, torsoPts(P, b, dir, [0.8, -33, 1.0, -27, 0.95, -10, 0.78, -16]));
+      ctx.fill();
+    }
+    heroHead(ctx, f, P, sc, flat);
+    heroLeg(ctx, P, b, sc, true, flat);
+    heroFlap(ctx, P, sc, dir, true, swing, flat || V2.cloth);
+    if (!flat) {
+      // front flap trim
+      ctx.globalAlpha = 0.9;
+    }
+    heroArm(ctx, P, b, sc, true, flat, f);
+    ctx.globalAlpha = 1;
+    if (f.weapon) drawWeapons(ctx, P, f.weapon, flat || metal, 'F', !flat, sc, flat || grip);
+    // pauldron: layered silver plates over the front shoulder
+    const s = P.sh, e = P.elbF, dx = e.x - s.x, dy = e.y - s.y, L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L, uy = dy / L, ang = Math.atan2(uy, ux);
+    // overlapping curved plates following the upper arm (shield shapes, no ellipses)
+    let pnx = -uy, pny = ux;
+    if (pnx * dir < 0) { pnx = -pnx; pny = -pny; }
+    for (let i = 0; i < 3; i++) {
+      const o = (i * 9 - 6) * b, w = (19 - i * 3) * b;
+      const cx = s.x + ux * o, cy = s.y + uy * o;
+      ctx.fillStyle = flat || (i === 1 ? V2.silverDark : V2.silver);
+      ctx.beginPath();
+      ctx.moveTo(cx - pnx * w - ux * 4 * b, cy - pny * w - uy * 4 * b);
+      ctx.quadraticCurveTo(cx - ux * 16 * b, cy - uy * 16 * b, cx + pnx * w - ux * 4 * b, cy + pny * w - uy * 4 * b);
+      ctx.lineTo(cx + pnx * w * 0.8 + ux * 9 * b, cy + pny * w * 0.8 + uy * 9 * b);
+      ctx.quadraticCurveTo(cx + ux * 3 * b, cy + uy * 3 * b, cx - pnx * w * 0.8 + ux * 9 * b, cy - pny * w * 0.8 + uy * 9 * b);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (!flat) {
+      ctx.strokeStyle = V2.gold; ctx.lineWidth = 1.8 * sc;
+      const cx = s.x - ux * 6 * b, cy = s.y - uy * 6 * b, w = 19 * b;
+      ctx.beginPath(); ctx.moveTo(cx - pnx * w - ux * 4 * b, cy - pny * w - uy * 4 * b);
+      ctx.quadraticCurveTo(cx - ux * 16 * b, cy - uy * 16 * b, cx + pnx * w - ux * 4 * b, cy + pny * w - uy * 4 * b); ctx.stroke();
+    }
+    void ang;
+    drawRopes(ctx, f, true, flat, pal);
+  }
+  SA.drawHeroV2 = drawHeroV2;
+
   // Full material body, back to front.
   function drawMaterial(ctx, f) {
+    if (f.look.v2) { drawHeroV2(ctx, f, null); return; }
     const look = f.look, P = f.skel, pal = paletteOf(look);
     const sc = look.scale, b = (look.bulk || 1) * sc * (look.limb || 1);
     const ub = b * (look.upper || 1);       // shoulders / thighs: stronger at the root, tapering to the joint
@@ -1153,6 +1501,7 @@
 
   // flat silhouette incl. typed accessories and ropes (rims / hit flash / slow tint / menus)
   function drawSilhouetteFull(ctx, f, P, color) {
+    if (f.look.v2 && P === f.skel) { drawHeroV2(ctx, f, color); return; }
     const pal = paletteOf(f.look);
     drawRopes(ctx, f, false, color, pal);
     drawLayer(ctx, f, P, 'back', pal, color);
@@ -1206,7 +1555,7 @@
     drawShadow(ctx, f, strength) {
       const floor = SA.Physics.floorAt(f.x, f.y);
       const h = clamp((floor - f.y) / 500, 0, 1);
-      const w = (90 + (f.state === 'down' || f.state === 'ko' ? 90 : 0)) * (1 - h * 0.6) * f.look.scale * (0.6 + 0.4 * (f.look.bulk || 1));
+      const w = (90 + (f.state === 'down' || f.state === 'ko' ? 90 : 0)) * (1 - h * 0.6) * f.look.scale * (0.6 + 0.4 * (f.look.bulk || 1)) * SA.VIS_SCALE;
       ctx.globalAlpha = (strength || 0.5) * (1 - h * 0.7);
       ctx.fillStyle = '#000';
       ctx.beginPath();
@@ -1218,6 +1567,11 @@
     // rims: [{color, dx, dy}] light edges drawn by offsetting the silhouette
     drawFighter(ctx, f, rims, alpha) {
       const look = f.look;
+      // visual scale (rendering only, the collider / hitboxes keep their size): fighters read
+      // bigger and more heroic on screen, scaled around their feet
+      const vs = SA.VIS_SCALE;
+      ctx.save();
+      ctx.translate(f.x, f.y); ctx.scale(vs, vs); ctx.translate(-f.x, -f.y);
       let jitter = 0;
       if (f.hitShake > 0) {
         jitter = Math.sin(performance.now() * 0.09) * 7 * (f.hitShake / (f.hitShakeMax || 1));
@@ -1251,6 +1605,7 @@
       }
       if (jitter) ctx.restore();
       this.drawTrail(ctx, f);
+      ctx.restore();
     },
 
     drawSilhouette(ctx, f, color) {
@@ -1295,9 +1650,13 @@
       if (!f.ghosts.length) return;
       // afterimages: faint sand / linen silhouettes (not neon), gone after ~125 ms
       const col = f.look.trail || '#c8b08a';
+      const vs = SA.VIS_SCALE;
       for (const g of f.ghosts) {
         ctx.globalAlpha = clamp(g.life, 0, 1) * 0.22;
+        ctx.save();
+        ctx.translate(g.pts.hip.x, f.y); ctx.scale(vs, vs); ctx.translate(-g.pts.hip.x, -f.y);
         drawFlat(ctx, g.pts, f.look, col, col, f.weapon);
+        ctx.restore();
       }
       ctx.globalAlpha = 1;
     },

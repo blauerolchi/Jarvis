@@ -169,7 +169,8 @@
       // soft resolve only for overlaps that already existed last frame (getting up inside someone);
       // overlap created by this frame's movement (dashes, rushes, landings) is removed completely
       const prevOverlap = minD - Math.abs((b.prevX === undefined ? b.x : b.prevX) - (a.prevX === undefined ? a.x : a.prevX));
-      const soft = prevOverlap > 2 && lyingA === lyingB;
+      // ... and a fighter coming down onto the other is pushed off over a few frames (no 50 px pop)
+      const soft = (prevOverlap > 2 && lyingA === lyingB) || !a.grounded || !b.grounded;
       const step = soft ? Math.min(overlap, MAX_STEP + Math.max(0, overlap - 90) * 0.5) : overlap;
       let ca = step * wa, cb = step * wb;
 
