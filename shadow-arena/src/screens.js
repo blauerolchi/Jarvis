@@ -460,12 +460,11 @@
       const nx = SA.ArenaMode.nextLabel(run.stage);
       text(ctx, nx, W / 2, 196, { size: 14, weight: 800, spacing: 3, color: 'rgba(255,255,255,0.55)', align: 'center' });
       // player side: streak + run coins
-      const touch = g.input.touchActive;
-      const ly = touch ? 168 : 128;
-      text(ctx, `STREAK ${run.streak}   ·   ${run.coins} ¤ THIS RUN`, 104, ly, { size: 17, weight: 800, spacing: 3, color: GOLD });
+      const ly = 140;
+      text(ctx, `STREAK ${run.streak}   ·   ${run.coins} ¤`, 160, ly, { size: 16, weight: 800, spacing: 3, color: GOLD });
       // enemy side: type chips
       const chips = [e.label].concat(e.modifiers.map((m) => SA.ELITE_MODIFIERS[m].label));
-      let cx = W - 104;
+      let cx = W - 160;
       for (let i = chips.length - 1; i >= 0; i--) {
         const c = chips[i];
         ctx.font = `800 15px ${SA.FONT}`;

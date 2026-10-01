@@ -1,6 +1,6 @@
 # SHADOW ARENA · Curse of the Mummy
 
-Ein schnelles 2D-Arena-Fighting-Game im Stil einer **ägyptischen Dark-Fantasy-Unterwelt**: Du spielst eine erwachte Mumie mit flatternden Bandagen, leuchtenden Augen und Goldschmuck und kämpfst dich durch Grabwächter, Wüstenbanditen und Anubis-Akolythen bis zu den **Göttern** selbst: Anubis, Sobek, Sekhmet, Horus, Set, Ra und Osiris.
+Ein schneller 2D-**Platform-Fighter** im Stil einer **ägyptischen Dark-Fantasy-Unterwelt**: Du spielst den **Moon Guardian**, einen mystischen Mondkrieger in weißen Bandagen mit Kapuze, kurzem Umhang, Gold- und Mondsilber-Details, leuchtenden Augen und zwei **Crescent Pistols**. Gekämpft wird auf dem Boden und auf schwebenden Steinplattformen, mit Flips, Rolls, Dashes, Schüssen im Salto und Sturzangriffen, gegen Grabwächter, Wüstenbanditen und Anubis-Akolythen bis zu den **Göttern** selbst: Anubis, Sobek, Sekhmet, Horus, Set, Ra und Osiris.
 
 Das Spiel läuft komplett offline im Browser, am PC mit Tastatur und auf dem **Android-Tablet mit Touch-Steuerung**. Kein Server, kein npm, keine CDNs, keine externen Bilder oder Sounds: Grafik, Animationen, Musik und Soundeffekte entstehen zur Laufzeit.
 
@@ -41,30 +41,42 @@ Alle Skripte sind klassische `<script>`-Dateien ohne ES-Module, weil Chrome Modu
 | **A / D** (oder ← →) | Gehen. **Gedrückt halten** → nach kurzer Zeit Laufen, dann Sprinten |
 | **2× A / D antippen** | Quick Dash nach vorne bzw. Backstep |
 | **W** (oder ↑) | Springen · aus dem Lauf / Dash: **Front Flip** · mit Rückwärts: **Backflip** |
-| **S** (oder ↓) | Ducken |
+| **S** (oder ↓) | Ducken · in der Luft: **Fast Fall** · auf einer Plattform: **durchfallen** |
 | **J** | Leichter Angriff |
 | **K** | Schwerer Angriff (mit Richtung: ↑ Aufwärts, ↓ Feger, → Vorstoß) |
 | **L** | Kick |
 | **U** | Blocken (kurz vor dem Treffer antippen = **Parry**) · **S + U** tiefer Block |
 | **I** | Dash (mit →) · Backstep (ohne Richtung) · **Handspring / Flikflak** (mit ←) · **Combat Roll** (mit ↓) · in der Luft: **Air Dash** |
-| **O** | Werfen / Schießen (Fernkampf-Slot) · **P** Nachladen |
+| **O** | Schießen / Werfen — jederzeit, auch im Lauf, Dash, Roll-Ende, Flip und Fall (↓ + O in der Luft zielt nach unten). Nachladen passiert automatisch (**P** lädt optional sofort nach) |
 | **SPACE** | Spezialangriff (bei 100 % Energie) |
 | **ESC** | Pause / Trainingsoptionen · **R** Position zurücksetzen (Training) |
 | **T** | Im Shop: Gegenstand im Training ausprobieren (TRY) |
 
 ### Touch-Steuerung (Tablet)
 
-Die Touch-Steuerung erscheint automatisch, sobald der Bildschirm berührt wird (*Settings → TOUCH CONTROLS*: AUTO / ON / OFF, *TOUCH BUTTON SIZE*: Small / Medium / Large).
+Die Touch-Steuerung erscheint automatisch, sobald der Bildschirm berührt wird (*Settings → TOUCH CONTROLS*: AUTO / ON / OFF, *TOUCH BUTTON SIZE*: Small / Medium / Large). Links ein **fester Joystick**, rechts nur noch **vier Buttons** — Block, Dash, Heavy, Reload und Sprung stecken im Joystick und in den Gesten.
 
 | Element | Funktion |
 |---|---|
-| **Fester Joystick** links unten | Die Basis bleibt immer an derselben Stelle, nur der Knopf bewegt sich. Auslenkung 0–12 % = Totzone, bis 50 % = Gehen, bis 85 % = Laufen, darüber = Sprinten. Nach oben = Springen, nach unten = Ducken. Zweimal schnell zur Seite schnippen = Dash |
-| **PUNCH** (groß) · **HEAVY** · **KICK** | Angriffe (reagieren schon auf `pointerdown`) |
-| **BLOCK** | Halten = blocken, kurz vor dem Treffer antippen = Parry |
-| **DASH** | Dash / Backstep / Roll (mit Stick nach unten) |
+| **ATTACK** (groß, rechts unten) | Leichter Angriff, kontextabhängig (Stand, Lauf, Dash, Roll-Ende, Luft, Flip). **Doppeltipp** (≤ 260 ms) = **Heavy**, bricht den Light sofort in den passenden Heavy ab |
+| **KICK** | Kick / Running Kick / Flying Kick / Feger (mit ↓) |
+| **SHOOT** | Schießen ohne Stillstand: im Lauf, im Dash, im Salto (**Salto-Schuss**), im Fall (Stick ↓ = nach unten zielen) |
 | **SPECIAL** | Spezialangriff, der Ring zeigt die Energie |
-| **THROW** · **RELOAD** | Fernkampfwaffe mit Ladungs- bzw. Munitionsanzeige |
 | **❚❚** oben rechts | Pause |
+
+**Joystick-Gesten** (lösen schon beim Erreichen der Zone aus, nicht erst beim Loslassen; „vorwärts“ = zum Gegner, wird bei Seitenwechsel neu berechnet):
+
+| Geste | Boden | Luft |
+|---|---|---|
+| ← / → halten | Gehen → Laufen → Sprinten (nach Auslenkung) | Luftsteuerung |
+| ↑ | akrobatischer Sprung mit Drehung | — |
+| ↗ / ↖ (zum Gegner / weg) | **Front Flip** / **Backflip** · 2× ↗ = **Flip Leap** | — |
+| ↘ / ↙ | **Roll** in diese Richtung (kleinere Hurtbox) | Fast Fall |
+| ↓ | Ducken · auf Plattform **durchfallen** | **Fast Fall** (↓ + ATTACK = Sturzangriff) |
+| kurzer Schnipp → / ← | **Dash** zum Gegner / **Backstep** | **Air Dash** |
+| 2× Schnipp | **Long Dash** / **Flikflak** (Handspring) | Air Dash |
+
+In den ersten Sekunden eines Kampfes (und im Training) zeigen kleine Hinweise am Joystick, was jede Richtung macht.
 
 Jeder Finger wird über seine `pointerId` verfolgt und per `setPointerCapture` festgehalten: Der Stick gehört genau dem Finger, der ihn berührt hat, auch wenn dieser aus dem Stickbereich rutscht. `pointerup`, `pointercancel`, `lostpointercapture`, App-Wechsel oder Fokusverlust setzen alles zurück, nichts bleibt hängen.
 
@@ -87,6 +99,17 @@ Jeder Finger wird über seine `pointerId` verfolgt und per `setPointerCapture` f
 
 **Eingabepuffer:** Jeder Tastendruck wird 150 ms gespeichert, zusammen mit der Richtung, die in diesem Moment gehalten wurde. Ein Angriff, der kurz vor dem Ende der laufenden Animation gedrückt wird, kommt im nächsten gültigen Cancel-Fenster, und zwar mit der Richtung des Drucks. Ein interner Mobilitätswert verhindert Ausweich-Spam: Wer viele Ausweichbewegungen hintereinander macht, rollt etwas kürzer und erholt sich langsamer, eine sichtbare Stamina-Leiste gibt es nicht.
 
+### Plattformen
+
+Jede Arena hat neben dem Boden **3–4 schwebende Sandsteinplattformen** (Layouts *temple*, *bridge*, *steps*, *four*). Sie sind **one-way**: von unten durchspringen, von oben landen. Von der Kante laufen, rollen oder dashen = Fallen (nie hängenbleiben), ↓ auf der Plattform = durchfallen, Fast Fall fällt ebenfalls hindurch. Die untere Ebene erreicht man vom Boden mit Sprung oder Flip, die obere von einer unteren Plattform. Die Kamera zoomt und hebt sich weich mit, Schatten liegen auf der Fläche unter dem Kämpfer, Wurfgeschosse und Schüsse nach unten schlagen auf Plattformen ein.
+
+### Schießen & Sturzangriffe
+
+- **Schießen ohne State-Lock**: Ein Schuss läuft *über* der aktuellen Aktion — Laufen, Dash, Roll-Ende, Flip, Fall. Der Arm zielt im Weltraum, auch während sich der Körper dreht (**Salto-Schuss** mit Mündungsfeuer, Rückstoß und gezeichneter Pistole). In der Luft bremst ein Schuss den Fall kurz, ↓ + Schuss zielt nach unten und drückt nach oben. Eine leichte Zielhilfe gleicht Höhenunterschiede (Plattformen) aus.
+- **Automatisches Nachladen**, sobald das Magazin leer ist oder nach einer kurzen Schusspause — kein Reload-Button.
+- **Crescent Pistols** (Startwaffe): zwei Pistolen, abwechselnd, schnell, leicht, 8 Schuss. Die anderen Fernkampfwaffen unterscheiden sich in Feuerrate, Tempo, Streuung, Rückstoß und Munition.
+- **Sturzangriff**: ↓ + Angriff in der Luft (auch noch nach einem Luftangriff). ↓ + Heavy = **Crescent Dive** senkrecht nach unten mit Hitstop, Aufschlagring, Sandfontäne und Flächentreffer. Der Sturz lenkt auf einen Gegner unter einem. Sturzangriffe schmettern Gegner in der Luft nach unten und lassen Gegner am Boden hochprallen, schwere Luftangriffe schleudern weiter.
+
 ### Combos (entstehen aus den Systemen, nichts ist gescriptet)
 
 | Combo | Eingaben |
@@ -97,6 +120,15 @@ Jeder Finger wird über seine `pointerId` verfolgt und per `setPointerCapture` f
 | **PHARAOH’S WRATH** | Dash → J → J → K (→ SPACE bei voller Energie) |
 | **SCARAB FLOW** | Roll (↓ + I) → J (Roll-Angriff) → Dash → L |
 | **SANDS OF DEATH** | Sprint → ↓ (Slide) → J (Slide Kick hebt an) → Sprung vorwärts → J |
+
+**Flow-Combos** (Platform-Fighter): erkannt an der Art der Treffer innerhalb von ~1 s, mit jeder Waffe:
+
+| Combo | Ablauf |
+|---|---|
+| **CRESCENT FLOW** | Annähern → Attack → Kick → ↗ Flip → Air Slash → ↓ + Heavy (Sturz) |
+| **MOON GUNNER** | Backflip → Schuss → Schuss → Landen → Dash → Kick |
+| **DESERT DIVE** | Plattform → Sprung → Schuss → Fast Fall → Heavy |
+| **MOON DANCE** | Roll unter dem Angriff durch → Roll-Angriff → Dash → Kick → Backflip → Schuss |
 
 ---
 
@@ -120,9 +152,10 @@ Cross-ups sind nur über Sprung, Roll, Dash-Durchgänge oder Fähigkeiten mögli
 
 ### Energie & Spezialangriffe
 
-Die Energieleiste (türkis, bei 100 % golden) füllt sich durch Treffer, erlittenen Schaden, Blocks und Parrys. Ist sie voll, steigen goldene Hieroglyphen um den Kämpfer auf. Beim Auslösen reißen die Bandagen der Mumie zurück, ein Hieroglyphen-Kreis explodiert und ein Flüstern ertönt.
+Die Energieleiste (mondblau, bei 100 % golden) füllt sich durch Treffer, erlittenen Schaden, Blocks und Parrys. Ist sie voll, steigen goldene Hieroglyphen um den Kämpfer auf. Beim Auslösen reißen die Bandagen der Mumie zurück, ein Hieroglyphen-Kreis explodiert und ein Flüstern ertönt.
 
-- **Tomb Rush** (Start): Vorstoß mit fünf Schlägen und Finisher.
+- **Crescent Moonfall** (Moon Guardian, Start): Mond-Dash (trifft und hebt an) → Front Flip (lenkbar, ATTACK schlägt früher) → Sichelschlag → Welle aus Mondlicht → Landung mit Lichtring.
+- **Tomb Rush**: Vorstoß mit fünf Schlägen und Finisher.
 - **Sandstorm Spiral** (Level 4): aufsteigender Wirbel, stark gegen Sprünge.
 - **Crescent of Anubis** (Level 6): Klingenwelle über den Boden.
 - **Earthshaker** (Level 12): Sprung mit Aufschlag und Schockwellen in beide Richtungen.
@@ -138,6 +171,8 @@ Die KI steuert ihren Kämpfer über **denselben Controller** wie der Spieler, mi
 - **Bewegung**: Dash, Backstep, Roll, Sprung, Slide, Running Attack, je nach Archetyp unterschiedlich häufig.
 - **Echte Combos**, z. B. Jackal Assassin *Light → Light → Dash → Kick*, Royal Guard *Block → Konter → Heavy*, Anubis *Teleport → Slash → Slash → Heavy*.
 - **Baits & Frame Traps**, Punishes, Anti-Air, Ecken-Verhalten (Roll, Sprung, Push oder Block), dynamische Schwierigkeit über die Stage.
+- **Plattformen**: Steht der Spieler oben, wartet die KI nie darunter — sie springt hinauf (für die obere Ebene über eine untere Plattform), schießt nach oben oder wechselt die Plattform. Steht sie selbst oben und der Spieler unten, fällt sie durch, läuft über die Kante oder stürzt mit einem Dive-Angriff herab. In der Luft steuert sie, greift an und verfolgt (`JUMP_TO_PLATFORM`, `DROP_FROM_PLATFORM`, `AIR_ATTACK`, `CHASE_AIR`, `RANGED_PRESSURE`).
+- **Archetyp-Combos**: Jackal *Dash → Slash → Kick → Flip → Luftangriff → Sturz*, Tomb Guard *Abstand → Speer → Schritt zurück → Anti-Air*, Anubis-Akolyth *Dash → Sprung → Air Slash → Sturzangriff*.
 
 ---
 
@@ -193,7 +228,8 @@ Acht prozedurale ägyptische Arenen mit Himmel, Parallax-Ebenen, Boden, Vordergr
 
 ## Präsentation
 
-- **Mumie**: dunkler Körper unter hellen, zerrissenen Bandagen, 6 lose Bandagen-Enden (Verlet-Physik, reagieren auf Tempo und Special), leuchtende türkise Augen (heller bei voller Energie), Goldschmuck, asymmetrischer Schulterpanzer, Gürtel, Armschienen, Amulett.
+- **Moon Guardian**: weiße/cremefarbene Bandagen über dunkler Unterschicht, weiße Kapuze mit Goldkante und Mondsichel auf der Stirn, Gesicht im Schatten mit leuchtenden mondblauen Augen, kurzer Umhang (Verlet-Kette als Stoffbahn mit dunklem Futter und Goldsaum), goldene Mondsichel auf der Brust, silberner Schulterpanzer und Armschienen, lose Bandagen-Enden, kräftigere Gliedmaßen mit Licht- und Schattenkante. Waffenspuren sind Mondsicheln aus Silberlicht.
+- **HUD** wie im Konzept: oben links/rechts Porträt-Medaillon, Name, Lebensleiste und direkt darunter die Energie, in der Mitte Timer und Stage. Weniger Text, mehr Platz für die Arena.
 - **Animation**: Idle mit Atmung und Gewichtsverlagerung, Lauf/Sprint mit Vorlage, Wende-Pivot, Angriffe mit Ausholen, Schlag, Impact, Nachschwung und Erholung.
 - **Kamera**: folgt Dashes und Sprints mit Vorlauf, zoomt beim Sprinten leicht heraus, folgt Sprüngen, Zoom-Punch bei harten Treffern, stärkeres Beben bei Göttern.
 - **Effekte**: Sand-Spuren bei Dash/Roll/Sprint, Hieroglyphen bei Special und Phasenwechsel, Telegraph-Ringe und Lichtsäulen vor Götterangriffen.
@@ -211,7 +247,7 @@ Acht prozedurale ägyptische Arenen mit Himmel, Parallax-Ebenen, Boden, Vordergr
 
 ## Speicherstand
 
-Lokal in `localStorage`, versioniert (aktuell Version 3). Alte Spielstände werden automatisch migriert: alte Arena-IDs werden auf die neuen ägyptischen Arenen umgeschrieben, Coins, Level, Waffen, Loadout und Statistiken bleiben erhalten.
+Lokal in `localStorage`, versioniert (aktuell Version 4). Alte Spielstände werden automatisch migriert: alte Arena-IDs werden auf die neuen ägyptischen Arenen umgeschrieben, Version 4 gibt allen die Crescent Pistols (bei leerem Fernkampf-Slot ausgerüstet) und den Special Crescent Moonfall (ersetzt den Standard-Special Tomb Rush, der im Shop wählbar bleibt). Coins, Level, Waffen, Loadout und Statistiken bleiben erhalten.
 
 ## Flüssige Bewegung: wie es technisch funktioniert
 
@@ -251,17 +287,17 @@ shadow-arena/
 │   ├── balance.js      alle Zahlen für Skalierung, Belohnungen, Reaktionszeiten
 │   ├── storage.js      versionierter Speicherstand mit Migration
 │   ├── input.js        Tastatur + Pointer Events (Capture), Controller mit Buffer
-│   ├── touch.js        fester Joystick, Buttons, Multitouch pro pointerId
+│   ├── touch.js        fester Joystick + Gestenerkennung, 4 Buttons, Multitouch pro pointerId
 │   ├── audio.js        Web-Audio-Synthese: SFX, Ambience, Musik
 │   ├── particles.js    Partikel-Pool + Effekte (Hieroglyphen, Sand, Seelen …)
 │   ├── camera.js       Kamera: Zoom, Vorlauf, Sprint-Zoom, Shake, Punch
-│   ├── physics.js      Movement Collider, Trennung, Wände
+│   ├── physics.js      Movement Collider, Trennung, Wände, One-Way-Plattformen, Fast Fall
 │   ├── animation.js    Skelett, Posen, Idle/Lauf/Sprint, Übergänge
 │   ├── combat.js       Framedaten + Treffer/Block/Parry/Nah-Hitbox
 │   ├── weapons.js      Waffenkatalog, Movesets, gemessene Reichweiten
 │   ├── projectiles.js  Projektile inkl. zielsuchend, Strahlen, Blitze
 │   ├── fighter.js      Zustandsautomat, Bewegung, Mobility-Moves, Specials
-│   ├── player.js       die Mumie + Trainingspuppe
+│   ├── player.js       der Moon Guardian + Trainingspuppe
 │   ├── enemy.js        KI: Wahrnehmung, Intents, Spacing, Combos
 │   ├── enemies.js      Gegner-Archetypen + Generator
 │   ├── bosses.js       Götter, Phasen, Fähigkeiten, BossAI
@@ -281,7 +317,10 @@ Die Tests steuern das echte Spiel über Playwright in headless Chromium, Frame f
 ```bash
 NODE_PATH=$(npm root -g) node tests/collision.js   # Collider, Trennung, Cross-ups, Nah-Hitbox, Reichweiten
 NODE_PATH=$(npm root -g) node tests/movement.js    # Lauf/Sprint, Dash, Backstep, Roll, Front Flip, Slide, Buffer
-NODE_PATH=$(npm root -g) node tests/touch.js       # echter Multitouch: fester Joystick, Zonen, Reset
+NODE_PATH=$(npm root -g) node tests/touch.js       # echter Multitouch: Joystick-Gesten, 4 Buttons, Doppeltipp-Heavy, Abnahmetest 53
+NODE_PATH=$(npm root -g) node tests/platforms.js   # One-Way-Plattformen, Durchfallen, Fast Fall, Kanten, Kamera, Abnahmetest 54
+NODE_PATH=$(npm root -g) node tests/flowcombat.js  # Abnahmetest 55, Schießen ohne State-Lock, Auto-Reload, Dive, Crescent Moonfall, Flow-Combos
+NODE_PATH=$(npm root -g) node tests/aiplatform.js  # KI auf Plattformen + Abnahmetest 56 (30 s KI gegen KI)
 NODE_PATH=$(npm root -g) node tests/ai.js          # Intents, Spacing, Reaktionszeiten, Combos, Ecke
 NODE_PATH=$(npm root -g) node tests/bosses.js      # jede Götter-Fähigkeit trifft und hat einen Konter, Intro, Phasen
 NODE_PATH=$(npm root -g) node tests/smooth.js     # Abnahmetests A–G: keine Posen-/Positionssprünge, Übergänge ohne Idle, Interpolation, Frame-Zeiten

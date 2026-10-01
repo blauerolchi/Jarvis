@@ -102,6 +102,14 @@ const { openGame } = require('./harness');
     for (let i = 0; i < 50; i++) { T.run(1, { hold: ['down'] }); maxRing = Math.max(maxRing, g.particles.pool.filter((q) => q.alive && q.type === 'ring' && q.rot === 0.3).length); }
     R.dive = { hp: g.p2.maxHp - g.p2.hp, p2: g.p2.state, rings: maxRing };
 
+    // ---- Crescent Moonfall (the Moon Guardian's special) ----
+    T.training('stand'); T.place(-420, 0);
+    f().specialId = 'crescent'; f().energy = 100;
+    const phases = [];
+    T.run(1, { press: ['special'] });
+    for (let i = 0; i < 160; i++) { T.run(1); const sp = f().sp; if (sp && phases[phases.length - 1] !== sp.phase) phases.push(sp.phase); }
+    R.crescent = { phases: phases.join('>'), dmg: g.p2.maxHp - g.p2.hp, state: f().state };
+
     // ---- named flow combos ----
     R.crescentFlow = play(() => T.place(-260, 0), [
       { n: 6, hold: ['right'] },
@@ -142,6 +150,7 @@ const { openGame } = require('./harness');
     ['auto reload when empty', res.autoReload.empty === 0 && res.autoReload.after === res.autoReload.mag],
     ['auto reload after a pause', res.idleReload],
     ['heavy dive: impact ring + damage + launch', res.dive.rings > 0 && res.dive.hp > 0 && /launched|down/.test(res.dive.p2)],
+    ['CRESCENT MOONFALL: dash > flip > cut > energy arc, lands', res.crescent.phases.startsWith('charge>dash>flip>cut') && res.crescent.dmg >= 80 && res.crescent.state !== 'special', res.crescent],
     ['CRESCENT FLOW', res.crescentFlow.flow === 'CRESCENT FLOW'],
     ['MOON GUNNER', res.moonGunner.flow === 'MOON GUNNER'],
     ['DESERT DIVE', res.desertDive.flow === 'DESERT DIVE'],

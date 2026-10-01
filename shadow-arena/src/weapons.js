@@ -399,6 +399,7 @@
 
   const SPECIAL_ITEMS = {
     rush: { name: 'Tomb Rush', type: 'special', rarity: 'uncommon', price: 0, levelRequired: 1 },
+    crescent: { name: 'Crescent Moonfall', type: 'special', rarity: 'rare', price: 0, levelRequired: 1 },
     storm: { name: 'Sandstorm Spiral', type: 'special', rarity: 'rare', price: 900, levelRequired: 4 },
     slash: { name: 'Crescent of Anubis', type: 'special', rarity: 'epic', price: 1800, levelRequired: 6 },
     quake: { name: 'Earthshaker', type: 'special', rarity: 'epic', price: 3000, levelRequired: 12 },

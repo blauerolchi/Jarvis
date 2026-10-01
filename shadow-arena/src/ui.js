@@ -543,11 +543,6 @@
       topGrad.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = topGrad;
       ctx.fillRect(0, 0, W, 190);
-      const botGrad = ctx.createLinearGradient(0, H - 150, 0, H);
-      botGrad.addColorStop(0, 'rgba(0,0,0,0)');
-      botGrad.addColorStop(1, 'rgba(0,0,0,0.55)');
-      ctx.fillStyle = botGrad;
-      ctx.fillRect(0, H - 150, W, 150);
 
       this.drawBar(ctx, g.p1, 0);
       this.drawBar(ctx, g.p2, 1);
@@ -596,7 +591,7 @@
           }
         }
         if (g.mode === 'arena') this.drawArenaInfo(ctx);
-        else text(ctx, `ROUND ${m.round}`, W / 2, 172, { size: 18, weight: 700, spacing: 6, color: 'rgba(255,255,255,0.55)', align: 'center' });
+        else text(ctx, `ROUND ${m.round}  ·  ${g.arena.name}`, W / 2, 172, { size: 16, weight: 700, spacing: 5, color: 'rgba(255,255,255,0.55)', align: 'center' });
       }
 
       this.drawEnergy(ctx, g.p1, 0);
@@ -612,9 +607,72 @@
       this.drawAnnounce(ctx);
     }
 
+    // Portrait medallion: the player's hooded moon warden, enemies as a dark head with their eye colour
+    drawPortrait(ctx, f, cx, cy, r, side) {
+      // cached sprite: gradients + glow are drawn once per fighter, not every frame
+      const key = f.name + '|' + side + '|' + r + '|' + (f.look.eye || '');
+      const cache = this._portraits || (this._portraits = new Map());
+      let spr = cache.get(key);
+      if (!spr) {
+        if (cache.size > 16) cache.clear();
+        const q = 2, size = (r + 6) * 2;
+        spr = SA.makeCanvas(size * q, size * q);
+        const g = spr.getContext('2d');
+        g.scale(q, q);
+        this.paintPortrait(g, f, size / 2, size / 2, r, side);
+        cache.set(key, spr);
+      }
+      ctx.drawImage(spr, cx - r - 6, cy - r - 6, (r + 6) * 2, (r + 6) * 2);
+    }
+    paintPortrait(ctx, f, cx, cy, r, side) {
+      const look = f.look, boss = !!(f.def && f.def.phases);
+      ctx.save();
+      const bg = ctx.createRadialGradient(cx, cy - r * 0.3, r * 0.1, cx, cy, r);
+      bg.addColorStop(0, f.isPlayer ? '#2c3550' : '#2a1c22');
+      bg.addColorStop(1, '#07060a');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, SA.TAU); ctx.fill();
+      ctx.clip();
+      const dir = side === 0 ? 1 : -1;
+      const hx = cx + dir * 4, hy = cy + r * 0.12;
+      if (look.kind === 'mummy') {
+        // hood + shadowed face + glowing eyes + brow crescent
+        ctx.fillStyle = '#efe9dc';
+        ctx.beginPath();
+        ctx.moveTo(hx + dir * r * 0.55, hy - r * 0.1);
+        ctx.quadraticCurveTo(hx + dir * r * 0.2, hy - r * 0.95, hx - dir * r * 0.45, hy - r * 0.55);
+        ctx.quadraticCurveTo(hx - dir * r * 0.8, hy + r * 0.2, hx - dir * r * 0.75, hy + r);
+        ctx.lineTo(hx + dir * r * 0.5, hy + r);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#0b0a10';
+        ctx.beginPath(); ctx.ellipse(hx + dir * r * 0.2, hy + r * 0.05, r * 0.3, r * 0.38, 0, 0, SA.TAU); ctx.fill();
+        ctx.strokeStyle = '#d9b25a'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(hx + dir * r * 0.05, hy - r * 0.55, r * 0.14, 0.4, 0.4 + Math.PI * 1.2); ctx.stroke();
+      } else {
+        ctx.fillStyle = SA.M.shade(look.mat && look.mat.skin ? look.mat.skin : '#2a2622', 0.15);
+        ctx.beginPath(); ctx.arc(hx, hy, r * 0.48, 0, SA.TAU); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(hx - dir * r * 0.05, hy + r * 0.9, r * 0.7, r * 0.45, 0, 0, SA.TAU); ctx.fill();
+      }
+      const eye = look.eye || '#ffcf6a';
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(SA.glowSprite(eye), hx + dir * r * 0.22 - r * 0.3, hy - r * 0.02 - r * 0.3, r * 0.6, r * 0.6);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = look.eyeCore || '#ffffff';
+      ctx.beginPath(); ctx.arc(hx + dir * r * 0.24, hy, r * 0.06, 0, SA.TAU); ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = boss ? '#ffd36b' : GOLD;
+      ctx.lineWidth = boss ? 4 : 3;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, SA.TAU); ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, r - 4, 0, SA.TAU); ctx.stroke();
+    }
+
     drawBar(ctx, f, side) {
-      const bw = 740, bh = 32, y = 60, skew = 14;
-      const x = side === 0 ? 100 : W - 100 - bw;
+      const bw = 660, bh = 28, y = 58, skew = 14;
+      const PR = 52, pcx = side === 0 ? 88 : W - 88, pcy = 84;
+      const x = side === 0 ? 160 : W - 160 - bw;
       const r = this.hpShown[side], lag = this.lag[side];
       ctx.save();
       skewRect(ctx, x - 4, y - 4, bw + 8, bh + 8, side === 0 ? skew : -skew);
@@ -654,22 +712,16 @@
       }
       ctx.restore();
 
-      const nameX = side === 0 ? x + 4 : x + bw - 4;
+      const nameX = side === 0 ? x + 6 : x + bw - 6;
       const align = side === 0 ? 'left' : 'right';
-      text(ctx, f.name, nameX, y - 22, { size: 28, weight: 800, spacing: 7, color: '#ffffff', align });
-      const nw = ctx.measureText(f.name).width + f.name.length * 7;
-      const subX = side === 0 ? nameX + nw + 16 : nameX - nw - 16;
-      text(ctx, (f.title || '').toUpperCase(), subX, y - 20, { size: 15, weight: 600, spacing: 3, color: 'rgba(255,255,255,0.45)', align });
-      if (this.game.mode === 'fight' && side === 1) {
-        text(ctx, SA.DIFFICULTY[this.game.difficulty].label, x + bw, y + bh + 22, { size: 15, weight: 700, spacing: 4, color: 'rgba(233,194,122,0.7)', align: 'right' });
-      }
+      text(ctx, f.name, nameX, y - 20, { size: 24, weight: 800, spacing: 6, color: '#ffffff', align });
+      this.drawPortrait(ctx, f, pcx, pcy, PR, side);
     }
 
     drawEnergy(ctx, f, side) {
-      // on touch the bottom belongs to the controls: energy moves under the health bars
-      const touch = this.game.input.touchActive;
-      const bw = touch ? 420 : 520, bh = 16, y = touch ? 128 : H - 70, skew = 10;
-      const x = side === 0 ? 100 : W - 100 - bw;
+      // compact energy bar right under the health bar (like the concept HUD): the arena stays free
+      const bw = 430, bh = 11, y = 100, skew = 10;
+      const x = side === 0 ? 160 : W - 160 - bw;
       const e = clamp(f.energy / 100, 0, 1);
       const full = e >= 1;
       ctx.save();
@@ -684,8 +736,8 @@
       const fw = bw * e;
       const fx = side === 0 ? x : x + bw - fw;
       const gr = ctx.createLinearGradient(x, 0, x + bw, 0);
-      // turquoise energy that turns to glowing gold when the special is ready
-      gr.addColorStop(0, '#12806f'); gr.addColorStop(1, '#5ff0dc');
+      // moonlight blue energy that turns to glowing gold when the special is ready
+      gr.addColorStop(0, '#2a6fa8'); gr.addColorStop(1, '#bfe8ff');
       ctx.fillStyle = full ? `hsl(${42 + Math.sin(this.t * 6) * 6},95%,${60 + Math.sin(this.t * 9) * 10}%)` : gr;
       ctx.fillRect(fx - skew, y, fw + skew * 2, bh);
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -694,15 +746,14 @@
       if (full) {
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = 0.25 + 0.15 * Math.sin(this.t * 6);
-        ctx.drawImage(SA.glowSprite('#ffc24a'), x - 40, y - 60, bw + 80, 136);
+        ctx.drawImage(SA.glowSprite('#ffc24a'), x - 40, y - 40, bw + 80, 90);
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
+        if (f.isPlayer) {
+          const lx = side === 0 ? x + bw + 18 : x - 18;
+          text(ctx, 'SPECIAL READY', lx, y + 6, { size: 16, weight: 800, spacing: 4, color: '#ffe3a0', align: side === 0 ? 'left' : 'right' });
+        }
       }
-      const align = side === 0 ? 'left' : 'right';
-      const lx = side === 0 ? x : x + bw;
-      const special = SA.SPECIALS[f.specialId] ? SA.SPECIALS[f.specialId].name : '';
-      if (full && f.isPlayer) text(ctx, `${special}  READY  ·  ${touch ? 'TAP SPECIAL' : 'SPACE'}`, lx, y - 20, { size: 19, weight: 800, spacing: 4, color: '#ffe3a0', align });
-      else text(ctx, `ENERGY  ·  ${special}`, lx, y - 20, { size: 16, weight: 700, spacing: 4, color: 'rgba(200,240,232,0.55)', align });
     }
 
     drawCombo(ctx, side) {

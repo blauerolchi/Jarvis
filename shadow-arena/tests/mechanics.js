@@ -96,13 +96,13 @@ const { openGame } = require('./harness');
     out.overheadVsCrouchBlock = hit() && g.p2.hp < g.p2.maxHp - 20 ? 'hit' : 'blocked';
 
     // 8) specials
-    fresh(0, 500); g.p1.energy = 100; T.run(1, { press: ['special'] }); T.run(160);
+    fresh(0, 500); g.p1.specialId = 'rush'; g.p1.energy = 100; T.run(1, { press: ['special'] }); T.run(160);
     out.rush = { dmg: g.p2.maxHp - g.p2.hp, p2: g.p2.state, energy: g.p1.energy };
     fresh(0, 180); g.p1.specialId = 'storm'; g.p1.energy = 100; T.run(1, { press: ['special'] }); T.run(120);
     out.storm = { dmg: g.p2.maxHp - g.p2.hp, p2: g.p2.state };
     fresh(0, 500); g.p1.energy = 50; T.run(1, { press: ['special'] }); T.run(30);
     out.specialWithoutEnergy = g.p1.state;
-    fresh(0, 500); g.ai2.forceHold = ['block']; g.p1.energy = 100; T.run(1, { press: ['special'] }); T.run(80);
+    fresh(0, 500); g.ai2.forceHold = ['block']; g.p1.specialId = 'rush'; g.p1.energy = 100; T.run(1, { press: ['special'] }); T.run(80);
     out.rushBlocked = { p1: g.p1.state, dmg: g.p2.maxHp - g.p2.hp };
 
     // 9) knockdown / getup cycle

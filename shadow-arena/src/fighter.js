@@ -83,9 +83,12 @@
     storm: { id: 'storm', name: 'SANDSTORM SPIRAL', desc: 'Rising whirlwind of kicks inside a sand vortex. Great anti-air, launches the enemy.' },
     slash: { id: 'slash', name: 'CRESCENT OF ANUBIS', desc: 'A lunging cut that releases a black-gold crescent across the arena.' },
     quake: { id: 'quake', name: 'EARTHSHAKER', desc: 'Leap and slam the ground: shockwaves travel both ways.' },
+    crescent: { id: 'crescent', name: 'CRESCENT MOONFALL', desc: 'Moon dash, flip, crescent slash and a wave of moonlight. Steer the flip, ATTACK slashes early.' },
   };
 
   const DIVE_IMPACT = { id: 'diveImpact', damage: 30, hitstun: 24, blockstun: 16, kb: 260, kbY: -760, knockdown: true, level: 'low', hitstop: 7, shake: 0.45, zoom: 0.05, sound: 'hit_heavy', power: 0.95 };
+  const CRESCENT_DASH = { id: 'crescent', damage: 34, hitstun: 34, blockstun: 18, kb: 120, kbY: -1050, knockdown: true, level: 'mid', hitstop: 5, shake: 0.3, sound: 'hit_heavy', power: 0.8 };
+  const CRESCENT_CUT = { id: 'crescent', damage: 58, hitstun: 30, blockstun: 18, kb: 700, kbY: -520, knockdown: true, level: 'mid', hitstop: 8, shake: 0.6, zoom: 0.08, sound: 'hit_special', power: 1.2 };
   const RUSH_DASH = { id: 'rush', damage: 30, hitstun: 30, blockstun: 24, kb: 120, level: 'mid', hitstop: 4, shake: 0.3, sound: 'hit_heavy', power: 0.8, unparryable: true };
   const RUSH_HIT = { id: 'rush', damage: 24, hitstun: 30, kb: 0, level: 'mid', hitstop: 3, shake: 0.18, sound: 'hit_light', power: 0.55 };
   const RUSH_FINAL = { id: 'rush', damage: 90, hitstun: 30, kb: 1350, kbY: -950, knockdown: true, level: 'mid', hitstop: 9, shake: 0.85, zoom: 0.1, sound: 'hit_special', power: 1.4 };
@@ -1212,6 +1215,17 @@
           break;
         case 'special':
           if (this.sp && this.sp.id === 'quake' && this.sp.phase === 'leap') { this.quakeSlam(game); break; }
+          if (this.sp && this.sp.id === 'crescent') {
+            // moonfall landing: a ring of moonlight, short recovery
+            SA.FX.impact(game.particles, this.x, this.y, 0.7, '#cfe8ff');
+            game.shake(0.2);
+            SA.audio.play('land', 0.8);
+            this.gravMul = 1;
+            this.cancelMove();
+            this.setState('landing');
+            this.stun = 10;
+            break;
+          }
           this.cancelMove();
           this.setState('landing');
           this.stun = 18;
@@ -1281,6 +1295,7 @@
       if (sp.id === 'rush') this.updateRush(sp, ts, dt, game);
       else if (sp.id === 'slash') this.updateSlash(sp, ts, dt, game);
       else if (sp.id === 'quake') this.updateQuake(sp, ts, dt, game);
+      else if (sp.id === 'crescent') this.updateCrescent(sp, ts, dt, game);
       else this.updateStorm(sp, ts, dt, game);
     }
 
@@ -1444,6 +1459,74 @@
       }
     }
 
+    // Crescent Moonfall (the Moon Guardian): moon dash -> front flip (steerable) -> crescent slash
+    // -> a wave of moonlight. A dash hit pops the enemy up into the slash; ATTACK slashes early.
+    updateCrescent(sp, ts, dt, game) {
+      const c = this.ctrl, P = SA.Anim.P, R = SA.POSES.roll, MOON = '#cfe8ff';
+      switch (sp.phase) {
+        case 'charge':
+          this.vx = damp(this.vx, 0, 20, dt);
+          if (sp.t >= 6) {
+            sp.phase = 'dash'; sp.t = 0;
+            this.setAnim([[0, SA.POSES.dash || SA.POSES.special], [10, SA.POSES.dash || SA.POSES.special]]);
+            this.invuln = Math.max(this.invuln, 12);
+            SA.audio.play('dash', 1.2); SA.audio.play('mystic', 0.6);
+            SA.FX.glyphBurst(game.particles, this.x, this.y - 140, MOON, 10, 500);
+          }
+          break;
+        case 'dash':
+          this.vx = this.facing * 1750 * this.speedMul;
+          this.spawnGhost(1, true);
+          if (sp.t >= 11 || (sp.t >= 4 && c.consume('light'))) {
+            sp.phase = 'flip'; sp.t = 0;
+            this.grounded = false; this.plat = null; this.y -= 1;
+            this.vy = -1380; this.vx = this.facing * 520 * this.speedMul; this.gravMul = 0.9;
+            this.setAnim([[0, P({ rot: 0 }, SA.POSES.jump)], [6, P({ rot: Math.PI * 0.8 }, R)], [13, P({ rot: Math.PI * 1.6 }, R)], [18, P({ rot: SA.TAU }, SA.POSES.jump)]]);
+            SA.audio.play('whoosh_heavy', 0.8);
+          }
+          break;
+        case 'flip': {
+          // steer the flip, slash on ATTACK (from frame 6) or at the top of the arc
+          const steer = this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0;
+          if (steer) this.vx = clamp(this.vx + this.facing * steer * 1600 * dt, -900, 900);
+          this.spawnGhost(3);
+          if ((sp.t >= 6 && (c.consume('light') || c.consume('heavy'))) || sp.t >= 18 || this.vy > 200) {
+            sp.phase = 'cut'; sp.t = 0; sp.finished = false; sp.hits = 0;
+            this.hitList.clear();
+            const tpl = SA.MOVES['katana:a1'].keys;
+            this.setAnim([[0, P({ rot: SA.TAU }, tpl[1][1])], [3, P({ rot: SA.TAU }, tpl[2][1])], [12, P({ rot: SA.TAU }, tpl[3][1])]]);
+            this.vy = Math.min(this.vy, -120);
+            SA.audio.play('draw'); SA.audio.play('whoosh_blade', 1);
+          }
+          break;
+        }
+        case 'cut':
+          if (!sp.finished && sp.t >= 3) {
+            sp.finished = true;
+            // the energy arc: a crescent of moonlight sweeping forward (at the enemy's height when it is low)
+            const o = game.p1 === this ? game.p2 : game.p1;
+            const y = Math.min(-60, Math.max(this.y - 130, o ? o.y - 150 : this.y - 130));
+            game.projectiles.wave(this, this.x + this.facing * 100, y, this.facing, {
+              speed: 2000, w: 140, h: 270, color: MOON, life: 0.75,
+              data: { id: 'crescent', damage: Math.round(70 * (this.damageMul || 1)), hitstun: 28, blockstun: 18, kb: 760, kbY: -620, knockdown: true, level: 'mid', unparryable: true },
+            });
+            SA.FX.slash(game.particles, this.x + this.facing * 90, this.y - 140, this.facing, MOON);
+            game.shake(0.35);
+            game.camera.punch(0.05);
+            SA.audio.play('hit_special', 0.6);
+          }
+          if (sp.t >= 14) { sp.phase = 'fall'; sp.t = 0; }
+          break;
+        case 'fall':
+          if (this.grounded) this.toNeutral();
+          break;
+        case 'end':
+          this.vx = damp(this.vx, 0, 8, dt);
+          if (sp.t >= 10) this.toNeutral();
+          break;
+      }
+    }
+
     // Earthshaker: leap, slam, shockwaves both ways.
     updateQuake(sp, ts, dt, game) {
       switch (sp.phase) {
@@ -1514,6 +1597,15 @@
             if (result === 'hit' && sp.hits >= 4) game.onSpecialLanded(this);
             if (result === 'block') sp.hits = 4;
           },
+        };
+      }
+      if (sp.id === 'crescent' && (sp.phase === 'dash' || (sp.phase === 'cut' && sp.t < 8))) {
+        const dash = sp.phase === 'dash';
+        const cx = this.skel.hip.x + this.facing * (dash ? 70 : 110) * s;
+        return {
+          rect: dash ? { x: cx - 80 * s, y: this.y - 260 * s, w: 160 * s, h: 250 * s } : { x: cx - 150 * s, y: this.y - 260 * s, w: 300 * s, h: 360 * s },
+          data: dash ? CRESCENT_DASH : CRESCENT_CUT,
+          onContact: (b, result, game) => { if (result === 'hit' && !dash) game.onSpecialLanded(this); },
         };
       }
       if (sp.id === 'quake' && sp.phase === 'slam' && sp.t < 5) {

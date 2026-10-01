@@ -32,7 +32,8 @@
       for (const p of this.pts) { p.x = p.px = x; p.y = p.py = y; }
       this.ready = true;
     }
-    update(ax, ay, dt, windX, lift) {
+    update(ax, ay, dt, windX, lift, floor) {
+      const fl = (floor || 0) - 2;
       if (!this.ready) this.reset(ax, ay);
       const pts = this.pts;
       this.r0x = pts[0].x; this.r0y = pts[0].y;   // previous root (render interpolation)
@@ -59,7 +60,7 @@
             a.x += dx * diff * 0.5; a.y += dy * diff * 0.5;
             b.x -= dx * diff * 0.5; b.y -= dy * diff * 0.5;
           }
-          if (b.y > -2) b.y = -2;
+          if (b.y > fl) b.y = fl;
         }
       }
       // big teleports (special) shouldn't stretch the cloth across the screen
@@ -131,11 +132,12 @@
     const flare = f.bandageFlare || 0;
     const drag = -f.vx * (fast ? 0.75 : 0.45) - f.facing * flare * 2600;
     const lift = (f.state === 'special' ? 2600 : fast ? 900 : 0) + flare * 1800;
+    const floor = SA.Physics.floorAt(f.x, f.y);
     for (let i_a = 0, a_a = f.accessories; i_a < a_a.length; i_a++) { const a = a_a[i_a];
       if (!a.ropes) continue;
       for (let i = 0; i < a.ropes.length; i++) { const r = a.ropes[i];
         const p = anchorOf(f, a, i);
-        r.update(p.x, p.y, dt, wind * (a.windMul || 1) + drag, (a.lift || 0) + lift);
+        r.update(p.x, p.y, dt, wind * (a.windMul || 1) + drag, (a.lift || 0) + lift, floor);
       }
     }
   }
@@ -213,6 +215,7 @@
       eye: look.eye || m.eye,
       wraps: look.wraps !== undefined ? look.wraps : d.wraps,
       tatters: look.tatters !== undefined ? look.tatters : d.tatters,
+      cover: look.wrapCover || 0,
     };
     look._pal = pal;
     return pal;
@@ -462,7 +465,7 @@
 
   // ---------- flat silhouette (rims, afterimages, flashes, shadows) ----------
   function drawFlat(ctx, P, look, colFront, colBack, w) {
-    const b = (look.bulk || 1) * look.scale;
+    const b = (look.bulk || 1) * look.scale * (look.limb || 1);
     if (w) drawWeapons(ctx, P, w, colBack, 'B', false, look.scale);
     ctx.fillStyle = colBack;
     limb(ctx, P.sh, P.elbB, 24 * b, 18 * b);
@@ -502,7 +505,7 @@
       ctx.save();
       limbPath(ctx, a, b, w0, w1);
       ctx.clip();
-      const spacing = 8.5 * sc, band = 6.4 * sc;
+      const spacing = 8.5 * sc, band = spacing * (pal.cover || 0.75);
       ctx.lineWidth = band;
       ctx.lineCap = 'butt';
       let i = 0;
@@ -518,7 +521,14 @@
         ctx.stroke();
       }
       if (detail) {
-        // volume: the far side of the limb falls into shadow
+        // volume: a lit edge on one side, the far side falls into shadow
+        ctx.globalAlpha = back ? 0.12 : 0.3;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.2 * sc;
+        ctx.beginPath();
+        ctx.moveTo(a.x - nx * W * 0.85, a.y - ny * W * 0.85);
+        ctx.lineTo(b.x - nx * W * 0.85, b.y - ny * W * 0.85);
+        ctx.stroke();
         ctx.globalAlpha = 0.38;
         ctx.fillStyle = '#000';
         ctx.beginPath();
@@ -557,7 +567,7 @@
     const dx = P.neck.x - P.hip.x, dy = P.neck.y - P.hip.y;
     const L = Math.hypot(dx, dy) || 1;
     const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
-    ctx.lineWidth = 7.5 * sc;
+    ctx.lineWidth = 9.5 * sc * (pal.cover ? pal.cover + 0.02 : 0.79);
     let i = 0;
     for (let t = -20 * sc; t < L + 10; t += 9.5 * sc, i++) {
       const r = hash(91, i);
@@ -626,7 +636,7 @@
     shield: 'backArm', quiver: 'back', scarabShell: 'back', robe: 'body', kilt: 'body', collar: 'body', belt: 'body', amulet: 'body',
     nemes: 'head', turban: 'head', jackalMask: 'head', jackalHead: 'head', cobraHood: 'headBack', execHood: 'head', mandibles: 'head',
     crocHead: 'head', lionHead: 'head', falconHead: 'head', setHead: 'head', sunDisc: 'headBack', atef: 'head', mane: 'headBack',
-    pauldron: 'front', bracers: 'front', wings: 'back',
+    pauldron: 'front', bracers: 'front', wings: 'back', moonHood: 'head', crescentEmblem: 'body',
     hat: 'head', horns: 'head', hood: 'head', helmet: 'head', topknot: 'head',
   };
 
@@ -903,6 +913,46 @@
         }
         break;
       }
+      case 'moonHood': {
+        // white hood: peaked brim forward, falls over the back of the head onto the shoulders,
+        // the face stays in shadow (the eyes glow out of it), a moon-silver crescent on the brow
+        ctx.fillStyle = col(a.color || '#efe9dc');
+        poly([hp(1.05, 0.25), hp(0.55, 1.15), hp(-0.35, 1.35), hp(-1.2, 0.7), hp(-1.55, -0.45), hp(-1.25, -1.45), hp(-0.2, -1.5), hp(0.35, -1.05), hp(0.75, -0.65)]);
+        if (!flat) {
+          ctx.fillStyle = a.shade || '#c9c0ae';
+          poly([hp(-0.35, 1.3), hp(-1.2, 0.7), hp(-1.55, -0.45), hp(-1.25, -1.45), hp(-0.7, -1.45), hp(-0.85, -0.3), hp(-0.6, 0.8)]);
+          ctx.fillStyle = '#0b0a10';
+          const c = hp(0.5, -0.12);
+          ctx.beginPath(); ctx.ellipse(c.x, c.y, hr * 0.62, hr * 0.78, Math.atan2(hf.uy, hf.ux), 0, SA.TAU); ctx.fill();
+          ctx.strokeStyle = a.trim || '#d9b25a'; ctx.lineWidth = 2.4 * sc;
+          const t0 = hp(1.05, 0.25), t1 = hp(0.55, 1.15), t2 = hp(-0.35, 1.35);
+          ctx.beginPath(); ctx.moveTo(t0.x, t0.y); ctx.quadraticCurveTo(t1.x, t1.y, t2.x, t2.y); ctx.stroke();
+          const m = hp(0.45, 0.85);
+          ctx.strokeStyle = a.mark || '#e8f2ff'; ctx.lineWidth = 2.2 * sc;
+          ctx.beginPath(); ctx.arc(m.x, m.y, hr * 0.22, Math.atan2(hf.fy, hf.fx) + 0.6, Math.atan2(hf.fy, hf.fx) + 0.6 + Math.PI * 1.15); ctx.stroke();
+        }
+        break;
+      }
+      case 'crescentEmblem': {
+        // gold crescent on the chest, with a faint moonlight glow
+        const dx = P.neck.x - P.hip.x, dy = P.neck.y - P.hip.y;
+        const c = { x: P.hip.x + dx * 0.66 + hf.fx * 10 * sc, y: P.hip.y + dy * 0.66 + hf.fy * 10 * sc };
+        const r = 12 * b, ang = Math.atan2(hf.fy, hf.fx);
+        if (!flat && a.glow) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = 0.28 + 0.08 * Math.sin(performance.now() / 300);
+          ctx.drawImage(SA.glowSprite(a.glow), c.x - r * 2.6, c.y - r * 2.6, r * 5.2, r * 5.2);
+          ctx.restore();
+        }
+        ctx.fillStyle = col(a.color || '#d9b25a');
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, r, ang - 2.4, ang + 2.4);
+        ctx.arc(c.x + Math.cos(ang) * r * 0.45, c.y + Math.sin(ang) * r * 0.45, r * 0.78, ang + 2.2, ang - 2.2, true);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      }
       // legacy shapes (still used by a few looks)
       case 'hat': case 'horns': case 'hood': case 'helmet': case 'topknot': {
         ctx.fillStyle = col(a.color || pal.cloth);
@@ -930,15 +980,70 @@
     for (let i_a = 0, a_a = f.accessories || []; i_a < a_a.length; i_a++) { const a = a_a[i_a];
       if (!a.ropes || !!a.front !== front) continue;
       const c = flat || a.color || pal.wrap;
+      if (a.cape) { for (let i = 0; i < a.ropes.length; i++) drawCape(ctx, a.ropes[i], a.rope[i].w0 * sc, a.rope[i].w1 * sc, c, flat ? null : a, f); continue; }
       const tip = flat ? null : (a.tip || (a.bandage ? pal.wrapDark : null));
       for (let i = 0; i < a.ropes.length; i++) a.ropes[i].draw(ctx, a.rope[i].w0 * sc, a.rope[i].w1 * sc, c, tip);
+    }
+  }
+
+  // Cape: a cloth panel along the verlet chain (interpolated like the bandages). The dark lining
+  // shows on the inner edge, the hem gets a gold trim; it is drawn behind the body.
+  const CAPE_L = [], CAPE_R = [];
+  function drawCape(ctx, rope, w0, w1, color, a, f) {
+    const pts = rope.pts, n = pts.length, al = rope.tick === RENDER.tick ? RENDER.alpha : 1;
+    const r0 = rope.r0x !== undefined && al < 1;
+    let px = r0 ? rope.r0x + (pts[0].x - rope.r0x) * al : pts[0].x, py = r0 ? rope.r0y + (pts[0].y - rope.r0y) * al : pts[0].y;
+    let prevX = px, prevY = py;
+    for (let i = 0; i < n; i++) {
+      const q = pts[i];
+      const x = i === 0 ? px : q.px + (q.x - q.px) * al, y = i === 0 ? py : q.py + (q.y - q.py) * al;
+      const nx2 = i === 0 ? pts[1].x - x : x - prevX, ny2 = i === 0 ? pts[1].y - y : y - prevY;
+      const d = Math.hypot(nx2, ny2) || 1;
+      const w = (w0 + (w1 - w0) * (i / (n - 1))) * 0.5 * (i === 0 ? 0.55 : 1);
+      const ox = -ny2 / d * w, oy = nx2 / d * w;
+      (CAPE_L[i] || (CAPE_L[i] = { x: 0, y: 0 })).x = x + ox; CAPE_L[i].y = y + oy;
+      (CAPE_R[i] || (CAPE_R[i] = { x: 0, y: 0 })).x = x - ox; CAPE_R[i].y = y - oy;
+      prevX = x; prevY = y;
+    }
+    const path = () => {
+      ctx.beginPath();
+      ctx.moveTo(CAPE_L[0].x, CAPE_L[0].y);
+      for (let i = 1; i < n; i++) ctx.lineTo(CAPE_L[i].x, CAPE_L[i].y);
+      for (let i = n - 1; i >= 0; i--) ctx.lineTo(CAPE_R[i].x, CAPE_R[i].y);
+      ctx.closePath();
+    };
+    if (a && a.lining) {
+      ctx.save();
+      ctx.translate(-f.facing * 3, 2);
+      ctx.fillStyle = a.lining;
+      path(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = color;
+    path(); ctx.fill();
+    if (a && a.trim) {
+      ctx.strokeStyle = a.trim;
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(CAPE_L[n - 1].x, CAPE_L[n - 1].y); ctx.lineTo(CAPE_R[n - 1].x, CAPE_R[n - 1].y); ctx.stroke();
+      // fold shading down the middle
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = w1 * 0.25;
+      ctx.beginPath();
+      for (let i = 1; i < n; i++) {
+        const mx = (CAPE_L[i].x * 0.35 + CAPE_R[i].x * 0.65), my = (CAPE_L[i].y * 0.35 + CAPE_R[i].y * 0.65);
+        if (i === 1) ctx.moveTo(mx, my); else ctx.lineTo(mx, my);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
   }
 
   // Full material body, back to front.
   function drawMaterial(ctx, f) {
     const look = f.look, P = f.skel, pal = paletteOf(look);
-    const sc = look.scale, b = (look.bulk || 1) * sc;
+    const sc = look.scale, b = (look.bulk || 1) * sc * (look.limb || 1);
     const wk = pal.wraps;
     const metal = (f.weapon && f.weapon.metal) || '#c9a25a';
     const grip = (f.weapon && f.weapon.grip) || '#3a2616';
@@ -1153,7 +1258,9 @@
         const last = t[t.length - 1];
         lx = last.x; ly = last.y; lbx = last.bx; lby = last.by;
       }
-      const col = f.weapon.metal || f.look.trail || f.look.accent;
+      // the Moon Guardian cuts crescents of moonlight; everyone else trails their weapon metal
+      const moon = !!f.look.moonTrail;
+      const col = moon ? f.look.trail : f.weapon.metal || f.look.trail || f.look.accent;
       ctx.fillStyle = col;
       for (let i = first + 1; i <= t.length; i++) {
         const a = t[i - 1];
@@ -1161,7 +1268,7 @@
         const cbx = i === t.length ? lbx : t[i].bx, cby = i === t.length ? lby : t[i].by;
         if (Math.abs(bx - a.x) + Math.abs(by - a.y) < 4) continue;
         const u = (i - first) / n;
-        ctx.globalAlpha = u * u * (h.seg ? 0.42 : 0.3);
+        ctx.globalAlpha = u * u * (h.seg ? 0.42 : 0.3) * (moon ? 1.25 : 1);
         ctx.beginPath();
         ctx.moveTo(a.x, a.y); ctx.lineTo(bx, by); ctx.lineTo(cbx, cby); ctx.lineTo(a.bx, a.by);
         ctx.closePath();
@@ -1169,9 +1276,9 @@
       }
       // bright cutting edge along the tip path
       ctx.globalCompositeOperation = 'lighter';
-      ctx.strokeStyle = '#fff4dc';
+      ctx.strokeStyle = moon ? '#eaf6ff' : '#fff4dc';
       ctx.lineCap = 'round';
-      ctx.lineWidth = style === 'heavy' ? 5 : 3;
+      ctx.lineWidth = (style === 'heavy' ? 5 : 3) + (moon ? 1 : 0);
       ctx.globalAlpha = 0.5;
       ctx.beginPath();
       ctx.moveTo(t[first].x, t[first].y);

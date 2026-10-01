@@ -148,14 +148,17 @@
   // Acrobatic movement personality per archetype (front flip, handspring, air dash, feints) and
   // the movement combos they like. Tomb guards stay calm and precise, jackal assassins fly around.
   const ACROBATICS = {
-    tomb_guard: { mob: { flip: 0, hand: 0, airdash: 0 }, feint: 0.1 },
+    // spacing -> spear poke -> step back -> anti-air
+    tomb_guard: { mob: { flip: 0, hand: 0, airdash: 0 }, feint: 0.1, combos: [['light', 'back', 'uheavy']] },
     scarab_warrior: { mob: { flip: 0, hand: 0, airdash: 0 }, feint: 0 },
     tomb_executioner: { mob: { flip: 0, hand: 0, airdash: 0 }, feint: 0.15 },
     royal_guard: { mob: { flip: 0.05, hand: 0.2, airdash: 0 }, feint: 0.45, combos: [['back', 'heavy'], ['guard', 'light', 'heavy']] },
     desert_bandit: { mob: { flip: 0.4, hand: 0.35, airdash: 0.3 }, feint: 0.3, combos: [['roll', 'light', 'kick'], ['dash', 'dlight'], ['dash', 'jump', 'light']] },
     jackal_assassin: { mob: { flip: 0.9, hand: 0.8, airdash: 0.7 }, feint: 0.5,
-      combos: [['dash', 'light', 'roll', 'jump', 'kick'], ['jump', 'adash', 'light'], ['hand', 'dash', 'light', 'light']] },
-    anubis_acolyte: { mob: { flip: 0.3, hand: 0.4, airdash: 0.2 }, feint: 0.5 },
+      combos: [['dash', 'light', 'roll', 'jump', 'kick'], ['jump', 'adash', 'light'], ['hand', 'dash', 'light', 'light'],
+        ['dash', 'light', 'kick', 'gFlipF', 'light', 'dkick']] },   // dash -> slash -> kick -> flip -> air -> dive
+    // dash in -> air slash -> down attack
+    anubis_acolyte: { mob: { flip: 0.3, hand: 0.4, airdash: 0.2 }, feint: 0.5, combos: [['dash', 'gJump', 'light', 'dheavy']] },
     cursed_mummy: { mob: { flip: 0.2, hand: 0.1, airdash: 0.1 }, feint: 0.2 },
     desert_archer: { mob: { flip: 0.1, hand: 0.6, airdash: 0.1 }, feint: 0.1, combos: [['hand', 'ranged']] },
     serpent_priest: { mob: { flip: 0.05, hand: 0.4, airdash: 0.05 }, feint: 0.2 },

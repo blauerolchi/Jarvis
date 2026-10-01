@@ -8,25 +8,27 @@
   });
 
   SA.CHARACTERS = {
-    // The player: a forgotten warrior, woken in the tomb, fighting through the realm of the dead.
+    // The player: the Moon Guardian, a mystic warden of Khonsu's crescent, wrapped in white linen,
+    // hooded, short cape, gold and moon-silver. (Character id stays 'mummy' for saves and cosmetics.)
     mummy: {
-      id: 'mummy', name: 'THE MUMMY', title: 'Forgotten Warrior',
+      id: 'mummy', name: 'MOON GUARDIAN', title: 'Warden of the Crescent',
       look: {
-        kind: 'mummy', mat: { skin: '#15100c', wrap: '#c9b58a', metal: '#d4a84a', cloth: '#4a1612' },
-        wraps: 0.94, tatters: 0.17,
-        eye: '#4ff0dc', eyeCore: '#e9fffb', accent: '#e0b24a', trail: '#d8c08a', spark: '#ffe2a0',
-        body: '#16110c', back: '#241c14', scale: 1, bulk: 1, victory: 1,
+        kind: 'mummy', mat: { skin: '#3a3644', wrap: '#ebe4d4', metal: '#d9b25a', cloth: '#efe9dc' },
+        wraps: 0.97, tatters: 0.08, limb: 1.12, wrapCover: 0.9, moonTrail: true,
+        eye: '#cfeeff', eyeCore: '#ffffff', accent: '#d9b25a', trail: '#cfe0ff', spark: '#e8f4ff',
+        body: '#17151d', back: '#24212c', scale: 1, bulk: 1.04, victory: 1,
         accessories: [
-          bandage('head', 9, [-16, -4], false, 8),
-          bandage('hip', 6, [-14, -4]),
-          bandage('kneeB', 4, [0, 0]),
-          bandage('elbB', 4, [0, 0], false, 6),
-          bandage('handF', 4, [-8, 0], true, 6),
-          bandage('kneeF', 3, [0, 0], true, 6),
-          { type: 'belt', flap: '#3a1512' },
-          { type: 'amulet', gem: '#2fd8c8' },
-          { type: 'bracers' },
-          { type: 'pauldron', gem: '#2fd8c8' },
+          // short cape from the shoulders: a cloth panel on a verlet chain (cream outside, dark lining)
+          { anchor: 'neck', cape: true, color: '#ece5d6', lining: '#2a2633', trim: '#d9b25a', windMul: 0.9,
+            rope: [{ n: 6, seg: 15, w0: 46, w1: 34, at: [-12, 6] }] },
+          bandage('hip', 6, [-14, -4], false, 6),
+          bandage('elbB', 4, [0, 0], false, 5),
+          bandage('handF', 4, [-8, 0], true, 5),
+          { type: 'moonHood', color: '#efe9dc', shade: '#c9c0ae', trim: '#d9b25a', mark: '#e8f2ff' },
+          { type: 'crescentEmblem', color: '#d9b25a', glow: '#cfeeff' },
+          { type: 'belt', color: '#d9b25a', flap: '#2a2633' },
+          { type: 'bracers', color: '#c9d2de' },
+          { type: 'pauldron', color: '#c9d2de', gem: '#bfe8ff' },
         ],
       },
       stats: { maxHp: 1000, damageMul: 1, speedMul: 1 },

@@ -14,8 +14,8 @@
       version: VERSION,
       player: { level: 1, xp: 0, coins: 150, lifetimeCoins: 0 },
       inventory: {
-        owned: ['fists', 'rush', 'cos_crimson', 'crescent_pistols'],
-        equipped: { primary: 'fists', ranged: 'crescent_pistols', special: 'rush', cosmetic: 'cos_crimson' },
+        owned: ['fists', 'rush', 'crescent', 'cos_crimson', 'crescent_pistols'],
+        equipped: { primary: 'fists', ranged: 'crescent_pistols', special: 'crescent', cosmetic: 'cos_crimson' },
       },
       progression: {
         difficulty: 'normal',
@@ -84,6 +84,9 @@
       if (inv.owned.indexOf('crescent_pistols') < 0) inv.owned.push('crescent_pistols');
       inv.equipped = inv.equipped || {};
       if (!inv.equipped.ranged) inv.equipped.ranged = 'crescent_pistols';
+      // the Moon Guardian's own special; a default Tomb Rush becomes Crescent Moonfall
+      if (inv.owned.indexOf('crescent') < 0) inv.owned.push('crescent');
+      if (!inv.equipped.special || inv.equipped.special === 'rush') inv.equipped.special = 'crescent';
       return d;
     },
   };

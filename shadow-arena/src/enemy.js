@@ -122,6 +122,8 @@
       this.oppAttacks = [];            // timestamps (frames) of attacks the opponent started
       this.oppBlocks = { low: 0, high: 0 };
       this.frame = 0;
+      this.nav = null;                 // platform navigation: { kind, plat, t }
+      this.navCd = 0;
       this.gait = GAIT.walk;
       this.desired = this.optRange();
       for (const a of this.abilities || []) a.cdLeft = a.cd * 0.5;
@@ -226,6 +228,11 @@
           this.oppAttacks.length >= 1 && chance(0.04 + this.D.quality * 0.06)) this.setIntent('ESCAPE');
 
       const [fwd, back] = this.keys();
+      if (this.navCd > 0) this.navCd -= ts;
+      // airborne: air control, air attacks, falling attacks (chase in the air, dive onto the opponent)
+      if (!me.grounded && (me.state === 'air' || me.state === 'flip') && this.state !== 'ATTACK' && this.state !== 'COMBO' && this.state !== 'PUNISH') {
+        this.airTick(dist);
+      }
       switch (this.state) {
         case 'BLOCK':
           c.hold.add('block');
@@ -254,7 +261,7 @@
 
         case 'IDLE':
         default:
-          if (canAct) this.intentTick(p, dist, fwd, back);
+          if (canAct && !this.platformTick(dist)) this.intentTick(p, dist, fwd, back);
           break;
       }
 
@@ -860,7 +867,7 @@
         else if (me.isNeutral()) { this.doStep(step, fwd); plan.i++; }
         return;
       }
-      if (prev === 'jump' || prev === 'adash') {
+      if (prev === 'jump' || prev === 'adash' || prev === 'gJump' || prev === 'gFlipF' || prev === 'gFlipB') {
         const air = me.state === 'air' || me.state === 'flip' || me.state === 'airdash';
         if (step === 'adash') { if (air && me.st >= 6) { this.doStep(step, fwd); plan.i++; } else if (me.isNeutral() && me.st > 6) plan.i = plan.steps.length; return; }
         if (air && (dist < 260 || me.vy > 150 || prev === 'adash')) { this.doStep(step, fwd); plan.i++; }
@@ -903,6 +910,121 @@
         }
       } else if (me.isNeutral()) {
         plan.i = plan.steps.length;
+      }
+    }
+
+    // ================= platforms =================
+    // The fight has a vertical layer: the opponent standing on a platform is never waited for from
+    // below. JUMP_TO_PLATFORM (directly, or via a lower platform), RANGED_PRESSURE upwards,
+    // DROP_FROM_PLATFORM / falling attacks onto an opponent below.
+    platformTick(dist) {
+      const me = this.me, o = this.opp, c = this.ctrl;
+      const P = SA.Physics.platforms;
+      if (!P || !P.length || !me.grounded) { this.nav = null; return false; }
+      const dy = o.y - me.y;
+      const D = this.D, M = this.profile.mobility;
+      const toward = (x) => (x > me.x ? 'right' : 'left');
+      // ---- opponent above: get up there (or shoot up) ----
+      if (dy < -140 && (o.grounded || o.y < me.y - 200)) {
+        const rw = me.rangedWeapon;
+        if (rw && me.rangedState.ready() && this.navCd <= 0 && dist > 160 && chance(0.25 * D.ranged + 0.05)) {
+          if (dy < -200 && dist < 520) c.hold.add('up');
+          c.press('ranged');
+          this.navCd = 14;
+          this.count('rangedUp');
+          return true;
+        }
+        const T = o.plat || this.platformUnder(o);
+        if (!T) return false;
+        let goal = T;
+        if (T.y - me.y < -320) {
+          // too high from here: take the lower platform nearest to it
+          let best = null, bd = 1e9;
+          for (const q of P) {
+            if (q === me.plat || q.y <= T.y + 100 || q.y - me.y < -320 || q.y >= me.y - 60) continue;
+            const d = Math.abs(q.x - T.x) + Math.abs(q.x - me.x) * 0.5;
+            if (d < bd) { bd = d; best = q; }
+          }
+          if (!best) return false;
+          goal = best;
+        }
+        this.nav = { kind: 'JUMP_TO_PLATFORM', plat: goal };
+        const off = me.x - goal.x, half = goal.w / 2;
+        if (Math.abs(off) > half + 150) {
+          // walk / run to the platform's edge
+          c.hold.add(toward(goal.x));
+          c.analog = Math.abs(off) > half + 400 ? GAIT.run : GAIT.walk;
+          return true;
+        }
+        if (this.navCd <= 0) {
+          // jump up and in: spin jump steering to the middle (a flip when running at it)
+          c.hold.add(toward(goal.x));
+          const fwdIn = (goal.x - me.x) * me.facing > 0;
+          c.press(Math.abs(off) > half - 30 && chance(0.5 * M.flip + 0.1) ? (fwdIn ? 'gFlipF' : 'gFlipB') : 'gJump');
+          this.navCd = 40;
+          this.count('platformJump');
+        } else c.hold.add(toward(goal.x));
+        return true;
+      }
+      // ---- opponent below while we stand on a platform: drop / walk off toward them ----
+      if (me.plat && dy > 140) {
+        this.nav = { kind: 'DROP_FROM_PLATFORM', plat: me.plat };
+        const dx = o.x - me.x;
+        if (Math.abs(dx) < 260 && this.navCd <= 0) {
+          c.press('gDown');                    // drop through, the air tick dives onto them
+          this.navCd = 30;
+          this.count('platformDrop');
+          return true;
+        }
+        c.hold.add(toward(o.x));
+        c.analog = Math.abs(dx) > 500 ? GAIT.run : GAIT.walk;
+        return true;
+      }
+      // ---- same level: now and then use a platform to reposition (cornered, or agile archetypes) ----
+      if (this.navCd <= 0 && this.timer <= 0 && (this.intent === 'ESCAPE' || this.intent === 'REPOSITION' || chance(0.004 * (M.flip + 0.3) * D.mobility))) {
+        const near = P.filter((q) => q.y - me.y >= -320 && q.y < me.y - 60 && Math.abs(q.x - me.x) < q.w / 2 + 220);
+        if (near.length) {
+          const q = near[Math.floor(Math.random() * near.length)];
+          c.hold.add(toward(q.x));
+          c.press('gJump');
+          this.navCd = 60;
+          this.count('platformJump');
+          return true;
+        }
+      }
+      this.nav = null;
+      return false;
+    }
+    platformUnder(f) {
+      const P = SA.Physics.platforms;
+      let best = null;
+      for (const q of P) if (q.y >= f.y - 2 && Math.abs(f.x - q.x) <= q.w / 2 + 10 && (!best || q.y < best.y)) best = q;
+      return best;
+    }
+
+    // air: steer to the target (platform or opponent), air attacks in reach, dive onto someone below
+    airTick(dist) {
+      const me = this.me, o = this.opp, c = this.ctrl, D = this.D;
+      const dx = o.x - me.x, dy = o.y - me.y;
+      const nav = this.nav;
+      if (nav && nav.kind === 'JUMP_TO_PLATFORM' && nav.plat) c.hold.add(nav.plat.x > me.x ? 'right' : 'left');
+      else if (Math.abs(dx) > 60) c.hold.add(dx > 0 ? 'right' : 'left');
+      if (me.airAttackUsed && me.diveUsed) return;
+      if (dy > 120 && Math.abs(dx) < 280 && me.vy > -200 && !me.diveUsed && chance(0.12 + 0.2 * D.aggression)) {
+        c.hold.add('down');
+        c.press(chance(0.6) ? 'heavy' : 'kick');
+        this.count('diveAttack');
+        return;
+      }
+      if (!me.airAttackUsed && Math.abs(dx) < 190 && Math.abs(dy + 60) < 170 && chance(0.15 + 0.25 * D.aggression)) {
+        c.press(chance(0.6) ? 'light' : chance(0.5) ? 'kick' : 'heavy');
+        this.count('airAttack');
+        return;
+      }
+      // a mobile gunner shoots from the air
+      if (me.rangedWeapon && me.rangedState.ready() && Math.abs(dx) > 260 && me.shotCd <= 0 && chance(0.05 * D.ranged)) {
+        if (dy > 100) c.hold.add('down');
+        c.press('ranged');
       }
     }
 

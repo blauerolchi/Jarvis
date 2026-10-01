@@ -159,7 +159,7 @@ const { openGame } = require('./harness');
     delete r.log;
     return Object.assign(r, { proj });
   });
-  check('D backstep > backflip > air throw', D.flow.join(' > ').startsWith('evade > flip > attack:air') && D.proj >= 1 && smooth(D), D);
+  check('D backstep > backflip > air throw (shot overlay, the flip keeps going)', D.flow.join(' > ').startsWith('evade > flip') && D.proj >= 1 && smooth(D), D);
 
   // E: Slide -> Uppercut (launch) -> Jump cancel -> Air kick on the airborne opponent
   const E = await page.evaluate(() => {
