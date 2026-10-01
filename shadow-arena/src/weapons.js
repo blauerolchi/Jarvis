@@ -342,6 +342,11 @@
 
   // ranged slot
   const RANGED = {
+    // the Moon Guardian's sidearms: fast, light, made to be fired mid-flip, mid-roll and while falling
+    crescent_pistols: { name: 'Crescent Pistols', type: 'firearm', kind: 'gun', rarity: 'common', price: 0, levelRequired: 1, dual: true,
+      magazine: 8, reload: 1.1, rate: 7, startup: 3, recovery: 8, recoil: 70, sound: 'energy',
+      proj: { type: 'bullet', speed: 2500, dmg: 16, hitstun: 13, kb: 110, size: 9, color: '#cfe8ff' },
+      desc: 'Twin moon-silver pistols. Fire while flipping, rolling or falling (down = aim down). They reload themselves.' },
     shuriken: { name: 'Scarab Discs', type: 'throwable', kind: 'throw', rarity: 'common', price: 200, levelRequired: 1,
       charges: 3, recharge: 2.2, startup: 5, recovery: 9, air: true, sound: 'throw',
       proj: { type: 'shuriken', speed: 1500, dmg: 22, hitstun: 16, kb: 120, size: 22 },
@@ -521,7 +526,17 @@
       this.ammo = def.magazine || 0;
       this.recharge = 0;
       this.cool = 0;
+      this.reloadT = 0;      // automatic reload (empty magazine, or a short pause in the shooting)
+      this.reloadMax = 1;
+      this.idleT = 0;
+      this.reloaded = false;
     }
+    startReload(frac) {
+      const d = this.def;
+      if (!d.magazine || this.reloadT > 0 || this.ammo >= d.magazine) return;
+      this.reloadT = this.reloadMax = (d.reload || 1) * (frac || 1);
+    }
+    reloading() { return this.reloadT > 0; }
     ready() {
       const d = this.def;
       if (d.kind === 'throw') return this.charges > 0;
@@ -532,7 +547,7 @@
       const d = this.def;
       if (d.kind === 'throw') { this.charges--; }
       else if (d.cooldown) this.cool = d.cooldown;
-      else this.ammo--;
+      else { this.ammo--; this.idleT = 0; this.reloadT = 0; }
     }
     tick(dt) {
       const d = this.def;
@@ -541,17 +556,28 @@
         if (this.recharge >= d.recharge) { this.recharge = 0; this.charges++; }
       }
       if (this.cool > 0) this.cool -= dt;
+      if (d.magazine) {
+        this.idleT += dt;
+        if (this.ammo <= 0) this.startReload();
+        else if (this.ammo < d.magazine && this.idleT > 1.6) this.startReload(0.7);
+        if (this.reloadT > 0) {
+          this.reloadT -= dt;
+          if (this.reloadT <= 0) { this.reloadT = 0; this.ammo = d.magazine; this.reloaded = true; }
+        }
+      }
     }
     cooldownFrac() {
       const d = this.def;
       if (d.kind === 'throw') return this.charges > 0 ? 0 : 1 - this.recharge / d.recharge;
       if (d.cooldown) return Math.max(0, this.cool / d.cooldown);
+      if (this.reloadT > 0) return this.reloadT / this.reloadMax;
       return this.ammo > 0 ? 0 : 1;
     }
     label() {
       const d = this.def;
       if (d.kind === 'throw') return `${this.charges}/${d.charges}`;
       if (d.cooldown) return this.cool > 0 ? 'HEAT' : 'READY';
+      if (this.reloadT > 0) return 'RELOAD';
       return `${this.ammo}/${d.magazine}`;
     }
   }
@@ -699,7 +725,7 @@
       if (r) {
         if (r.kind === 'throw') return `${r.charges} charges, one returns every ${r.recharge}s.` + (r.proj.explode ? ' Explodes on impact.' : '') + (r.proj.returns ? ' Returns to you.' : '');
         if (r.cooldown) return `Cools down ${r.cooldown}s between shots. No reload.`;
-        return `Magazine ${r.magazine}, reload ${r.reload}s. You are vulnerable while reloading.` + (r.proj.count ? ` Fires ${r.proj.count} pellets.` : '');
+        return `Magazine ${r.magazine}, reloads itself in ${r.reload}s. Fire on the move: flips, rolls, falls.` + (r.proj.count ? ` Fires ${r.proj.count} pellets.` : '') + (r.dual ? ' Two pistols, alternating.' : '');
       }
       return '';
     },

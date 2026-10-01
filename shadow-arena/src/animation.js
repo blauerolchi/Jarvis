@@ -573,6 +573,22 @@
     } else if (direct) copyPose(f.pose, target);
     else dampPose(f.pose, target, k, dt);
 
+    // shooting overlay: the gun arm points along the aim in world space, so it stays on target while
+    // the body keeps flipping (salto shot); a short muzzle climb on the shot frames
+    if (f.shootT > 0) {
+      const w = clamp(f.shootT / 5, 0, 1);
+      const climb = f.shootT > (f.shootMax || 14) - 3 ? 0.3 : 0;
+      const a = Math.PI / 2 - (f.shootAim || 0) + climb + f.pose.rot;
+      if (f.shotHand) {
+        f.pose.aB1 += (wrapA(a - f.pose.aB1)) * w;
+        f.pose.aB2 += (0.05 - f.pose.aB2) * w;
+      } else {
+        f.pose.aF1 += (wrapA(a - f.pose.aF1)) * w;
+        f.pose.aF2 += (0.05 - f.pose.aF2) * w;
+        f.pose.wg += (wrapA(Math.PI * 0.5 - f.pose.wg)) * w * 0.6;   // the blade swings out of the line of fire
+      }
+    }
+
     // spin illusion (x scale flips through zero)
     if (f.spin) {
       const [a, b] = f.spin;

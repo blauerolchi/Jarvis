@@ -72,6 +72,8 @@
   const FEET = ['footF', 'footB'];
   const MOB_REGEN = 70;   // mobility meter per second (hidden): chaining many dodges costs recovery time
 
+  // states that may fire the sidearm on top of what they are doing (shooting never locks the fighter)
+  const SHOOT_OK = { idle: 1, walk: 1, crouch: 1, run: 1, sprint: 1, dash: 1, slide: 1, roll: 1, evade: 1, air: 1, flip: 1, airdash: 1, landing: 1, prejump: 1 };
   const NEUTRAL = { idle: 1, walk: 1, crouch: 1, block: 1 };
   const MOVING = { run: 1, sprint: 1, dash: 1 };
   const STUNNED = { hitstun: 1, launched: 1, stagger: 1, rushed: 1 };
@@ -83,6 +85,7 @@
     quake: { id: 'quake', name: 'EARTHSHAKER', desc: 'Leap and slam the ground: shockwaves travel both ways.' },
   };
 
+  const DIVE_IMPACT = { id: 'diveImpact', damage: 30, hitstun: 24, blockstun: 16, kb: 260, kbY: -760, knockdown: true, level: 'low', hitstop: 7, shake: 0.45, zoom: 0.05, sound: 'hit_heavy', power: 0.95 };
   const RUSH_DASH = { id: 'rush', damage: 30, hitstun: 30, blockstun: 24, kb: 120, level: 'mid', hitstop: 4, shake: 0.3, sound: 'hit_heavy', power: 0.8, unparryable: true };
   const RUSH_HIT = { id: 'rush', damage: 24, hitstun: 30, kb: 0, level: 'mid', hitstop: 3, shake: 0.18, sound: 'hit_light', power: 0.55 };
   const RUSH_FINAL = { id: 'rush', damage: 90, hitstun: 30, kb: 1350, kbY: -950, knockdown: true, level: 'mid', hitstop: 9, shake: 0.85, zoom: 0.1, sound: 'hit_special', power: 1.4 };
@@ -129,7 +132,8 @@
       this.skel = A.createSkeleton();
       this.hurt = { head: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }, torso: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }, legs: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } };
       this.hitList = new Set();
-      this.combo = { hits: 0, damage: 0, seq: [], timer: 0, name: null };
+      this.combo = { hits: 0, damage: 0, seq: [], tags: [], timer: 0, name: null };
+      this.flow = []; this.flowT = 0; this.lastFlow = null;
       this.accessories = null;
       this.energy = 0;
       this.setLoadout({ weapon: o.weapon || 'fists', ranged: o.ranged || null });
@@ -147,7 +151,7 @@
     }
 
     reset(x, facing) {
-      this.x = x; this.y = 0; this.vx = 0; this.vy = 0; this.plat = null; this.dropT = 0; this.fastFall = false;
+      this.x = x; this.y = 0; this.vx = 0; this.vy = 0; this.plat = null; this.dropT = 0; this.fastFall = false; this.shootT = 0; this.shotCd = 0; this.dive = false;
       this.prevX = x; this.prevY = 0;
       this.facing = facing;
       this.grounded = true;
@@ -160,7 +164,7 @@
       this.parryAge = 99; this.parryLock = 0;
       this.crouchBlock = false;
       this.juggle = 0; this.bounced = false;
-      this.airTime = 0; this.airAttackUsed = false; this.jumpDir = 0;
+      this.airTime = 0; this.airAttackUsed = false; this.diveUsed = false; this.jumpDir = 0;
       this.walkDir = 1; this.walkPhase = 0;
       this.animTime = Math.random() * 10;
       this.spin = null; this.spinScale = 1; this.scaleX = 1; this.scaleY = 1;
@@ -262,6 +266,7 @@
       this.combo.hits = 0;
       this.combo.damage = 0;
       this.combo.seq.length = 0;
+      if (this.combo.tags) this.combo.tags.length = 0;
       this.combo.timer = 0;
       this.combo.name = null;
     }
@@ -274,6 +279,8 @@
       const m = SA.MOVES[id];
       if (!m) return;
       this.moveBonus = m.id === 'backCounter' || (this.state === 'evade' && id === this.moveset.backCounter) ? 1.2 : 1;
+      const st0 = this.state;
+      this.moveCtx = st0 === 'roll' ? 'roll' : st0 === 'dash' || st0 === 'run' || st0 === 'sprint' || st0 === 'slide' ? 'dash' : null;
       A.copyPose(this.entryPose, this.pose);
       this.entryPose.rot = Math.atan2(Math.sin(this.entryPose.rot), Math.cos(this.entryPose.rot));
       this.move = m;
@@ -361,6 +368,9 @@
       if (this.landT > 0) this.landT -= ts;
       if (this.hsLand > 0) this.hsLand -= ts;
       if (this.feintT > 0) this.feintT -= ts;
+      if (this.shotCd > 0) this.shotCd -= ts;
+      if (this.flowT > 0) this.flowT -= ts;
+      if (this.shootT > 0) this.shootT = STUNNED[this.state] || this.state === 'down' ? 0 : this.shootT - ts;
       // hidden mobility meter regenerates after a short rest
       if (this.mobRest > 0) this.mobRest -= dt;
       else if (this.mobility < 100) this.mobility = Math.min(100, this.mobility + MOB_REGEN * dt);
@@ -371,6 +381,8 @@
       }
       if (!this.grounded) this.airTime += dt;
       this.updateStatus(dt, game);
+      if (c.has('reload')) { c.consume('reload'); this.tryReload(); }
+      if (this.rangedWeapon && !game.fightLocked && c.has('ranged') && this.shotCd <= 0 && this.canShoot()) { c.consume('ranged'); this.shoot(game); }
 
       if (game.fightLocked && (this.isNeutral() || this.isMoving())) {
         if (this.state !== 'idle') this.setState('idle');
@@ -398,7 +410,11 @@
         }
       }
       this.speedMul = this.baseSpeed * (this.slowT > 0 ? W.frostSlow.factor : 1) * (this.rageSpeed || 1);
-      if (this.rangedState) this.rangedState.tick(dt);
+      const rs = this.rangedState;
+      if (rs) {
+        rs.tick(dt);
+        if (rs.reloaded) { rs.reloaded = false; SA.audio.play('reload', 1.2); }
+      }
     }
 
     updateState(ts, dt, game) {
@@ -651,8 +667,6 @@
         if (this.energy >= 100) { this.startSpecial(); return true; }
         SA.audio.play('denied');
       }
-      if (c.consume('ranged') && this.tryRanged()) return true;
-      if (c.consume('reload') && this.tryReload()) return true;
       // directions: held now or held when the button was pressed (input buffer)
       const fwdName = this.facing > 0 ? 'right' : 'left';
       if (c.consume('light')) { this.startMove(down || c.dirHeld('down') ? ms.lightDown : ms.light); return true; }
@@ -666,24 +680,65 @@
       return false;
     }
 
-    tryRanged() {
-      const r = this.rangedWeapon, rs = this.rangedState;
-      if (!r) return false;
-      if (!this.grounded) {
-        if (r.kind === 'throw' && r.air && rs.ready() && !this.airAttackUsed) { this.startMove(r.id + ':air'); return true; }
+    // Sidearm. Fires on top of the current action: running, dashing, rolling out, mid-flip (the salto
+    // shot keeps spinning), falling (down = aimed down, the recoil holds the fall for a moment).
+    canShoot() {
+      const st = this.state;
+      if (st === 'attack') {
+        const m = this.move;
+        if (!m || m.ranged || m.reload) return false;
+        const done = this.cancelOpen() || (m.air && this.mt >= m.startup + m.active);
+        if (!done) return false;
+        this.cancelMove();
+        if (this.grounded) this.toNeutral(); else this.setState('air');
+        return true;
+      }
+      if (!SHOOT_OK[st]) return false;
+      if (st === 'roll' && this.st < 12) return false;
+      if (st === 'flip' && this.flip && this.flip.kind === 'hand' && this.st < 9) return false;   // hands on the floor
+      return true;
+    }
+    shoot(game) {
+      const r = this.rangedWeapon, rs = this.rangedState, c = this.ctrl;
+      if (!rs.ready()) {
+        if (r.magazine) rs.startReload();
+        SA.audio.play('empty', 0.6);
+        this.shotCd = 8;
         return false;
       }
-      if (rs.ready()) { this.startMove(r.id + ':fire'); return true; }
-      if (r.magazine) { this.startMove(r.id + ':reload'); return true; }
-      SA.audio.play('empty');
-      return false;
-    }
-
-    tryReload() {
-      const r = this.rangedWeapon, rs = this.rangedState;
-      if (!r || !r.magazine || rs.ammo >= r.magazine || !this.grounded) return false;
-      this.startMove(r.id + ':reload');
+      rs.use();
+      if (r.proj.returns) rs.out = true;
+      const air = !this.grounded;
+      const o = game.p1 === this ? game.p2 : game.p1;
+      let aim = 0;
+      if (air && c.held('down')) aim = 0.85;            // falling shot
+      else if (c.held('up')) aim = -0.45;               // anti-air
+      else if (o) {
+        // light aim assist toward the opponent's chest (platform height differences)
+        const dy = (o.y - 120 * o.look.scale) - (this.y - 150 * this.look.scale);
+        aim = clamp(Math.atan2(dy, Math.max(120, Math.abs(o.x - this.x))), -0.32, 0.32);
+      }
+      this.shotHand = r.dual ? 1 - (this.shotHand || 0) : 1;
+      game.projectiles.fire(this, r, game, aim);
+      this.shootAim = aim;
+      this.shootT = this.shootMax = 14;
+      this.shotCd = r.rate || Math.max(7, Math.round((r.startup + r.recovery) * 0.6));
+      const rec = r.recoil || (r.kind === 'gun' ? 100 : 40);
+      if (air) {
+        this.vx -= this.facing * rec * 0.55 * Math.cos(aim);
+        if (aim > 0.3) { this.vy = Math.min(this.vy, 0) - 160 - rec * 0.5; this.fastFall = false; }   // shooting down pushes up
+        else if (this.vy > 0) this.vy *= 0.6;                                                          // a short air stall
+      } else {
+        this.vx -= this.facing * rec * 0.6;
+      }
+      this.shotFlash = 3;
       return true;
+    }
+    tryRanged() { return false; }   // kept for callers of the old API: shots go through shoot()
+    tryReload() {
+      const rs = this.rangedState;
+      if (rs && this.rangedWeapon.magazine) rs.startReload();
+      return false;
     }
 
     // Attacks out of dash / run / sprint: dash attacks, running attack, slide (down + attack), leap.
@@ -694,7 +749,6 @@
       if (c.consume('kick')) { this.startMove(down || dash ? ms.dashHeavy : ms.runLight); return true; }
       if (c.consume('heavy')) { this.startMove(down ? ms.slide : dash ? ms.dashHeavy : ms.heavyFwd); return true; }
       if (c.has('special') && this.energy >= 100) { c.consume('special'); this.startSpecial(); return true; }
-      if (c.consume('ranged') && this.tryRanged()) return true;
       if (c.consume('up')) { this.rm = null; this.startPrejump(true); return true; }
       if (this.hasJumpGesture() || (!dash && this.hasMoveGesture())) {
         const rm = this.rm;
@@ -837,7 +891,7 @@
       this.vx = this.facing * (F.steer ? sd * JUMP_VX : F.vx) * this.speedMul;
       this.gravMul = F.grav;
       this.fastFall = false;
-      this.airAttackUsed = false;
+      this.airAttackUsed = false; this.diveUsed = false;
       this.airWhiff = false;
       this.airDashUsed = kind === 'hand';
       this.airTime = 0;
@@ -879,15 +933,17 @@
     airActions(game, fromDash) {
       const c = this.ctrl, ms = this.moveset;
       if (!fromDash && this.tryGesture(game)) return true;
-      if (!this.airAttackUsed) {
+      // one air attack per jump, plus one falling attack (down + attack) after it
+      const down = c.held('down');
+      if (!this.airAttackUsed || (down && !this.diveUsed && this.airTime > 0.12)) {
         const fromFlip = this.state === 'flip';
-        const down = c.held('down');
         let id = null;
+        // down + any attack = falling attack: light = falling slash, kick = dive kick, heavy = crescent dive
         if (c.consume('light')) id = ms.airLight;
-        else if (c.consume('kick')) id = down ? ms.airKick : ms.airKick;
-        else if (c.consume('heavy')) id = down ? ms.airKick : ms.airHeavy;
+        else if (c.consume('kick')) id = ms.airKick;
+        else if (c.consume('heavy')) id = ms.airHeavy;
         if (id) {
-          const dive = down && id === ms.airKick;
+          const dive = down;
           // a flip slash keeps rotating: remember where the flip's rotation is (in its own direction)
           let r0 = this.pose.rot;
           const fd = fromFlip && this.flip ? this.flip.F.dir : 0;
@@ -896,21 +952,23 @@
           this.flipAtk = fd;
           this.flipRot0 = r0;
           if (dive) {
-            // dive attack: steep drop onto the opponent
-            this.dive = true;
-            this.vy = Math.max(this.vy, 1450);
-            this.vx = this.facing * 720 * this.speedMul;
+            // dive attack: steep drop onto the opponent (heavy = straight down, the others angled)
+            this.dive = id === ms.airHeavy ? 'heavy' : 'light';
+            this.diveUsed = true;
+            this.vy = Math.max(this.vy, this.dive === 'heavy' ? 1650 : 1450);
+            this.vx = this.facing * (this.dive === 'heavy' ? 320 : 720) * this.speedMul;
+            // steer the dive onto an opponent below / ahead (touch-friendly falling attacks)
+            const o = game.p1 === this ? game.p2 : game.p1;
+            if (o && Math.abs(o.x - this.x) < 520 && o.y > this.y + 40) {
+              const t = (o.y - this.y) / 1750 + 0.04;
+              if (Math.abs(o.x - this.x) > 30) this.facing = Math.sign(o.x - this.x);   // crossed over: turn into the dive
+              this.vx = clamp((o.x - this.x) / t, -780, 780);
+            }
             this.gravMul = 1;
+            this.flipAtk = 0;
           }
           if (fromDash) this.moveBonus = 1.1;
           return true;
-        }
-        if (c.has('ranged')) {
-          let r0 = this.pose.rot;
-          const fd = this.state === 'flip' && this.flip ? this.flip.F.dir : 0;
-          if (fd) { while (r0 * fd < 0) r0 += fd * SA.TAU; }
-          c.consume('ranged');
-          if (this.tryRanged()) { this.flipAtk = fd; this.flipRot0 = r0; return true; }
         }
       }
       // air dash (down + dash stays buffered: it is a roll on landing)
@@ -948,7 +1006,7 @@
       this.grounded = false;
       this.plat = null;
       this.y -= 1;
-      this.airAttackUsed = false;
+      this.airAttackUsed = false; this.diveUsed = false;
       this.airTime = 0;
       this.setState('air');
       this.scaleY = 1.12; this.scaleX = 0.92;
@@ -959,6 +1017,7 @@
     updateAttack(ts, dt, game) {
       const m = this.move, c = this.ctrl;
       this.mt += ts;
+      if (m.air && !this.grounded && !this.dive && c.consume('gDown')) this.fastFallStart(game);
       if (m.lunge && !this.lunged && this.mt >= m.lunge[0]) {
         this.lunged = true;
         if (this.grounded) {
@@ -1015,8 +1074,8 @@
         if (!this.grounded && m.air) {
           c.consume('heavy');
           this.cancelMove();
-          this.startMove(c.held('down') ? ms.airKick : ms.airHeavy);
-          if (c.held('down')) { this.dive = true; this.vy = Math.max(this.vy, 1450); this.vx = this.facing * 720 * this.speedMul; this.gravMul = 1; }
+          this.startMove(ms.airHeavy);
+          if (c.held('down')) { this.dive = 'heavy'; this.vy = Math.max(this.vy, 1650); this.vx = this.facing * 320 * this.speedMul; this.gravMul = 1; }
           return;
         }
         if (this.grounded) {
@@ -1032,11 +1091,6 @@
             this.startMove(m.chain[key]);
             return;
           }
-        }
-        if (c.has('ranged') && this.moveContact === 'hit' && this.rangedWeapon && this.rangedWeapon.kind === 'throw' && this.rangedState.ready()) {
-          c.consume('ranged');
-          this.startMove(this.rangedWeapon.id + ':fire');   // shuriken combo extension
-          return;
         }
       }
       // light / medium attacks that connected can be cancelled into a dash or backstep
@@ -1125,7 +1179,7 @@
           this.scaleY = 0.84; this.scaleX = 1.1;
           this.landT = 10;
           SA.FX.dust(game.particles, this.x, this.y, dive ? 1.2 : 0.5, 0);
-          if (dive) { game.shake(0.2); SA.audio.play('land', 0.9); }
+          if (dive) this.diveImpact(game, dive === 'heavy');
           this.cancelMove();
           if (this.moveContact) {
             // a jump attack that connected flows straight into the ground game (landing sweep, dash …)
@@ -1173,6 +1227,23 @@
       }
     }
 
+    // a dive hitting the floor: impact ring + sand burst; the heavy crescent dive also hits around it
+    diveImpact(game, heavy) {
+      const x = this.x + this.facing * 30, y = this.y;
+      SA.FX.impact(game.particles, x, y, heavy ? 1 : 0.55, this.weapon.element === 'shadow' ? '#b58cff' : '#bfe6ff');
+      game.shake(heavy ? 0.42 : 0.2);
+      SA.audio.play(heavy ? 'boss_impact' : 'land', heavy ? 0.7 : 0.9);
+      if (!heavy) return;
+      game.camera.punch(0.05);
+      const o = game.p1 === this ? game.p2 : game.p1;
+      if (!o || this.hitList.has(o) || !o.grounded || Math.abs(o.y - this.y) > 30 || Math.abs(o.x - x) > 200 * this.look.scale) return;
+      if (!o.canBeHit(this)) return;
+      DIVE_IMPACT.damage = Math.round(30 * (this.damageMul || 1));
+      const hit = { region: 'legs', x: o.x, y: o.y - 40 };
+      if (o.state === 'block' && o.crouchBlock) SA.Combat.block(this, o, DIVE_IMPACT, hit, game);
+      else SA.Combat.applyHit(this, o, DIVE_IMPACT, hit, game);
+    }
+
     // walked / dashed / rolled off a platform edge, or dropped through it
     leaveGround(game) {
       const st = this.state;
@@ -1181,7 +1252,7 @@
         this.rm = null;
         this.cancelMove();
         this.setState('air');
-        this.airAttackUsed = false;
+        this.airAttackUsed = false; this.diveUsed = false;
         this.airDashUsed = false;
         this.airWhiff = false;
         this.gravMul = 1;

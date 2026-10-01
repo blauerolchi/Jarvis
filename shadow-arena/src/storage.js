@@ -7,15 +7,15 @@
  */
 (function (SA) {
   const KEY = 'shadowArena.save.v1';   // storage key stays stable; the schema version lives inside
-  const VERSION = 3;
+  const VERSION = 4;
 
   function defaults() {
     return {
       version: VERSION,
       player: { level: 1, xp: 0, coins: 150, lifetimeCoins: 0 },
       inventory: {
-        owned: ['fists', 'rush', 'cos_crimson'],
-        equipped: { primary: 'fists', ranged: null, special: 'rush', cosmetic: 'cos_crimson' },
+        owned: ['fists', 'rush', 'cos_crimson', 'crescent_pistols'],
+        equipped: { primary: 'fists', ranged: 'crescent_pistols', special: 'rush', cosmetic: 'cos_crimson' },
       },
       progression: {
         difficulty: 'normal',
@@ -75,6 +75,15 @@
         P.arenaWins = w;
       }
       d.progression = P;
+      return d;
+    },
+    // v3 -> v4: mobile gunplay. Everyone gets the Crescent Pistols; an empty ranged slot equips them
+    3(d) {
+      const inv = d.inventory || (d.inventory = { owned: [], equipped: {} });
+      inv.owned = inv.owned || [];
+      if (inv.owned.indexOf('crescent_pistols') < 0) inv.owned.push('crescent_pistols');
+      inv.equipped = inv.equipped || {};
+      if (!inv.equipped.ranged) inv.equipped.ranged = 'crescent_pistols';
       return d;
     },
   };

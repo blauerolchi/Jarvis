@@ -250,6 +250,24 @@
       }
     },
 
+    // dive impact: flat shock ring on the floor, a sand fountain and crescent sparks
+    impact(ps, x, y, power, color) {
+      ps.spawn({ type: 'flash', x, y: y - 10, size: 160 + power * 200, life: 0.18, color: '#fff4dc', alpha: 0.8 });
+      for (let r = 0; r < (power > 0.8 ? 3 : 2); r++) {
+        ps.spawn({ type: 'ring', x, y: y - 4, size: 120 + power * 140 + r * 80, life: 0.26 + r * 0.08, color: r ? color : '#ffffff', len: 7 - r * 2, alpha: 0.85, rot: 0.3 });
+      }
+      const n = Math.round(10 + power * 18);
+      for (let i = 0; i < n; i++) {
+        const side = i % 2 ? 1 : -1;
+        ps.spawn({ type: 'dust', x: x + side * rand(10, 60), y: y - rand(0, 10), vx: side * rand(200, 700) * power, vy: -rand(150, 600) * power,
+          drag: 3, grav: 900, life: rand(0.5, 0.9), size: rand(20, 42) * (0.6 + power * 0.5), color: '#c8a878', add: false, alpha: 0.75, front: i % 3 === 0 });
+      }
+      for (let i = 0; i < 6 + power * 10; i++) {
+        const a = -Math.PI / 2 + rand(-1.2, 1.2), sp = rand(500, 1300) * power;
+        ps.spawn({ type: 'spark', x, y: y - 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 6, grav: 1500, life: rand(0.18, 0.35), size: rand(2.5, 4.5), color: i % 2 ? color : '#ffffff', len: 1.3 });
+      }
+    },
+
     dust(ps, x, y, amount, dir) {
       const n = Math.round(4 + amount * 8);
       for (let i = 0; i < n; i++) {

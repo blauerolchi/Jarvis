@@ -31,12 +31,12 @@ const { openGame } = require('./harness');
     // corrupted save falls back to defaults
     localStorage.setItem(KEY, '{broken');
     SA.Save.load();
-    r.corruptOk = SA.Save.data.version === 3 && SA.Save.data.player.level === 1;
+    r.corruptOk = SA.Save.data.version === 4 && SA.Save.data.player.level === 1;
     SA.Save.resetProgress();
     if (old) { /* the test page has its own storage, nothing to restore */ }
     return r;
   });
-  check('migration v1->v2', mig.version === 3 && mig.diff === 'hard' && mig.arenas === 'desert_temple,nile_night' && mig.storm && mig.wins === 3 && mig.master === 0.5 && mig.equipped === 'fists', mig);
+  check('migration v1->v4', mig.version === 4 && mig.diff === 'hard' && mig.arenas === 'desert_temple,nile_night' && mig.storm && mig.wins === 3 && mig.master === 0.5 && mig.equipped === 'fists', mig);
   check('migration pays coins for old wins', mig.coins >= 150 + 3 * 60, mig.coins);
   check('corrupted save -> defaults', mig.corruptOk);
 
@@ -172,7 +172,7 @@ const { openGame } = require('./harness');
     const stateEmpty = g.p1.state;
     T.run(1, { press: ['reload'] });
     T.run(2);
-    const reloading = g.p1.move && g.p1.move.id;
+    const reloading = st.reloading() && g.p1.state !== 'attack' ? 'auto' : null;   // reloads by itself, no state lock
     T.run(120);
     const after = st.ammo;
     g.training.tryItem = 'shuriken';
@@ -187,7 +187,7 @@ const { openGame } = require('./harness');
     return { mag, shots, empty, stateEmpty, reloading, after, c0, c1, c2 };
   });
   check('pistol: magazine empties', reload.empty === 0 && reload.shots === reload.mag, reload);
-  check('pistol: reload refills', reload.reloading === 'pistol:reload' && reload.after === reload.mag, reload);
+  check('pistol: automatic reload refills (no reload move)', reload.reloading === 'auto' && reload.after === reload.mag, reload);
   check('shuriken: charges use + regen', reload.c1 === reload.c0 - 1 && reload.c2 === reload.c0, reload);
 
   // parry reflects a projectile

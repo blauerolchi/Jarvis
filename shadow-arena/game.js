@@ -372,6 +372,22 @@
         for (let i = 0; i < c.seq.length; i++) if (seq[seq.length - c.seq.length + i] !== c.seq[i]) { ok = false; break; }
         if (ok) { a.combo.name = c.name; bestLen = c.seq.length; }
       }
+      // flow combos (movement + hits within ~1 s, see SA.TAG_COMBOS): announced on their last hit
+      const tags = a.flow;
+      for (const c of SA.TAG_COMBOS) {
+        const L = c.tags.length;
+        if (tags.length < L) continue;
+        let ok = true;
+        for (let i = 0; i < L; i++) if (tags[tags.length - L + i] !== c.tags[i]) { ok = false; break; }
+        if (ok) {
+          a.lastFlow = c.name;
+          if (L >= bestLen) a.combo.name = c.name;
+          this.label(c.name, hit.x, hit.y - 150, '#ffe39a', a, 1.25);
+          if (a.isPlayer) SA.audio.play('mystic', 0.8);
+          a.flow.length = 0;
+          break;
+        }
+      }
       this.ui.onComboHit(a.side, a);
       if (a.isPlayer && this.ranked) {
         this.match.stats.damage += dmg;

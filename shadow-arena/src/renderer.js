@@ -232,6 +232,42 @@
 
   // Draws a weapon from hand h to tip t (butt u behind the hand). detail = edge highlight + element glow.
   // col: metal colour (or a flat silhouette colour for rims / ghosts); grip: handle colour.
+  // sidearm in the shooting hand (drawn while firing): moon-silver body, gold crescent guard
+  function drawGun(ctx, f) {
+    const S = f.skel, B = !!f.shotHand;
+    const H = S[B ? 'handB' : 'handF'], E = S[B ? 'elbB' : 'elbF'];
+    let ux = H.x - E.x, uy = H.y - E.y;
+    const L = Math.hypot(ux, uy) || 1;
+    ux /= L; uy /= L;
+    const nx = -uy * f.facing, ny = ux * f.facing;
+    const k = f.look.scale, a = Math.min(1, f.shootT / 4);
+    const big = f.rangedWeapon.id === 'revolver' || f.rangedWeapon.id === 'shotgun' || f.rangedWeapon.id === 'crossbow' ? 1.35 : 1;
+    const len = 34 * k * big, th = 5 * k * big;
+    ctx.globalAlpha = a;
+    ctx.lineCap = 'round';
+    // grip
+    ctx.strokeStyle = '#2a2430';
+    ctx.lineWidth = th * 1.5;
+    ctx.beginPath(); ctx.moveTo(H.x - ux * 4 * k, H.y - uy * 4 * k); ctx.lineTo(H.x - ux * 9 * k + nx * 14 * k, H.y - uy * 9 * k + ny * 14 * k); ctx.stroke();
+    // body + barrel
+    ctx.strokeStyle = '#3a3f4c';
+    ctx.lineWidth = th * 2.1;
+    ctx.beginPath(); ctx.moveTo(H.x - ux * 8 * k, H.y - uy * 8 * k); ctx.lineTo(H.x + ux * len * 0.55, H.y + uy * len * 0.55); ctx.stroke();
+    ctx.strokeStyle = '#dfe6f0';
+    ctx.lineWidth = th * 1.2;
+    ctx.beginPath(); ctx.moveTo(H.x - ux * 6 * k, H.y - uy * 6 * k); ctx.lineTo(H.x + ux * len, H.y + uy * len); ctx.stroke();
+    // crescent guard
+    ctx.strokeStyle = '#e2b04a';
+    ctx.lineWidth = 2.2 * k;
+    ctx.beginPath();
+    ctx.arc(H.x + ux * 6 * k + nx * 6 * k, H.y + uy * 6 * k + ny * 6 * k, 9 * k, Math.atan2(ny, nx) - 1.3, Math.atan2(ny, nx) + 1.3);
+    ctx.stroke();
+    // glowing chamber
+    ctx.fillStyle = '#9fe8ff';
+    ctx.beginPath(); ctx.arc(H.x + ux * len * 0.3, H.y + uy * len * 0.3, 2.4 * k, 0, SA.TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
   function drawWeaponShape(ctx, w, h, t, u, col, detail, sc, grip) {
     const dx = t.x - h.x, dy = t.y - h.y;
     const L = Math.hypot(dx, dy);
@@ -1034,6 +1070,7 @@
         drawFlat(ctx, f.skel, look, look.body, look.back, f.weapon);
       }
       ctx.globalAlpha = 1;
+      if (f.shootT > 0 && f.rangedWeapon && f.rangedWeapon.kind === 'gun') drawGun(ctx, f);
       drawEyes(ctx, f);
       this.drawStatus(ctx, f);
       if (f.hitFlash > 0) {

@@ -44,7 +44,7 @@ require('fs').mkdirSync(out, { recursive: true });
       virtual: [...g.input.virtual].sort().join(','), owned: T.owned.size, stick: T.stick.id !== null, x: Math.round(f.x),
       grounded: f.grounded, crouch: f.isCrouching(), device: g.input.lastDevice, active: T.active,
       flip: f.flip && f.flip.kind, rollDir: f.rollDir, rm: f.rm && Math.round(f.rm.dist), fastFall: !!f.fastFall, vy: Math.round(f.vy),
-      power: f.move ? (f.move.power || 0.5) : 0, facing: f.facing,
+      power: f.move ? (f.move.power || 0.5) : 0, facing: f.facing, shootT: Math.round(f.shootT || 0),
     };
   });
 
@@ -77,7 +77,7 @@ require('fs').mkdirSync(out, { recursive: true });
   // per-frame recorder (CDP round trips are slower than the moves themselves)
   await page.evaluate(() => {
     window.__log = [];
-    const rec = () => { const f = SA.game.p1; if (f) window.__log.push({ s: f.state, flip: f.flip && f.flip.kind, rm: f.rm ? Math.round(f.rm.dist) : 0 }); if (window.__log.length > 600) window.__log.shift(); requestAnimationFrame(rec); };
+    const rec = () => { const f = SA.game.p1; if (f) window.__log.push({ s: f.state, flip: f.flip && f.flip.kind, rm: f.rm ? Math.round(f.rm.dist) : 0, shot: (f.shootT || 0) > 0 }); if (window.__log.length > 600) window.__log.shift(); requestAnimationFrame(rec); };
     requestAnimationFrame(rec);
   });
   const logSince = () => page.evaluate(() => { const l = window.__log; window.__log = []; return l; });
@@ -94,7 +94,7 @@ require('fs').mkdirSync(out, { recursive: true });
   s = await st();
   check('touch overlay active in fight', s.active && s.device === 'touch', s);
   const btns = await page.evaluate(() => SA.game.touch.visibleButtons().map((b) => b.id).join(','));
-  check('only ATTACK / KICK / SPECIAL (+SHOOT with a gun)', btns === 'light,kick,special', btns);
+  check('only ATTACK / KICK / SHOOT / SPECIAL (Crescent Pistols equipped by default)', btns === 'light,kick,ranged,special', btns);
   await page.screenshot({ path: out + '/touch-01-overlay.png' });
 
   // --- joystick right: walk ---
@@ -225,7 +225,7 @@ require('fs').mkdirSync(out, { recursive: true });
   await settle();
 
   // --- acceptance 53: → run, ↗ front flip, ATTACK air slash, ↘ roll after landing, ATTACK roll attack, ← ← backflip, SHOOT in it ---
-  await page.evaluate(() => { const g = SA.game; g.p1.setLoadout({ weapon: g.p1.weapon.id, ranged: 'pistol' }); });
+  await page.evaluate(() => { const g = SA.game; g.p1.setLoadout({ weapon: g.p1.weapon.id, ranged: 'crescent_pistols' }); });
   await place(-700, 600);
   const seq = [];
   const note = async (tag) => { const q = await st(); seq.push(tag + ':' + q.state + (q.flip ? '/' + q.flip : '') + (q.move ? '/' + q.move : '')); return q; };
@@ -253,16 +253,17 @@ require('fs').mkdirSync(out, { recursive: true });
   await up(1);
   await wait(500);
   const fac = (await st()).facing;
+  await logSince();
   await flick(-fac); await wait(10); await flick(-fac);
   await wait(60);
   const bf = await note('backflip');
-  await wait(150);
-  await tap(2, B.shoot, 20);
-  await wait(60);
-  const shot = await note('shoot');
+  await tap(2, B.shoot, 10);
+  await wait(400);
+  const flipShot = (await logSince()).some((e) => e.s === 'flip' && e.shot);
+  seq.push('shot in flip:' + flipShot);
   check('acceptance 53: run -> front flip -> air slash -> roll -> roll attack -> backflip -> shoot',
     /run|sprint/.test(runS.state) && flipS.flip === 'front' && airS.state === 'attack' && rollS.state === 'roll' && rollAtk.state === 'attack' &&
-    (bf.flip === 'hand' || bf.flip === 'back') && (shot.state === 'attack' || shot.flip) , seq);
+    (bf.flip === 'hand' || bf.flip === 'back') && flipShot, seq);
   await wait(800);
 
   // --- three fingers ---
@@ -305,7 +306,7 @@ require('fs').mkdirSync(out, { recursive: true });
 
   // --- SHOOT button with a gun ---
   await settle(); await place(-300, 300);
-  const ammo0 = await page.evaluate(() => { const f = SA.game.p1; f.rangedState.ammo = f.rangedWeapon.magazine; f.rangedState.cd = 0; return f.rangedState.ammo; });
+  const ammo0 = await page.evaluate(() => { const f = SA.game.p1; f.rangedState.ammo = f.rangedWeapon.magazine; f.rangedState.reloadT = 0; f.shotCd = 0; return f.rangedState.ammo; });
   await tap(6, B.shoot, 30);
   await wait(300);
   const ammo = await page.evaluate(() => SA.game.p1.rangedState.ammo);

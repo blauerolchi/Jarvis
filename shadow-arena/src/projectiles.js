@@ -63,17 +63,21 @@
     }
 
     // Fire the owner's ranged weapon from its hand.
-    fire(f, def, game) {
-      const hand = f.skel.handF;
+    // aim: radians below the horizontal (+ = down, the falling shot). The muzzle sits at arm's length
+    // from the shoulder along the aim, so shots line up with the drawn arm even mid-flip.
+    fire(f, def, game, aim) {
+      aim = aim || 0;
+      const sh = f.skel.sh, L = 78 * f.look.scale;
+      const hand = { x: sh.x + f.facing * Math.cos(aim) * L, y: sh.y + Math.sin(aim) * L };
       const pr = def.proj;
       const count = pr.count || 1;
       const air = !f.grounded;
       for (let i = 0; i < count; i++) {
         const spread = count > 1 ? (i - (count - 1) / 2) * (pr.spread || 0) : 0;
         const sp = pr.speed * (count > 1 ? rand(0.92, 1.06) : 1);
-        let vx = Math.cos(spread) * sp * f.facing;
-        let vy = Math.sin(spread) * sp + (pr.vy || 0);
-        if (air && def.kind === 'throw') { vy += 420; vx *= 0.9; }
+        let vx = Math.cos(spread + aim) * sp * f.facing;
+        let vy = Math.sin(spread + aim) * sp + (pr.vy || 0);
+        if (air && def.kind === 'throw' && !aim) { vy += 420; vx *= 0.9; }
         // lobbed shots (rockets) are aimed so they come down on the opponent
         if (pr.aim && pr.grav && game.p1 && game.p2) {
           const tgt = f === game.p1 ? game.p2 : game.p1;
@@ -91,9 +95,8 @@
         });
       }
       if (def.kind === 'gun') {
-        SA.FX.muzzle(game.particles, hand.x + f.facing * 30, hand.y, f.facing, pr.type === 'energy' ? '#6fe8ff' : '#ffd27a');
-        f.vx -= f.facing * (def.recoil || 100);
-        game.camera.addTrauma(pr.type === 'pellet' ? 0.2 : 0.08);
+        SA.FX.muzzle(game.particles, hand.x + f.facing * Math.cos(aim) * 30, hand.y + Math.sin(aim) * 30, f.facing, pr.type === 'energy' ? '#6fe8ff' : pr.color || '#ffd27a');
+        game.camera.addTrauma(pr.type === 'pellet' ? 0.2 : def.dual ? 0.04 : 0.08);
       }
       SA.audio.play(def.sound || 'throw');
     }
@@ -162,6 +165,19 @@
           if (p.type === 'kunai' || p.type === 'knife' || p.type === 'shuriken' || p.type === 'bolt') SA.FX.spark(game.particles, p.x, -4, '#ffe0b0');
           this.kill(p);
           continue;
+        }
+        // one-way platforms stop falling shots and lobbed throws from above (straight shots pass)
+        if (!p.ground && !p.homing && !p.returns && p.vy > 0) {
+          const P = SA.Physics.platforms;
+          let stop = null;
+          if (P) for (let i_q = 0; i_q < P.length; i_q++) { const q = P[i_q]; if (p.py <= q.y && p.y >= q.y && Math.abs(p.x - q.x) <= q.w / 2) { stop = q; break; } }
+          if (stop) {
+            p.y = stop.y;
+            if (p.explode) { this.explode(p, game); continue; }
+            SA.FX.spark(game.particles, p.x, stop.y - 2, '#ffe0b0');
+            this.kill(p);
+            continue;
+          }
         }
         for (let i_f = 0, a_f = fighters; i_f < a_f.length; i_f++) { const f = a_f[i_f];
           if (f === p.owner && !p.reflected) continue;

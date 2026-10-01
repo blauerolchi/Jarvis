@@ -295,7 +295,35 @@
     { seq: ['slideKick', 'airSmash'], name: 'SANDS OF DEATH' },
   ];
 
+  // platform-fighter flow combos, matched on hit tags (any weapon):
+  //   CRESCENT FLOW  approach, light, kick, diagonal flip, air slash, falling heavy
+  //   MOON GUNNER    backflip, shoot, shoot, land, dash, kick
+  //   DESERT DIVE    platform, jump, front flip, shoot, fast fall, heavy
+  //   MOON DANCE     roll under the attack, roll attack, dash through, kick, flip back, shoot
+  SA.TAG_COMBOS = [
+    { tags: ['light', 'kick', 'air', 'dive'], name: 'CRESCENT FLOW' },
+    { tags: ['light', 'kick', 'air', 'air'], name: 'CRESCENT FLOW' },
+    { tags: ['shot', 'shot', 'dash'], name: 'MOON GUNNER' },
+    { tags: ['shot', 'shot', 'kick'], name: 'MOON GUNNER' },
+    { tags: ['shot', 'dive'], name: 'DESERT DIVE' },
+    { tags: ['roll', 'kick', 'shot'], name: 'MOON DANCE' },
+    { tags: ['roll', 'dash', 'shot'], name: 'MOON DANCE' },
+  ];
+
   const { clamp } = SA.M;
+
+  // Movement combos are recognised by what the hits *were*, whatever the weapon: shot, dive, air,
+  // roll / dash attack, kick, heavy, light (see TAG_COMBOS in game.js).
+  function comboTag(a, m, opts) {
+    if (opts && opts.projectile) return 'shot';
+    if (m.id === 'diveImpact' || a.dive) return 'dive';
+    if (m.air) return 'air';
+    if (a.moveCtx === 'roll') return 'roll';
+    if (a.moveCtx === 'dash') return 'dash';
+    if (/kick|sweep/i.test(m.id || '')) return 'kick';
+    return (m.power || 0.5) >= 0.8 ? 'heavy' : 'light';
+  }
+  SA.comboTag = comboTag;
 
   const REGIONS = ['head', 'torso', 'legs'];
   function hurtRegion(rect, b) {
@@ -444,6 +472,14 @@
       a.combo.damage += dmg;
       a.combo.timer = 0;
       a.combo.seq.push(m.id || '');
+      a.combo.tags.push(comboTag(a, m, opts));
+      // flow chain: hits that follow each other within ~1.1 s, even if the victim recovered in between
+      // (movement flows like shot, shot, land, dash, kick) -> TAG_COMBOS
+      if (!(a.flowT > 0)) a.flow.length = 0;
+      a.flow.push(comboTag(a, m, opts));
+      if (a.flow.length > 8) a.flow.shift();
+      a.flowT = 66;
+      b.flowT = 0;
       a.moveContact = 'hit';
 
       const ko = b.hp <= 0;
@@ -457,7 +493,8 @@
       if (!opts.keepState) {
         b.cancelMove();
         const airborne = !b.grounded || b.state === 'launched';
-        if (m.knockdown || ko || airborne) {
+        const spike = !!a.dive && !opts.projectile;
+        if (m.knockdown || ko || airborne || spike) {
           b.setState('launched');
           b.grounded = false;
           b.bounced = false;
@@ -472,6 +509,10 @@
           b.vx = dir * (m.kb * (ko ? 1.15 : 0.85));
           b.plat = null;
           b.y -= 1;
+          // knockback reads the attack: a dive spikes an airborne victim down / bounces a grounded one
+          // up, heavy air attacks send further
+          if (spike) { b.vy = airborne ? 1150 : -780; b.vx = dir * 170; }
+          else if (!a.grounded && (m.power || 0.5) >= 0.8) b.vx *= 1.2;
         } else {
           b.setState('hitstun');
           b.stun = m.hitstun + (counter ? 6 : 0);

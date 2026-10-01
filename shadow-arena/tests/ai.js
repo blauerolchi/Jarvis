@@ -153,7 +153,7 @@ const { openGame } = require('./harness');
       for (let i = 0; i < 900; i++) {
         g.tick(); g.p1.hp = Math.max(g.p1.hp, 1000); g.p2.hp = Math.max(g.p2.hp, 1000);
         const a = g.p1, b = g.p2;
-        const pass = a.body.pass || b.body.pass || !a.grounded || !b.grounded || a.state === 'down' || b.state === 'down';
+        const pass = a.body.pass || b.body.pass || !a.grounded || !b.grounded || a.state === 'down' || b.state === 'down' || Math.abs(a.y - b.y) > 100;   // one on a platform above the other
         if (!pass) {
           const ov = SA.Physics.minDistance(a, b) - Math.abs(a.x - b.x);
           if (ov > worst) { worst = ov; at = [a.state, b.state, a.move && a.move.id, b.move && b.move.id, Math.round(a.x), Math.round(b.x)]; }
