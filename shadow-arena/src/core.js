@@ -145,6 +145,7 @@ window.SA = window.SA || {};
     get isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); },
     get canFullscreen() {
       const d = document.documentElement;
+      if (document.fullscreenEnabled === false && !document.webkitFullscreenEnabled) return false;   // e.g. an iframe without permission
       return !!(d.requestFullscreen || d.webkitRequestFullscreen);
     },
     toggleFullscreen() {
@@ -157,8 +158,8 @@ window.SA = window.SA || {};
         const req = d.requestFullscreen || d.webkitRequestFullscreen;
         const p = req.call(d, { navigationUI: 'hide' });
         const lock = () => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch (e) { /* unsupported */ } };
-        if (p && p.then) p.then(lock).catch(() => {}); else lock();
-      } catch (e) { /* fullscreen not available (e.g. inside an iframe) */ }
+        if (p && p.then) p.then(lock).catch(() => { this.fsBlockedT = performance.now(); }); else lock();
+      } catch (e) { this.fsBlockedT = performance.now(); /* fullscreen not available (e.g. inside an iframe) */ }
     },
     vibrate(pattern) {
       if (!SA.Save || !SA.Save.data.settings.vibration) return;

@@ -880,13 +880,18 @@
         text(ctx, touch ? 'TAP A CARD TO START' : 'ARROWS / WASD  SELECT    ·    ENTER / J  CONFIRM    ·    ESC  BACK', 150, H - 36,
           { size: 15, weight: 600, spacing: 4, color: 'rgba(255,255,255,0.4)' });
         if (SA.Device.canFullscreen) {
-          const r = this.fsRect = { x: W - 330, y: H - 110, w: 250, h: 70 };
+          // top right under the level panel: at the bottom edge it sits under phone gesture bars and
+          // app overlays (e.g. an embedded preview) and can't be tapped
+          const r = this.fsRect = { x: W - 330, y: 170, w: 250, h: 70 };
           ctx.save();
           skewRect(ctx, r.x, r.y, r.w, r.h, 12);
           ctx.fillStyle = 'rgba(10,6,12,0.7)'; ctx.fill();
           ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.stroke();
           ctx.restore();
           text(ctx, SA.Device.isFullscreen ? 'EXIT FULLSCREEN' : 'FULLSCREEN', r.x + r.w / 2 + 6, r.y + r.h / 2, { size: 19, weight: 800, spacing: 3, color: '#fff', align: 'center' });
+          if (SA.Device.fsBlockedT && performance.now() - SA.Device.fsBlockedT < 4000) {
+            text(ctx, 'FULLSCREEN BLOCKED HERE · OPEN THE LINK IN THE BROWSER', r.x + r.w, r.y + r.h + 30, { size: 16, weight: 700, spacing: 2, color: '#ffd27a', align: 'right' });
+          }
         }
       } else if (scr === 'settings') {
         this.header(ctx, 'SETTINGS');
