@@ -405,6 +405,7 @@
       arena.drawBack(ctx, cam);
       cam.apply(ctx);
       arena.drawGround(ctx, cam);
+      arena.drawPlatforms(ctx);
       arena.drawWeatherWorld(ctx, false);
       // opponent silhouette preview
       const oppId = SA.ARENAS[id].opponent;

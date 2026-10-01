@@ -139,6 +139,7 @@
         this.arena = new SA.Arena(arenaId);
       }
       this.arena.build();
+      SA.Physics.platforms = this.arena.platforms;
       this.difficulty = o.difficulty || P.difficulty;
       this.projectiles.clear();
       this.bossFx = null;
@@ -917,6 +918,7 @@
 
       cam.apply(ctx);
       arena.drawGround(ctx, cam);
+      arena.drawPlatforms(ctx);
       if (arena.reflective && SA.GFX.reflections) {
         ctx.save();
         ctx.scale(1, -0.55);

@@ -51,6 +51,7 @@
         this.codes.add(e.code);
         this.refreshHeld();
         this.queue.push(a);
+        if (a === 'down') this.queue.push('gDown');   // air: fast fall, on a platform: drop through
         // double-tap left / right = quick dash (forward) or backstep (the fighter decides from the held direction)
         if (a === 'left' || a === 'right') {
           const now = performance.now();

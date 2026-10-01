@@ -17,7 +17,7 @@
   // Movement tuning (px/s, frames). Responsive input: target speeds are reached within ~3 frames.
   const WALK_FWD = 430, WALK_BACK = 350, RUN_SPEED = 760, SPRINT_SPEED = 960;
   const ACCEL = 60, DECEL = 40;
-  const JUMP_VY = -1310, JUMP_VX = 540;
+  const JUMP_VY = -1480, JUMP_VX = 540;
   const DASH_CD = 12;
   const RUN_AFTER = 9, SPRINT_AFTER = 38;      // keyboard: hold forward to break into a run / sprint
   const AIR_STEER = 1250, AIR_MAX = 620;   // air control ≈ 40 % of ground control
@@ -58,14 +58,14 @@
   for (const k in MOB) MOB[k].curve = makeCurve(MOB[k].shape);
   // acrobatics: take-off velocity, gravity scale, rotation frames, attack allowed from frame, invulnerable frames
   const FLIPS = {
-    front: { vy: -1260, vx: 820, grav: 1, rotFrames: 30, atkFrom: 8, dir: 1, cost: 18 },
-    back: { vy: -1150, vx: -600, grav: 1.05, rotFrames: 28, atkFrom: 14, dir: -1, cost: 18 },
+    front: { vy: -1420, vx: 820, grav: 1, rotFrames: 30, atkFrom: 8, dir: 1, cost: 18 },
+    back: { vy: -1400, vx: -600, grav: 1.05, rotFrames: 28, atkFrom: 14, dir: -1, cost: 18 },
     // handspring (flik-flak): low, fast arc backwards over the hands
     hand: { vy: -520, vx: -820, grav: 0.9, rotFrames: 19, atkFrom: 99, dir: -1, invuln: [2, 11], cost: 30 },
     // joystick up: acrobatic jump with a small tucked spin; horizontal speed from the held direction
-    spin: { vy: -1330, vx: 0, steer: true, grav: 1, rotFrames: 26, atkFrom: 5, dir: 1, cost: 0 },
+    spin: { vy: -1560, vx: 0, steer: true, grav: 1, rotFrames: 26, atkFrom: 5, dir: 1, cost: 0 },
     // double ↗: flip leap, long and high (platform to platform)
-    leap: { vy: -1400, vx: 960, grav: 0.96, rotFrames: 34, atkFrom: 8, dir: 1, cost: 22 },
+    leap: { vy: -1640, vx: 960, grav: 0.96, rotFrames: 34, atkFrom: 8, dir: 1, cost: 22 },
   };
   const FAST_FALL = 1650;
   const ROLL = MOB.roll;
@@ -147,7 +147,7 @@
     }
 
     reset(x, facing) {
-      this.x = x; this.y = 0; this.vx = 0; this.vy = 0;
+      this.x = x; this.y = 0; this.vx = 0; this.vy = 0; this.plat = null; this.dropT = 0; this.fastFall = false;
       this.prevX = x; this.prevY = 0;
       this.facing = facing;
       this.grounded = true;
@@ -462,7 +462,7 @@
         case 'slide': {
           // low, fast slide out of a run: under high attacks and projectiles
           const u = this.rootMotion(ts);
-          if (Math.floor(this.st) % 3 === 0 && this.st % 1 < ts) SA.FX.dust(game.particles, this.x, 0, 0.45, -this.facing);
+          if (Math.floor(this.st) % 3 === 0 && this.st % 1 < ts) SA.FX.dust(game.particles, this.x, this.y, 0.45, -this.facing);
           if (this.st >= 3) {
             if (c.consume('light') || c.consume('kick')) { this.startMove(ms.slide); break; }       // slide attack (low sweep)
             if (c.consume('heavy')) { c.consume('up'); this.startMove(ms.heavyUp); break; }         // slide -> uppercut
@@ -476,7 +476,7 @@
         case 'run': case 'sprint': {
           if (!this.fwdHeld()) {
             // stop: a short skid keeps a little momentum, controls stay live
-            SA.FX.dust(game.particles, this.x + this.facing * 20, 0, this.state === 'sprint' ? 0.8 : 0.5, this.facing);
+            SA.FX.dust(game.particles, this.x + this.facing * 20, this.y, this.state === 'sprint' ? 0.8 : 0.5, this.facing);
             this.vx *= 0.55;
             this.fwdT = 0;
             if (this.backHeld()) this.turnT = 6;   // reversing out of a run: pivot / foot slide
@@ -501,7 +501,7 @@
           // tucked roll: passes through the enemy body and under high attacks, short vulnerable end
           const R = ROLL;
           const u = this.rootMotion(ts);
-          if (Math.floor(this.st) % 5 === 0 && this.st % 1 < ts) SA.FX.dust(game.particles, this.x, 0, 0.4, -this.facing * this.rollDir);
+          if (Math.floor(this.st) % 5 === 0 && this.st % 1 < ts) SA.FX.dust(game.particles, this.x, this.y, 0.4, -this.facing * this.rollDir);
           // never come out of a roll inside the opponent: keep passing through until clear
           const o = game.p1 === this ? game.p2 : game.p1;
           if (o && this.st >= this.rollThrough - 1 && this.st < R.frames + 8 && Math.abs(o.x - this.x) < SA.Physics.minDistance(this, o)) {
@@ -628,7 +628,7 @@
         // quick reversal: short pivot / foot slide (visual only)
         if (this.state === 'walk' && this.walkDir !== dir && Math.abs(this.vx) > 150) {
           this.turnT = 5;
-          SA.FX.dust(game.particles, this.x, 0, 0.35, -dir * this.facing);
+          SA.FX.dust(game.particles, this.x, this.y, 0.35, -dir * this.facing);
         }
         if (this.state !== 'walk') this.setState('walk');
         this.walkDir = dir;
@@ -743,7 +743,8 @@
       if (c.consume('gJump')) { this.startPrejump(false, 'spin'); return true; }
       if (c.consume('gFlipF')) { this.startPrejump(true, 'front'); return true; }
       if (c.consume('gFlipB')) { this.startPrejump(false, 'back'); return true; }
-      c.consume('gDown');   // standing on the main floor: crouch only (platform drop: physics)
+      // down on a platform: drop through it (on the main floor: crouch only)
+      if (c.consume('gDown') && this.plat) { this.dropT = 12; return true; }
       // the second half of a double flick may follow its own dash / backstep right away
       if (c.consume('gLongF')) { this.startDash(game, 1.5); return true; }
       if (c.consume('gLongB')) { this.startFlip('hand', game); return true; }
@@ -788,7 +789,7 @@
       this.startRoot('dash', 1, distScale);
       this.dashCd = this.rm.frames + DASH_CD;
       SA.audio.play('dash');
-      SA.FX.dust(game.particles, this.x - this.facing * 20, 0, 0.7, -this.facing);
+      SA.FX.dust(game.particles, this.x - this.facing * 20, this.y, 0.7, -this.facing);
       SA.FX.sandTrail(game.particles, this.x - this.facing * 40, -10, -this.facing, '#cfae78');
     }
 
@@ -799,7 +800,7 @@
       this.rollThrough = ROLL.through;
       this.dashCd = ROLL.frames + DASH_CD;
       SA.audio.play('dash', 0.8);
-      SA.FX.dust(game.particles, this.x, 0, 0.6, -this.facing * dir);
+      SA.FX.dust(game.particles, this.x, this.y, 0.6, -this.facing * dir);
     }
 
     startEvade(game) {
@@ -807,7 +808,7 @@
       this.startRoot('backstep', -1);
       this.dashCd = this.rm.frames + DASH_CD;
       SA.audio.play('dash');
-      SA.FX.dust(game.particles, this.x + this.facing * 10, 0, 0.6, this.facing);
+      SA.FX.dust(game.particles, this.x + this.facing * 10, this.y, 0.6, this.facing);
     }
 
     startSlide(game) {
@@ -816,7 +817,7 @@
       this.startRoot('slide', 1, clamp(Math.abs(this.vx) / RUN_SPEED, 0.75, 1.3));
       this.dashCd = Math.max(this.dashCd, 10);
       SA.audio.play('dash', 0.7);
-      SA.FX.dust(game.particles, this.x, 0, 0.8, -this.facing);
+      SA.FX.dust(game.particles, this.x, this.y, 0.8, -this.facing);
     }
 
     // front flip / backflip / handspring: real jumps (physics) with an acrobatic body rotation
@@ -829,7 +830,8 @@
       this.setState('flip');
       this.flip = { kind, F };
       this.grounded = false;
-      this.y = -1;
+      this.plat = null;
+      this.y -= 1;
       this.vy = F.vy;
       const sd = F.steer ? (this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0) : 0;
       this.vx = this.facing * (F.steer ? sd * JUMP_VX : F.vx) * this.speedMul;
@@ -845,7 +847,7 @@
       this.scaleY = 1.12; this.scaleX = 0.92;
       SA.audio.play(kind === 'hand' ? 'dash' : 'jump', 1.1);
       SA.audio.play('whoosh_medium', 0.7);
-      SA.FX.dust(game.particles, this.x, 0, 0.6, -this.facing * F.dir);
+      SA.FX.dust(game.particles, this.x, this.y, 0.6, -this.facing * F.dir);
     }
 
     // air: steering, air attacks (light / kick / heavy, down + heavy = dive), air throw, one air dash
@@ -944,13 +946,14 @@
       this.vy = JUMP_VY;
       this.vx = dir * this.facing * JUMP_VX * this.speedMul;
       this.grounded = false;
-      this.y = -1;
+      this.plat = null;
+      this.y -= 1;
       this.airAttackUsed = false;
       this.airTime = 0;
       this.setState('air');
       this.scaleY = 1.12; this.scaleX = 0.92;
       SA.audio.play('jump');
-      SA.FX.dust(game.particles, this.x, 0, 0.5, 0);
+      SA.FX.dust(game.particles, this.x, this.y, 0.5, 0);
     }
 
     updateAttack(ts, dt, game) {
@@ -987,7 +990,7 @@
         this.effectDone = true;
         const tip = this.skel.tip;
         game.projectiles.shockwave(this, tip.x, this.facing, { dmg: Math.round(34 * (this.damageMul || 1)), color: this.weapon.element === 'shock' ? '#9fd0ff' : '#ffcf8a' });
-        SA.FX.dust(game.particles, tip.x, 0, 1.2, 0);
+        SA.FX.dust(game.particles, tip.x, this.y, 1.2, 0);
         game.shake(0.3);
         SA.audio.play('boss_impact', 0.6);
       }
@@ -1081,7 +1084,7 @@
       this.grounded = true;
       this.fastFall = false;
       this.vy = 0;
-      this.y = 0;
+      this.dropT = 0;
       this.airTime = 0;
       switch (this.state) {
         case 'air': {
@@ -1090,7 +1093,7 @@
             this.airWhiff = false;
             this.stun = 8; this.landT = 10;
             this.scaleY = 0.84; this.scaleX = 1.1;
-            SA.FX.dust(game.particles, this.x, 0, 0.5, 0);
+            SA.FX.dust(game.particles, this.x, this.y, 0.5, 0);
             this.setState('landing');
             break;
           }
@@ -1098,7 +1101,7 @@
           const hard = impactVy > 1700;
           this.scaleY = hard ? 0.78 : 0.86; this.scaleX = hard ? 1.14 : 1.08;
           this.landT = hard ? 12 : 8;
-          SA.FX.dust(game.particles, this.x, 0, hard ? 1 : 0.5, 0);
+          SA.FX.dust(game.particles, this.x, this.y, hard ? 1 : 0.5, 0);
           SA.audio.play('land', hard ? 0.7 : 0.4);
           if (hard) game.shake(0.12);
           this.toNeutral();
@@ -1109,7 +1112,7 @@
           this.flip = null; this.rm = null; this.gravMul = 1;
           this.scaleY = 0.84; this.scaleX = 1.1;
           this.landT = hand ? 6 : 9;
-          SA.FX.dust(game.particles, this.x, 0, 0.6, 0);
+          SA.FX.dust(game.particles, this.x, this.y, 0.6, 0);
           SA.audio.play('land', 0.5);
           // a handspring lands ready to counter: heavy right after it = backstep counter
           if (hand) this.hsLand = 12;
@@ -1121,7 +1124,7 @@
           this.dive = false; this.flipAtk = 0; this.gravMul = 1;
           this.scaleY = 0.84; this.scaleX = 1.1;
           this.landT = 10;
-          SA.FX.dust(game.particles, this.x, 0, dive ? 1.2 : 0.5, 0);
+          SA.FX.dust(game.particles, this.x, this.y, dive ? 1.2 : 0.5, 0);
           if (dive) { game.shake(0.2); SA.audio.play('land', 0.9); }
           this.cancelMove();
           if (this.moveContact) {
@@ -1140,15 +1143,16 @@
             this.bounced = true;
             this.grounded = false;
             this.vy = -impactVy * 0.32;
-            this.y = -1;
+            this.plat = null;
+            this.y -= 1;
             this.vx *= 0.6;
-            SA.FX.dust(game.particles, this.x, 0, 1.2, 0);
+            SA.FX.dust(game.particles, this.x, this.y, 1.2, 0);
             SA.audio.play('knockdown', 0.9);
             game.shake(0.25);
           } else {
             this.setState(this.hp <= 0 ? 'ko' : 'down');
             this.vx *= 0.35;
-            SA.FX.dust(game.particles, this.x, 0, 0.8, 0);
+            SA.FX.dust(game.particles, this.x, this.y, 0.8, 0);
             SA.audio.play('knockdown', 0.5);
           }
           break;
@@ -1157,7 +1161,7 @@
           this.cancelMove();
           this.setState('landing');
           this.stun = 18;
-          SA.FX.dust(game.particles, this.x, 0, 0.8, 0);
+          SA.FX.dust(game.particles, this.x, this.y, 0.8, 0);
           SA.audio.play('land', 0.7);
           break;
         case 'bossmove':
@@ -1166,6 +1170,22 @@
         case 'hitstun': case 'stagger':
           this.setState('down');
           break;
+      }
+    }
+
+    // walked / dashed / rolled off a platform edge, or dropped through it
+    leaveGround(game) {
+      const st = this.state;
+      this.airTime = 0;
+      if (NEUTRAL[st] || MOVING[st] || st === 'landing' || st === 'roll' || st === 'slide' || st === 'evade' || st === 'prejump') {
+        this.rm = null;
+        this.cancelMove();
+        this.setState('air');
+        this.airAttackUsed = false;
+        this.airDashUsed = false;
+        this.airWhiff = false;
+        this.gravMul = 1;
+        this.jumpDir = 0;
       }
     }
 
@@ -1201,7 +1221,7 @@
             sp.phase = 'dash'; sp.t = 0;
             this.setAnim([[0, SA.POSES.rushDash]]);
             SA.audio.play('dash', 1.2);
-            SA.FX.dust(game.particles, this.x - this.facing * 30, 0, 1, -this.facing);
+            SA.FX.dust(game.particles, this.x - this.facing * 30, this.y, 1, -this.facing);
           }
           break;
         case 'dash':
@@ -1299,7 +1319,7 @@
             this.setAnim([[0, up], [8, up]]);
             this.spin = [0, 8];
             SA.audio.play('whoosh_heavy', 1.2);
-            SA.FX.dust(game.particles, this.x, 0, 1.2, 0);
+            SA.FX.dust(game.particles, this.x, this.y, 1.2, 0);
           }
           break;
         case 'rise':
@@ -1394,7 +1414,7 @@
       const dmg = Math.round(46 * (this.damageMul || 1));
       game.projectiles.shockwave(this, this.x + this.facing * 60, this.facing, { dmg, speed: 1100, life: 0.8, color });
       game.projectiles.shockwave(this, this.x - this.facing * 60, -this.facing, { dmg: Math.round(dmg * 0.7), speed: 900, life: 0.6, color });
-      SA.FX.dust(game.particles, this.x, 0, 2, 0);
+      SA.FX.dust(game.particles, this.x, this.y, 2, 0);
       SA.FX.ko(game.particles, this.x, -20);
       game.shake(0.8);
       game.camera.punch(0.1);

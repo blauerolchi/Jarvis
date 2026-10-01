@@ -298,6 +298,77 @@
     seatedStatue, standingGod, headShape, jackalShrine, brazier, torch, flame, LW, LH, GY, GW, GH,
   };
 
+  // ---------- one-way platforms ----------
+  // y = top surface (world, up is negative). Low tier ~260 (reachable with a jump / flip from the
+  // floor, a standing fighter fits underneath), high tier ~500 (reachable from a low platform).
+  const PLATFORM_LAYOUTS = {
+    temple: [{ x: -600, y: -260, w: 400 }, { x: 600, y: -260, w: 400 }, { x: 0, y: -500, w: 460 }],
+    bridge: [{ x: -560, y: -270, w: 360 }, { x: 560, y: -270, w: 360 }, { x: 0, y: -520, w: 600 }],
+    steps: [{ x: -760, y: -250, w: 360 }, { x: -140, y: -480, w: 400 }, { x: 540, y: -280, w: 420 }],
+    four: [{ x: -820, y: -260, w: 330 }, { x: 820, y: -260, w: 330 }, { x: -320, y: -500, w: 340 }, { x: 320, y: -500, w: 340 }],
+  };
+  SA.PLATFORM_LAYOUTS = PLATFORM_LAYOUTS;
+
+  // a floating sandstone slab: lit top lip, glyph band between gold trims, broken rock underneath
+  function paintPlatform(w, look) {
+    const res = 1.5, T = 34, PAD = 20, H = 104;
+    const c = SA.makeCanvas(Math.ceil((w + PAD * 2) * res), Math.ceil(H * res));
+    const g = c.getContext('2d');
+    g.scale(res, res);
+    g.translate(PAD, 0);
+    const rng = SA.M.seeded(Math.round(w * 7 + 13));
+    // rock underneath, tapering into the dark
+    const rock = g.createLinearGradient(0, T, 0, H);
+    rock.addColorStop(0, look.rock);
+    rock.addColorStop(1, 'rgba(10,6,8,0)');
+    g.fillStyle = rock;
+    g.beginPath();
+    g.moveTo(-4, T - 2);
+    const n = Math.max(4, Math.round(w / 46));
+    for (let i = 0; i <= n; i++) {
+      const u = i / n;
+      const depth = (1 - Math.pow(Math.abs(u - 0.5) * 2, 1.6)) * 58 + 6 + rng() * 10;
+      g.lineTo(-4 + u * (w + 8), T + depth);
+    }
+    g.lineTo(w + 4, T - 2);
+    g.closePath();
+    g.fill();
+    // front face
+    const face = g.createLinearGradient(0, 4, 0, T);
+    face.addColorStop(0, look.face);
+    face.addColorStop(1, look.faceDark);
+    g.fillStyle = face;
+    g.fillRect(0, 4, w, T - 4);
+    // block joints
+    g.strokeStyle = 'rgba(40,20,10,0.35)';
+    g.lineWidth = 1.5;
+    for (let x = 60 + rng() * 30; x < w - 30; x += 70 + rng() * 40) { g.beginPath(); g.moveTo(x, 13); g.lineTo(x, T - 3); g.stroke(); }
+    // glyph band
+    g.strokeStyle = look.glyph;
+    g.lineWidth = 1.6;
+    g.lineCap = 'round';
+    for (let x = 22; x < w - 16; x += 30) glyph(g, Math.floor(rng() * 8), x, 22, 13);
+    // gold trims + top lip
+    g.fillStyle = look.gold;
+    g.fillRect(0, 9, w, 2.5);
+    g.fillRect(0, T - 4, w, 2.5);
+    const lip = g.createLinearGradient(0, 0, 0, 7);
+    lip.addColorStop(0, look.lip);
+    lip.addColorStop(1, look.face);
+    g.fillStyle = lip;
+    g.fillRect(-3, 0, w + 6, 7);
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+    g.fillRect(-3, 0, w + 6, 1.5);
+    // end caps
+    for (const ex of [-6, w - 6]) {
+      g.fillStyle = look.faceDark;
+      g.fillRect(ex, -2, 12, T + 2);
+      g.fillStyle = look.gold;
+      g.fillRect(ex, -4, 12, 4);
+    }
+    return { canvas: c, res, PAD, H };
+  }
+
   // ---------- runtime ----------
   class Arena {
     constructor(id) {
@@ -315,6 +386,8 @@
       this.flashA = 0;
       this.boltT = 2 + Math.random() * 3;
       this.bolt = null;
+      const L = this.def.platforms;
+      this.platforms = (Array.isArray(L) ? L : PLATFORM_LAYOUTS[L || 'temple']).map((p, i) => ({ x: p.x, y: p.y, w: p.w, i }));
     }
 
     build() {
@@ -334,6 +407,9 @@
       g.scale(res, res);
       d.ground.call(this, g, SA.M.seeded(55), this);
       this.groundRes = res;
+      const look = Object.assign({ face: '#c99a5e', faceDark: '#7a5432', lip: '#f2d39a', rock: '#4a3020', gold: '#e2b04a', glyph: 'rgba(60,30,12,0.75)', glow: '#4fe0d0' }, d.platformLook || {});
+      this.platLook = look;
+      for (const p of this.platforms) p.img = paintPlatform(p.w, look);
       this.initWeather();
       this.built = true;
     }
@@ -555,6 +631,24 @@
           ctx.drawImage(SA.glowSprite(L.color, 0.2), x - 160, -10, 320, 120);
         }
         ctx.restore();
+      }
+    }
+
+    // world space: floating one-way platforms (cached slabs + a faint magic glow underneath)
+    drawPlatforms(ctx) {
+      if (!this.platforms.length) return;
+      const glowOn = !SA.GFX || SA.GFX.rays !== false;
+      for (let i = 0; i < this.platforms.length; i++) {
+        const p = this.platforms[i];
+        if (glowOn) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = 0.16 + 0.05 * Math.sin(this.t * 2 + i);
+          ctx.drawImage(SA.glowSprite(this.platLook.glow, 0.25), p.x - p.w * 0.45, p.y + 30, p.w * 0.9, 90);
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        const im = p.img;
+        if (im) ctx.drawImage(im.canvas, p.x - p.w / 2 - im.PAD, p.y, p.w + im.PAD * 2, im.H);
       }
     }
 

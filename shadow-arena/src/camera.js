@@ -55,14 +55,18 @@
         this.speedZoom = damp(this.speedZoom, fast, 3, dt);
         tx = (a.x + b.x) / 2 + this.lead;
         tz = this.targetZoom(Math.abs(a.x - b.x)) - this.speedZoom * 0.05;
-        const top = Math.min(a.y, b.y);
-        if (top < -220) tz -= Math.min(0.18, (-220 - top) / 2000);
-        ty = this.baseY(tz) + Math.min(0, top + 220) * 0.35;
+        // vertical: platforms / air. Zoom out so both fighters (heads + a margin) fit, and lift the
+        // view smoothly when the fight moves up (the floor may leave the screen on the high tier)
+        const top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
+        const need = (bottom - top) + 470;
+        tz = Math.max(0.74, Math.min(tz, SA.H * 0.97 / need));
+        if (top < -220) tz -= Math.min(0.1, (-220 - top) / 3000);
+        ty = Math.min(this.baseY(tz), (top - 290 + bottom + 170) / 2);
       }
       const k = this.focus ? 5 : 7;
       this.x = damp(this.x, tx, k, dt);
       this.zoom = damp(this.zoom, tz, this.focus ? 4 : 3.2, dt);
-      this.y = damp(this.y, ty, 6, dt);
+      this.y = damp(this.y, ty, this.focus ? 6 : 4.5, dt);
 
       this.zoomKick = damp(this.zoomKick, 0, 9, dt);
       this.trauma = Math.max(0, this.trauma - dt * 1.7);

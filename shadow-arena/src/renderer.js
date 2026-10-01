@@ -999,12 +999,13 @@
     RENDER, Rope, createAccessories, resetAccessories, updateAccessories,
 
     drawShadow(ctx, f, strength) {
-      const h = clamp(-f.y / 500, 0, 1);
+      const floor = SA.Physics.floorAt(f.x, f.y);
+      const h = clamp((floor - f.y) / 500, 0, 1);
       const w = (90 + (f.state === 'down' || f.state === 'ko' ? 90 : 0)) * (1 - h * 0.6) * f.look.scale * (0.6 + 0.4 * (f.look.bulk || 1));
       ctx.globalAlpha = (strength || 0.5) * (1 - h * 0.7);
       ctx.fillStyle = '#000';
       ctx.beginPath();
-      ctx.ellipse(f.skel.hip.x, 2, w, 13 * (1 - h * 0.5), 0, 0, SA.TAU);
+      ctx.ellipse(f.skel.hip.x, floor + 2, w, 13 * (1 - h * 0.5), 0, 0, SA.TAU);
       ctx.fill();
       ctx.globalAlpha = 1;
     },

@@ -23,7 +23,8 @@
   const LYING_H = 70;
   const MAX_STEP = 26;        // max correction per tick for deep overlaps (soft resolve, no snapping)
   const OTHER_SHARE = 0.12;
-  const FAST_FALL = 1650;   // share of the correction the standing fighter takes when only one walks
+  const FAST_FALL = 1650;
+  const EDGE = 10;            // feet may overhang a platform edge this much   // share of the correction the standing fighter takes when only one walks
 
   // A fighter's movement collider (width/height in world px), cached per state.
   function bodyOf(f) {
@@ -45,6 +46,18 @@
     bodyOf,
     minDistance(a, b) { return (bodyOf(a).w + bodyOf(b).w) / 2; },
     pairSide: 0,
+    platforms: null,          // the arena's one-way platforms [{x, y (top), w}], set per fight
+
+    // top of the floor below (x, y): the highest platform under that point, else the ground (0)
+    floorAt(x, y) {
+      let top = 0;
+      const P = this.platforms;
+      if (P) for (let i = 0; i < P.length; i++) {
+        const p = P[i];
+        if (p.y >= y - 1 && p.y < top && Math.abs(x - p.x) <= p.w / 2) top = p.y;
+      }
+      return top;
+    },
 
     integrate(f, dt, game) {
       if (f.state === 'rushed') return;
@@ -52,13 +65,43 @@
       if (!f.grounded) f.vy += SA.GRAVITY * (f.vy > 0 ? 1.18 : 1) * (f.gravMul === undefined ? 1 : f.gravMul) * dt;
       // fast fall (joystick down in the air): a hard, steady drop
       if (f.fastFall && !f.grounded && f.gravMul !== 0) f.vy = Math.max(f.vy, FAST_FALL);
+      const y0 = f.y;
       f.x += f.vx * dt;
       f.y += f.vy * dt;
+      if (f.dropT > 0) f.dropT -= dt * 60;
       if (!f.grounded) {
-        if (f.y >= 0 && f.vy >= 0) {
+        // one-way platforms: only landed on from above while falling (jump through from below,
+        // fast fall / drop-through ignore them for a moment)
+        const P = this.platforms;
+        if (P && f.vy >= 0 && !f.fastFall && !(f.dropT > 0)) {
+          for (let i = 0; i < P.length; i++) {
+            const p = P[i];
+            if (y0 <= p.y + 0.5 && f.y >= p.y && Math.abs(f.x - p.x) <= p.w / 2 + EDGE) {
+              const impact = f.vy;
+              f.y = p.y;
+              f.plat = p;
+              f.onLand(game, impact);
+              break;
+            }
+          }
+        }
+        if (!f.grounded && f.y >= 0 && f.vy >= 0) {
           const impact = f.vy;
           f.y = 0;
+          f.plat = null;
           f.onLand(game, impact);
+        }
+      } else if (f.plat) {
+        const p = f.plat;
+        if (f.dropT > 0 || Math.abs(f.x - p.x) > p.w / 2 + EDGE) {
+          // walked / dashed / rolled off the edge, or dropped through: falling, never stuck
+          f.plat = null;
+          f.grounded = false;
+          f.y = p.y + (f.dropT > 0 ? 2 : 0);
+          if (f.vy < 0) f.vy = 0;
+          if (f.leaveGround) f.leaveGround(game);
+        } else {
+          f.y = p.y;
         }
       } else {
         f.y = 0;
@@ -133,8 +176,9 @@
 
       // stop pushing into each other: remove the approach component of the velocities
       // (the walk/dash code re-applies its own speed next tick, so this never feels sticky)
-      if (va > 0) a.vx -= dir * va;
-      if (vb > 0) b.vx += dir * vb;
+      // airborne fighters keep their momentum (a flip over the enemy still clears it a moment later)
+      if (va > 0 && a.grounded) a.vx -= dir * va;
+      if (vb > 0 && b.grounded) b.vx += dir * vb;
       return overlap;
     },
 

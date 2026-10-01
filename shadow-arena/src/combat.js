@@ -470,7 +470,8 @@
           }
           if (ko) b.vy = Math.min(b.vy, -760);
           b.vx = dir * (m.kb * (ko ? 1.15 : 0.85));
-          if (b.y >= 0) b.y = -1;
+          b.plat = null;
+          b.y -= 1;
         } else {
           b.setState('hitstun');
           b.stun = m.hitstun + (counter ? 6 : 0);

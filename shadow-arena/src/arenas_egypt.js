@@ -62,6 +62,7 @@
 
   // ======================= 1. DESERT TEMPLE =======================
   DEFS.desert_temple = {
+    platforms: 'temple',
     id: 'desert_temple', name: 'DESERT TEMPLE', sub: 'The sun sets over the pyramids',
     opponent: 'tomb_guard', music: 'temple', ambience: 'wind', wind: -240,
     rims: [{ color: 'rgba(255,170,90,0.95)', dx: 3, dy: -2 }, { color: 'rgba(120,90,200,0.5)', dx: -3, dy: -1 }],
@@ -140,6 +141,7 @@
 
   // ======================= 2. NILE AT NIGHT =======================
   DEFS.nile_night = {
+    platforms: 'bridge',
     id: 'nile_night', name: 'NILE AT NIGHT', sub: 'Moonlight on the river of life',
     opponent: 'desert_bandit', music: 'bamboo', ambience: 'night', wind: -80,
     rims: [{ color: 'rgba(170,205,255,0.95)', dx: -3, dy: -2 }],
@@ -224,6 +226,7 @@
 
   // ======================= 3. LOST PYRAMID =======================
   DEFS.lost_pyramid = {
+    platforms: 'steps',
     id: 'lost_pyramid', name: 'LOST PYRAMID', sub: 'Torches in the sealed chamber',
     opponent: 'royal_guard', music: 'ruins', ambience: 'fire', wind: 20,
     rims: [{ color: 'rgba(255,160,80,0.95)', dx: 3, dy: -2 }, { color: 'rgba(255,120,60,0.45)', dx: -3, dy: -1 }],
@@ -282,6 +285,7 @@
 
   // ======================= 4. SCARAB CATACOMBS =======================
   DEFS.scarab_catacombs = {
+    platforms: 'four',
     id: 'scarab_catacombs', name: 'SCARAB CATACOMBS', sub: 'Where the beetles guard the dead',
     opponent: 'scarab_warrior', music: 'neon', ambience: 'night', wind: 0,
     rims: [{ color: 'rgba(80,255,210,0.9)', dx: -3, dy: -2 }, { color: 'rgba(40,160,140,0.45)', dx: 3, dy: -1 }],
@@ -355,6 +359,7 @@
 
   // ======================= 5. TOMB OF ANUBIS =======================
   DEFS.tomb_anubis = {
+    platforms: 'temple',
     id: 'tomb_anubis', name: 'TOMB OF ANUBIS', sub: 'The Guardian of the Dead is watching',
     opponent: 'anubis_acolyte', music: 'ruins', ambience: 'night', wind: 0,
     rims: [{ color: 'rgba(255,200,90,0.9)', dx: 3, dy: -2 }, { color: 'rgba(60,220,210,0.5)', dx: -3, dy: -1 }],
@@ -419,6 +424,7 @@
 
   // ======================= 6. CHAOS DESERT =======================
   DEFS.chaos_desert = {
+    platforms: 'steps',
     id: 'chaos_desert', name: 'CHAOS DESERT', sub: 'Set’s storm tears the sky apart',
     opponent: 'jackal_assassin', music: 'ruins', ambience: 'wind', wind: -420,
     rims: [{ color: 'rgba(255,110,60,0.9)', dx: 3, dy: -2 }, { color: 'rgba(200,180,255,0.4)', dx: -3, dy: -1 }],
@@ -487,6 +493,7 @@
 
   // ======================= 7. TEMPLE OF RA =======================
   DEFS.temple_ra = {
+    platforms: 'four',
     id: 'temple_ra', name: 'TEMPLE OF RA', sub: 'Under the eye of the sun god',
     opponent: 'tomb_executioner', music: 'temple', ambience: 'wind', wind: -60,
     rims: [{ color: 'rgba(255,240,190,0.95)', dx: 3, dy: -2 }, { color: 'rgba(255,170,60,0.6)', dx: -3, dy: -1 }],
@@ -539,6 +546,7 @@
 
   // ======================= 8. HALL OF OSIRIS =======================
   DEFS.hall_osiris = {
+    platforms: 'bridge',
     id: 'hall_osiris', name: 'HALL OF OSIRIS', sub: 'The heart is weighed against the feather',
     opponent: 'cursed_mummy', music: 'bamboo', ambience: 'night', wind: 0,
     rims: [{ color: 'rgba(120,255,160,0.85)', dx: -3, dy: -2 }, { color: 'rgba(230,190,90,0.6)', dx: 3, dy: -1 }],
