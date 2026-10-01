@@ -16,22 +16,43 @@
 
   // FIXED joystick: the base never moves, only the knob follows the finger inside the radius.
   // Response: 0–0.12 deadzone · 0.12–0.5 walk · 0.5–0.85 run · 0.85–1 sprint (see SA.Stick)
-  const STICK = { x: 270, y: 800, r: 150, knob: 66, dead: 0.12, zoneX: 900, zoneY: 300 };
-  const JUMP_ON = -0.55, JUMP_OFF = -0.35, DOWN_ON = 0.5, SIDE_ON = 0.12;
+  const STICK = { x: 285, y: 790, r: 165, knob: 70, dead: 0.12, zoneX: 900, zoneY: 300 };
+  const SIDE_ON = 0.12, DOWN_HOLD = 0.5, UP_HOLD = -0.55;
   SA.Stick = { DEAD: 0.12, WALK: 0.5, RUN: 0.85 };
-  const FLICK = 0.78, FLICK_MS = 290;
+  // gesture recognizer tuning
+  const G = {
+    zoneMag: 0.55,      // a direction zone (up / diagonal / down) is entered beyond this deflection
+    centerMag: 0.3,     // back near the centre: gestures re-arm
+    flickMs: 210,       // a flick is a short deflection that comes back (or lifts) within this time
+    flickPeak: 0.72,
+    doubleMs: 330,      // second flick in the same direction within this time = double flick
+    tapMs: 230,         // ATTACK double tap -> heavy
+  };
 
+  // Only four combat buttons (concept art): big ATTACK, KICK, SHOOT, SPECIAL. Everything else
+  // (jump, flips, rolls, dashes, fast fall, drop-through, heavy) comes from joystick gestures,
+  // context and double taps.
   const BUTTONS = [
-    { id: 'light', action: 'light', x: 1702, y: 858, r: 104, label: 'PUNCH', main: true },
-    { id: 'heavy', action: 'heavy', x: 1502, y: 728, r: 74, label: 'HEAVY' },
-    { id: 'kick', action: 'kick', x: 1484, y: 936, r: 74, label: 'KICK' },
-    { id: 'block', action: 'block', x: 1712, y: 638, r: 74, label: 'BLOCK', hold: true },
-    { id: 'dash', action: 'dash', x: 1300, y: 986, r: 60, label: 'DASH' },
-    { id: 'special', action: 'special', x: 1856, y: 548, r: 62, label: 'SPECIAL' },
-    { id: 'ranged', action: 'ranged', x: 1312, y: 806, r: 64, label: 'THROW' },
-    { id: 'reload', action: 'reload', x: 1184, y: 690, r: 50, label: 'RELOAD' },
+    { id: 'light', action: 'light', x: 1716, y: 868, r: 118, label: 'ATTACK', main: true, icon: 'blade' },
+    { id: 'kick', action: 'kick', x: 1474, y: 952, r: 78, label: 'KICK', icon: 'kick' },
+    { id: 'ranged', action: 'ranged', x: 1520, y: 712, r: 74, label: 'SHOOT', icon: 'gun' },
+    { id: 'special', action: 'special', x: 1792, y: 600, r: 76, label: 'SPECIAL', icon: 'moon' },
   ];
-  const PAUSE = { x: 1860, y: 178, r: 44 };
+  const PAUSE = { x: 1868, y: 236, r: 40 };
+
+  // angle of the stick in degrees: 0 = right, 90 = up, 180 = left, 270 = down
+  function zoneOf(nx, ny, mag) {
+    if (mag < G.zoneMag) return null;
+    let a = Math.atan2(-ny, nx) * 180 / Math.PI;
+    if (a < 0) a += 360;
+    if (a >= 62 && a <= 118) return 'up';
+    if (a > 25 && a < 62) return 'upR';
+    if (a > 118 && a < 155) return 'upL';
+    if (a >= 245 && a <= 295) return 'down';
+    if (a > 205 && a < 245) return 'downL';
+    if (a > 295 && a < 335) return 'downR';
+    return a <= 25 || a >= 335 ? 'right' : 'left';
+  }
 
   class TouchControls {
     constructor(game, input) {
@@ -39,7 +60,10 @@
       this.input = input;
       this.owned = new Map();              // pointerId -> 'stick' | 'pause' | 'void' | button
       this.buttons = BUTTONS.map((b) => Object.assign({ pointers: new Set(), pressedAt: 0 }, b));
-      this.stick = { id: null, bx: STICK.x, by: STICK.y, x: 0, y: 0, nx: 0, ny: 0, up: false, lastSide: 0, flick: { dir: 0, t: 0 } };
+      this.stick = { id: null, bx: STICK.x, by: STICK.y, x: 0, y: 0, nx: 0, ny: 0, mag: 0, zone: null, armed: true,
+        g: { t0: 0, peak: 0, dir: 0, fired: false, active: false }, lastFlick: { dir: 0, t: -1e9 } };
+      this.lastAttackTap = -1e9;
+      this.hintT = 0;
     }
 
     get scale() { return SA.Save.data.settings.touchSize || 1; }
@@ -55,11 +79,7 @@
     visibleButtons() {
       const f = this.game.p1;
       const rw = f && f.rangedWeapon;
-      return this.buttons.filter((b) => {
-        if (b.id === 'ranged') return !!rw;
-        if (b.id === 'reload') return !!(rw && rw.magazine);
-        return true;
-      });
+      return this.buttons.filter((b) => b.id !== 'ranged' || !!rw);
     }
 
     geom(b) {
@@ -126,20 +146,34 @@
       return true;
     }
 
+    // Buttons fire on pointerdown. ATTACK: the first tap is a light attack at once; a second tap
+    // within ~230 ms becomes the heavy (the fighter cancels the light into the context heavy).
     pressButton(b, id) {
+      const now = performance.now();
       b.pointers.add(id);
-      b.pressedAt = performance.now();
+      b.pressedAt = now;
       this.owned.set(id, b);
-      this.input.queue.push(b.action);
-      if (b.hold) this.input.virtual.add(b.action);
+      let action = b.action;
+      if (b.id === 'light') {
+        if (now - this.lastAttackTap < G.tapMs) { action = 'heavyTap'; this.lastAttackTap = -1e9; }
+        else this.lastAttackTap = now;
+      }
+      this.input.queue.push(action);
       SA.Device.vibrate(8);
     }
 
     releaseButton(b, id) {
       b.pointers.delete(id);
-      if (b.hold && b.pointers.size === 0) this.input.virtual.delete(b.action);
     }
 
+    // MovementGestureRecognizer: the stick moves in screen directions; every gesture is resolved
+    // relative to the opponent at the moment it fires (F = toward the enemy, B = away), so a
+    // flip / roll / dash means the same thing after the fighters switch sides.
+    //   hold left / right ........ walk / run / sprint (deflection)
+    //   up ....................... acrobatic jump          ↗ / ↖ .... front flip / backflip
+    //   ↘ / ↙ .................... roll toward / away      down ..... crouch · fast fall · drop through
+    //   short flick + back ....... dash / backstep         double flick: long dash / handspring
+    // Gestures fire the moment the zone is reached (pointermove), never on pointerup.
     moveStick(x, y) {
       const s = this.stick, k = this.scale;
       const R = STICK.r * k;
@@ -149,50 +183,80 @@
       s.x = dx; s.y = dy;
       const mag = Math.min(1, d / R);
       const V = this.input.virtual;
-      if (mag < STICK.dead) {
-        s.nx = 0; s.ny = 0;
-      } else {
-        // rescale so the deadzone edge maps to 0
+      if (mag < STICK.dead) { s.nx = 0; s.ny = 0; }
+      else {
         const m = (mag - STICK.dead) / (1 - STICK.dead);
         s.nx = (dx / (d || 1)) * m;
         s.ny = (dy / (d || 1)) * m;
       }
-      // raw horizontal deflection decides the direction: movement starts right after the deadzone
+      const ux = d ? dx / d : 0, uy = d ? dy / d : 0;
+      // ---- holds (continuous): left / right + up / down ----
       const hx = dx / R;
       const side = hx > SIDE_ON ? 1 : hx < -SIDE_ON ? -1 : 0;
       V.delete('left'); V.delete('right');
       if (side > 0) V.add('right'); else if (side < 0) V.add('left');
-      // horizontal deflection in raw stick units (0..1): the fighter picks walk / run / sprint from it
       s.mag = Math.min(1, Math.abs(hx));
       this.input.analogX = side ? s.mag : 1;
+      if (uy * mag > DOWN_HOLD) V.add('down'); else V.delete('down');
+      if (uy * mag < UP_HOLD) V.add('up'); else V.delete('up');
+      this.recognize(ux, uy, mag);
+    }
 
-      if (s.ny > DOWN_ON) V.add('down'); else V.delete('down');
-      if (!s.up && s.ny < JUMP_ON) {
-        s.up = true;
-        V.add('up');
-        this.input.queue.push('up');
-      } else if (s.up && s.ny > JUMP_OFF) {
-        s.up = false;
-        V.delete('up');
+    recognize(ux, uy, mag) {
+      const s = this.stick, Q = this.input.queue, now = performance.now();
+      const f = this.game.p1;
+      const air = f && !f.grounded;
+      // re-arm near the centre
+      if (mag < G.centerMag) {
+        if (s.g.active) this.endFlick(now);
+        s.armed = true;
+        s.zone = null;
+        return;
       }
+      // a new deflection starts a possible flick
+      if (!s.g.active) { s.g.active = true; s.g.t0 = now; s.g.peak = 0; s.g.fired = false; s.g.dir = 0; }
+      s.g.peak = Math.max(s.g.peak, mag);
+      const zone = zoneOf(ux, uy, mag);
+      if (zone === 'right' || zone === 'left') s.g.dir = zone === 'right' ? 1 : -1;
+      if (!zone || zone === s.zone) return;
+      const prev = s.zone;
+      s.zone = zone;
+      const fac = f ? f.facing : 1;
+      const fwd = (z) => ((z === 'upR' || z === 'downR') ? 1 : -1) * fac > 0;
+      // zone actions fire once per entry (re-armed by the centre or by changing zone)
+      if (zone === 'up') { if (!air && (s.armed || prev !== 'up')) { Q.push('gJump'); s.g.fired = true; } }
+      else if (zone === 'upR' || zone === 'upL') {
+        if (!air) { Q.push(fwd(zone) ? 'gFlipF' : 'gFlipB'); s.g.fired = true; }
+      } else if (zone === 'downR' || zone === 'downL') {
+        if (air) Q.push('gDown');
+        else Q.push(fwd(zone) ? 'gRollF' : 'gRollB');
+        s.g.fired = true;
+      } else if (zone === 'down') { Q.push('gDown'); s.g.fired = true; }
+      s.armed = false;
+    }
 
-      // double flick left/right = dash (the fighter decides dash vs. evade from the held direction)
-      const hard = s.nx > FLICK ? 1 : s.nx < -FLICK ? -1 : 0;
-      if (hard && hard !== s.lastSide) {
-        const now = performance.now();
-        if (s.flick.dir === hard && now - s.flick.t < FLICK_MS) {
-          this.input.queue.push('step');
-          s.flick.t = 0;
-        } else {
-          s.flick.dir = hard; s.flick.t = now;
-        }
+    // a deflection came back to the centre (or the finger lifted): was it a flick?
+    endFlick(now) {
+      const s = this.stick, g = s.g;
+      g.active = false;
+      if (g.fired || !g.dir || now - g.t0 > G.flickMs || g.peak < G.flickPeak) return;
+      const Q = this.input.queue;
+      const lf = s.lastFlick;
+      const f = this.game.p1;
+      const fw = g.dir * (f ? f.facing : 1) > 0;
+      if (lf.dir === g.dir && g.t0 - lf.t < G.doubleMs) {   // gap between the two flicks
+        Q.push(fw ? 'gLongF' : 'gLongB');   // double flick: long dash toward / handspring away
+        lf.t = -1e9;
+      } else {
+        Q.push(fw ? 'gDashF' : 'gDashB');   // flick: dash toward / backstep away (air: air dash)
+        lf.dir = g.dir; lf.t = now;
       }
-      s.lastSide = hard;
     }
 
     resetStick() {
       const s = this.stick;
-      s.id = null; s.x = 0; s.y = 0; s.nx = 0; s.ny = 0; s.mag = 0; s.up = false; s.lastSide = 0;
+      if (s.g.active) this.endFlick(performance.now());
+      s.id = null; s.x = 0; s.y = 0; s.nx = 0; s.ny = 0; s.mag = 0; s.zone = null; s.armed = true;
       const V = this.input.virtual;
       V.delete('left'); V.delete('right'); V.delete('up'); V.delete('down');
       this.input.analogX = 1;
@@ -206,18 +270,41 @@
     }
 
     // ---------- drawing ----------
-    labelFor(b, f) {
-      const w = f && f.weapon, rw = f && f.rangedWeapon;
-      if (b.id === 'light') return (w && w.touch && w.touch.light) || 'PUNCH';
-      if (b.id === 'heavy') return (w && w.touch && w.touch.heavy) || 'HEAVY';
-      if (b.id === 'ranged') return rw ? (rw.kind === 'gun' ? 'SHOOT' : 'THROW') : '';
-      if (b.id === 'dash') {
-        const s = this.stick;
-        if (!f) return 'DODGE';
-        if (s.ny > SIDE_ON) return 'ROLL';
-        return s.nx * f.facing > SIDE_ON ? 'DASH' : s.nx * f.facing < -SIDE_ON ? 'FLIP' : 'DODGE';
+    // simple vector icons for the four buttons
+    icon(ctx, kind, x, y, r) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#ffffff';
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (kind === 'blade') {
+        // curved crescent blade
+        ctx.rotate(-0.7);
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.05, r * 0.42);
+        ctx.quadraticCurveTo(r * 0.5, -r * 0.1, r * 0.1, -r * 0.62);
+        ctx.quadraticCurveTo(r * 0.22, -r * 0.1, -r * 0.18, r * 0.36);
+        ctx.closePath(); ctx.fill();
+        ctx.lineWidth = r * 0.1;
+        ctx.beginPath(); ctx.moveTo(-r * 0.2, r * 0.36); ctx.lineTo(-r * 0.3, r * 0.62); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-r * 0.32, r * 0.36); ctx.lineTo(r * 0.06, r * 0.4); ctx.stroke();
+      } else if (kind === 'kick') {
+        ctx.lineWidth = r * 0.13;
+        ctx.beginPath(); ctx.arc(-r * 0.12, -r * 0.5, r * 0.13, 0, SA.TAU); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-r * 0.15, -r * 0.32); ctx.lineTo(-r * 0.08, r * 0.08); ctx.lineTo(-r * 0.3, r * 0.55); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-r * 0.08, r * 0.06); ctx.lineTo(r * 0.55, -r * 0.18); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-r * 0.13, -r * 0.22); ctx.lineTo(r * 0.18, -r * 0.08); ctx.stroke();
+      } else if (kind === 'gun') {
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.5, -r * 0.2); ctx.lineTo(r * 0.5, -r * 0.2); ctx.lineTo(r * 0.5, 0); ctx.lineTo(-r * 0.05, 0);
+        ctx.lineTo(-r * 0.12, r * 0.45); ctx.lineTo(-r * 0.38, r * 0.45); ctx.lineTo(-r * 0.3, 0); ctx.lineTo(-r * 0.5, 0);
+        ctx.closePath(); ctx.fill();
+      } else if (kind === 'moon') {
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.48, 0, SA.TAU); ctx.fill();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath(); ctx.arc(r * 0.2, -r * 0.12, r * 0.42, 0, SA.TAU); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
       }
-      return b.label;
+      ctx.restore();
     }
 
     draw(ctx) {
@@ -226,79 +313,97 @@
       const k = this.scale;
       const now = performance.now();
       ctx.save();
-      // joystick
+      // ---- fixed joystick ----
       const s = this.stick;
-      const bx = STICK.x * k, by = SA.H - (SA.H - STICK.y) * k;   // fixed base
+      const bx = STICK.x * k, by = SA.H - (SA.H - STICK.y) * k;
       const R = STICK.r * k;
-      ctx.globalAlpha = s.id !== null ? 0.85 : 0.5;
-      ctx.fillStyle = 'rgba(8,6,12,0.35)';
+      const live = s.id !== null;
+      ctx.globalAlpha = live ? 0.9 : 0.6;
+      ctx.fillStyle = 'rgba(10,8,14,0.32)';
       ctx.beginPath(); ctx.arc(bx, by, R, 0, SA.TAU); ctx.fill();
       ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-      ctx.beginPath(); ctx.arc(bx, by, R * STICK.dead + 4, 0, SA.TAU); ctx.stroke();
-      // sprint ring: pushing past it runs at full speed
-      ctx.setLineDash([6, 10]);
-      ctx.strokeStyle = s.mag >= SA.Stick.RUN ? 'rgba(255,214,140,0.55)' : 'rgba(255,255,255,0.1)';
-      ctx.beginPath(); ctx.arc(bx, by, R * SA.Stick.RUN, 0, SA.TAU); ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+      ctx.beginPath(); ctx.arc(bx, by, R * 0.72, 0, SA.TAU); ctx.stroke();
       // direction ticks
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
       for (let i = 0; i < 4; i++) {
         const a = i * Math.PI / 2;
         ctx.save();
-        ctx.translate(bx + Math.cos(a) * R * 0.8, by + Math.sin(a) * R * 0.8);
+        ctx.translate(bx + Math.cos(a) * R * 0.86, by + Math.sin(a) * R * 0.86);
         ctx.rotate(a);
-        ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-6, -9); ctx.lineTo(-6, 9); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, -9); ctx.lineTo(-6, 9); ctx.fill();
         ctx.restore();
       }
-      ctx.globalAlpha = s.id !== null ? 0.95 : 0.6;
-      const kx = bx + s.x, ky = by + s.y;
-      const grad = ctx.createRadialGradient(kx - 12, ky - 12, 4, kx, ky, STICK.knob * k);
-      grad.addColorStop(0, 'rgba(255,255,255,0.55)');
-      grad.addColorStop(1, 'rgba(215,38,61,0.55)');
+      // gesture hints (first seconds of a fight and in training): what each direction does
+      const hint = this.game.mode === 'training' ? 0.55 : Math.max(0, 1 - (this.game.match ? this.game.match.t : 99) / 10) * 0.55;
+      if (hint > 0.02) {
+        const toR = !this.game.p1 || this.game.p1.facing > 0;
+        const H = [['↑', 'JUMP', -90], ['↗', 'FLIP', -45], ['→', toR ? 'GO' : 'AWAY', 0], ['↘', 'ROLL', 45], ['↓', 'DROP', 90], ['↙', 'ROLL', 135], ['←', toR ? 'AWAY' : 'GO', 180], ['↖', 'FLIP', -135]];
+        for (const [, label, deg] of H) {
+          const a = deg * Math.PI / 180;
+          SA.text(ctx, label, bx + Math.cos(a) * (R + 34 * k), by + Math.sin(a) * (R + 30 * k), { size: Math.round(17 * k), weight: 800, spacing: 2, color: '#ffffff', align: 'center', alpha: hint });
+        }
+      }
+      // knob
+      ctx.globalAlpha = live ? 0.98 : 0.75;
+      const kx = bx + s.x, ky = by + s.y, kr = STICK.knob * k;
+      const grad = ctx.createRadialGradient(kx - kr * 0.3, ky - kr * 0.35, kr * 0.1, kx, ky, kr);
+      grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+      grad.addColorStop(0.6, 'rgba(206,210,218,0.85)');
+      grad.addColorStop(1, 'rgba(120,124,136,0.8)');
       ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(kx, ky, STICK.knob * k, 0, SA.TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(kx, ky, kr, 0, SA.TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
-      // buttons
+      // ---- four combat buttons ----
       for (const b of this.visibleButtons()) {
         const g = this.geom(b);
         const pressed = b.pointers.size > 0;
         const pulse = Math.max(0, 1 - (now - b.pressedAt) / 160);
         const r = g.r * (pressed ? 0.94 : 1);
-        ctx.globalAlpha = pressed ? 0.95 : 0.62;
-        ctx.fillStyle = pressed ? 'rgba(215,38,61,0.5)' : b.main ? 'rgba(20,10,16,0.45)' : 'rgba(8,6,12,0.38)';
+        ctx.globalAlpha = pressed ? 0.98 : 0.8;
+        ctx.fillStyle = pressed ? 'rgba(60,46,24,0.75)' : 'rgba(12,10,16,0.55)';
         ctx.beginPath(); ctx.arc(g.x, g.y, r, 0, SA.TAU); ctx.fill();
-        ctx.lineWidth = b.main ? 4 : 3;
-        ctx.strokeStyle = pressed ? 'rgba(255,220,200,0.95)' : 'rgba(255,255,255,0.38)';
+        ctx.lineWidth = b.main ? 5 : 3;
+        ctx.strokeStyle = b.main ? 'rgba(230,186,96,0.95)' : 'rgba(255,255,255,0.55)';
         ctx.stroke();
+        if (b.main) {
+          ctx.globalAlpha = 0.35 + 0.15 * Math.sin(now / 400);
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.drawImage(SA.glowSprite('#e6b860'), g.x - r * 1.4, g.y - r * 1.4, r * 2.8, r * 2.8);
+          ctx.globalCompositeOperation = 'source-over';
+        }
         if (pulse > 0) {
           ctx.globalAlpha = pulse * 0.6;
           ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
           ctx.beginPath(); ctx.arc(g.x, g.y, r + (1 - pulse) * 26, 0, SA.TAU); ctx.stroke();
         }
         if (b.id === 'special' && f) {
           const e = clamp(f.energy / 100, 0, 1);
           ctx.globalAlpha = 0.95;
-          ctx.lineWidth = 7;
-          ctx.strokeStyle = e >= 1 ? `hsl(${265 + Math.sin(now / 150) * 15},100%,75%)` : 'rgba(154,107,255,0.8)';
-          ctx.beginPath(); ctx.arc(g.x, g.y, r - 6, -Math.PI / 2, -Math.PI / 2 + SA.TAU * e); ctx.stroke();
+          ctx.lineWidth = 6;
+          ctx.strokeStyle = e >= 1 ? `rgba(200,190,255,${0.75 + 0.25 * Math.sin(now / 150)})` : 'rgba(154,140,255,0.7)';
+          ctx.beginPath(); ctx.arc(g.x, g.y, r - 5, -Math.PI / 2, -Math.PI / 2 + SA.TAU * e); ctx.stroke();
         }
         if (b.id === 'ranged' && f && f.rangedWeapon) {
           const rs = f.rangedState;
           const cd = rs ? rs.cooldownFrac() : 0;
           if (cd > 0) {
-            ctx.globalAlpha = 0.55;
+            ctx.globalAlpha = 0.5;
             ctx.fillStyle = 'rgba(0,0,0,0.7)';
             ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.arc(g.x, g.y, r - 3, -Math.PI / 2, -Math.PI / 2 + SA.TAU * cd); ctx.closePath(); ctx.fill();
           }
-          if (rs) SA.text(ctx, rs.label(), g.x, g.y + r * 0.42, { size: Math.round(r * 0.3), weight: 800, color: '#ffd27a', align: 'center', alpha: 0.95 });
         }
-        const label = this.labelFor(b, f);
-        SA.text(ctx, label, g.x, g.y - (b.id === 'ranged' ? r * 0.08 : 0), {
-          size: Math.round(r * (label.length > 6 ? 0.25 : 0.32)), weight: 900, spacing: 2, color: '#ffffff', align: 'center', alpha: pressed ? 1 : 0.85,
-        });
+        ctx.globalAlpha = pressed ? 1 : 0.92;
+        this.icon(ctx, b.icon, g.x, g.y - r * 0.12, r * 0.62);
+        SA.text(ctx, b.id === 'ranged' && f && f.rangedWeapon && f.rangedWeapon.kind === 'throw' ? 'THROW' : b.label, g.x, g.y + r * 0.56,
+          { size: Math.round(r * (b.main ? 0.2 : 0.23)), weight: 900, spacing: 2, color: '#ffffff', align: 'center', alpha: pressed ? 1 : 0.9 });
       }
 
       // pause button
@@ -309,8 +414,8 @@
       ctx.lineWidth = 3;
       ctx.stroke();
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(PAUSE.x - 12, PAUSE.y - 15, 8, 30);
-      ctx.fillRect(PAUSE.x + 4, PAUSE.y - 15, 8, 30);
+      ctx.fillRect(PAUSE.x - 11, PAUSE.y - 13, 7, 26);
+      ctx.fillRect(PAUSE.x + 4, PAUSE.y - 13, 7, 26);
       ctx.restore();
       ctx.globalAlpha = 1;
     }

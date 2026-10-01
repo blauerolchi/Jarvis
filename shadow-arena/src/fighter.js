@@ -62,7 +62,12 @@
     back: { vy: -1150, vx: -600, grav: 1.05, rotFrames: 28, atkFrom: 14, dir: -1, cost: 18 },
     // handspring (flik-flak): low, fast arc backwards over the hands
     hand: { vy: -520, vx: -820, grav: 0.9, rotFrames: 19, atkFrom: 99, dir: -1, invuln: [2, 11], cost: 30 },
+    // joystick up: acrobatic jump with a small tucked spin; horizontal speed from the held direction
+    spin: { vy: -1330, vx: 0, steer: true, grav: 1, rotFrames: 26, atkFrom: 5, dir: 1, cost: 0 },
+    // double ↗: flip leap, long and high (platform to platform)
+    leap: { vy: -1400, vx: 960, grav: 0.96, rotFrames: 34, atkFrom: 8, dir: 1, cost: 22 },
   };
+  const FAST_FALL = 1650;
   const ROLL = MOB.roll;
   const FEET = ['footF', 'footB'];
   const MOB_REGEN = 70;   // mobility meter per second (hidden): chaining many dodges costs recovery time
@@ -431,12 +436,18 @@
           this.stun -= ts;
           this.vx = damp(this.vx, 0, 14, dt);
           // defensive movement (roll / backstep / dash) comes out after 3 frames, attacks only late
-          if (this.st >= 3 && this.tryDash(game)) break;
+          if (this.st >= 3 && (this.tryGesture(game) || this.tryDash(game))) break;
           if (this.stun <= 3 && this.tryAttacks()) break;
           if (this.stun <= 0) this.toNeutral();
           break;
 
         case 'dash': {
+          // second flick during the dash: it becomes the long dash
+          if (this.ctrl.consume('gLongF') && this.st < this.rm.frames - 2) {
+            this.rm.dist *= 1.65;
+            this.rm.frames += 4;
+            this.dashCd = this.rm.frames + DASH_CD;
+          }
           this.rootMotion(ts);
           this.spawnGhost(this.weapon.element === 'shadow' ? 2 : 3, true);
           if (this.runActions(game)) break;
@@ -456,6 +467,7 @@
             if (c.consume('light') || c.consume('kick')) { this.startMove(ms.slide); break; }       // slide attack (low sweep)
             if (c.consume('heavy')) { c.consume('up'); this.startMove(ms.heavyUp); break; }         // slide -> uppercut
             if (c.consume('up')) { this.rm = null; this.startPrejump(true); break; }                   // slide -> jump / flip
+            if (this.hasJumpGesture()) { this.rm = null; this.tryGesture(game); break; }
           }
           if (u >= 1) { this.rm = null; this.toNeutral(); }
           break;
@@ -472,8 +484,9 @@
             break;
           }
           this.fwdT += ts;
-          // run + down = slide
-          if (c.held('down') && this.st >= 2) { this.startSlide(game); break; }
+          // run + down = slide (a ↘ / ↙ roll gesture wins)
+          if (this.hasMoveGesture() || this.hasJumpGesture()) { if (this.tryGesture(game)) break; }
+          if (c.held('down') && this.st >= 2 && !this.hasMoveGesture()) { this.startSlide(game); break; }
           const tier = this.moveTier();
           if (tier === 'walk') { this.setState('walk'); break; }
           if (tier !== this.state) this.setState(tier);
@@ -505,6 +518,7 @@
             this.vx *= 0.3; this.rm = null; this.toNeutral();
             // a jump pressed during the roll's end comes out on the very next frame
             if (c.consume('up')) this.startPrejump(false);
+            else this.tryGesture(game);
           }
           break;
         }
@@ -513,7 +527,8 @@
           // backstep: short defensive hop back; heavy right after it = backstep counter, jump = backflip
           this.rootMotion(ts);
           this.spawnGhost(3);
-          if (this.st >= 3 && c.consume('up')) { this.rm = null; this.startFlip('back', game); break; }
+          if (c.consume('gLongB')) { this.rm = null; this.dashCd = 0; this.startFlip('hand', game); break; }   // second flick: flik-flak
+          if (this.st >= 3 && (c.consume('up') || c.consume('gFlipB'))) { this.rm = null; this.startFlip('back', game); break; }
           if (this.st >= 5 && c.consume('heavy')) { this.rm = null; this.startMove(this.moveset.backCounter); break; }
           if (this.st >= 9 && this.tryAttacks()) { this.rm = null; break; }
           if (this.st >= this.rm.frames) { this.rm = null; this.toNeutral(); }
@@ -587,6 +602,7 @@
       if (!fwd) this.fwdT = 0;
       if (this.hsLand > 0 && this.ctrl.consume('heavy')) { this.hsLand = 0; this.startMove(this.moveset.backCounter); return; }
       if (this.tryAttacks()) return;
+      if (this.tryGesture(game)) return;
       if (this.tryDash(game)) return;
       if (c.consume('up')) { this.startPrejump(false); return; }
       if (c.held('block')) {
@@ -680,6 +696,12 @@
       if (c.has('special') && this.energy >= 100) { c.consume('special'); this.startSpecial(); return true; }
       if (c.consume('ranged') && this.tryRanged()) return true;
       if (c.consume('up')) { this.rm = null; this.startPrejump(true); return true; }
+      if (this.hasJumpGesture() || (!dash && this.hasMoveGesture())) {
+        const rm = this.rm;
+        this.rm = null;
+        if (this.tryGesture(game)) return true;
+        this.rm = rm;
+      }
       if (!dash && this.tryDash(game)) return true;
       if (dash && down && this.st >= 3) { this.rm = null; this.startSlide(game); return true; }
       if (c.held('block')) { this.setState('block'); this.crouchBlock = down; this.vx *= 0.4; return true; }
@@ -703,9 +725,67 @@
       return true;
     }
 
-    startDash(game) {
+    // Joystick gestures (src/touch.js), already resolved relative to the opponent (F = toward).
+    // ground: up = spin jump, ↗/↖ = front flip / backflip, ↘/↙ = roll, flick = dash / backstep,
+    // double flick = long dash / handspring. air: flick = air dash, down = fast fall.
+    tryGesture(game) {
+      const c = this.ctrl;
+      if (!this.grounded) {
+        if (c.consume('gDown')) { this.fastFallStart(game); return false; }
+        const fa = c.has('gDashF') || c.has('gLongF') ? 1 : c.has('gDashB') || c.has('gLongB') ? -1 : 0;
+        if (fa && !this.airDashUsed && this.dashCd <= 0) {
+          c.consume('gDashF'); c.consume('gLongF'); c.consume('gDashB'); c.consume('gLongB');
+          this.startAirDash(fa);
+          return true;
+        }
+        return false;
+      }
+      if (c.consume('gJump')) { this.startPrejump(false, 'spin'); return true; }
+      if (c.consume('gFlipF')) { this.startPrejump(true, 'front'); return true; }
+      if (c.consume('gFlipB')) { this.startPrejump(false, 'back'); return true; }
+      c.consume('gDown');   // standing on the main floor: crouch only (platform drop: physics)
+      // the second half of a double flick may follow its own dash / backstep right away
+      if (c.consume('gLongF')) { this.startDash(game, 1.5); return true; }
+      if (c.consume('gLongB')) { this.startFlip('hand', game); return true; }
+      if (this.dashCd > 0) return false;   // rolls / dashes stay buffered until the cooldown ends
+      if (c.consume('gRollF')) { this.startRoll(game, 1); return true; }
+      if (c.consume('gRollB')) { this.startRoll(game, -1); return true; }
+      if (c.consume('gDashF')) { this.startDash(game); return true; }
+      if (c.consume('gDashB')) { this.startEvade(game); return true; }
+      return false;
+    }
+    hasMoveGesture() {
+      const c = this.ctrl;
+      return c.has('gRollF') || c.has('gRollB') || c.has('gDashF') || c.has('gDashB') || c.has('gLongF') || c.has('gLongB');
+    }
+    hasJumpGesture() {
+      const c = this.ctrl;
+      return c.has('gJump') || c.has('gFlipF') || c.has('gFlipB');
+    }
+    fastFallStart(game) {
+      if (this.vy < -200 && this.state === 'flip' && this.st < 8) return;   // not during the take-off
+      this.fastFall = true;
+      this.vy = Math.max(this.vy, FAST_FALL * 0.75);
+      this.dropT = 14;   // falls through one-way platforms for a moment
+      SA.audio.play('whoosh_light', 0.6);
+    }
+    startAirDash(dir) {
+      this.airDashUsed = true;
+      this.flip = null;
+      this.cancelMove();
+      this.setState('airdash');
+      this.startRoot('airdash', dir);
+      this.gravMul = 0;
+      this.vy = 0;
+      this.fastFall = false;
+      this.dashCd = this.rm.frames + DASH_CD;
+      SA.audio.play('dash', 1.1);
+      SA.audio.play('wind', 0.4);
+    }
+
+    startDash(game, distScale) {
       this.setState('dash');
-      this.startRoot('dash', 1);
+      this.startRoot('dash', 1, distScale);
       this.dashCd = this.rm.frames + DASH_CD;
       SA.audio.play('dash');
       SA.FX.dust(game.particles, this.x - this.facing * 20, 0, 0.7, -this.facing);
@@ -751,13 +831,15 @@
       this.grounded = false;
       this.y = -1;
       this.vy = F.vy;
-      this.vx = this.facing * F.vx * this.speedMul;
+      const sd = F.steer ? (this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0) : 0;
+      this.vx = this.facing * (F.steer ? sd * JUMP_VX : F.vx) * this.speedMul;
       this.gravMul = F.grav;
+      this.fastFall = false;
       this.airAttackUsed = false;
       this.airWhiff = false;
       this.airDashUsed = kind === 'hand';
       this.airTime = 0;
-      this.jumpDir = F.dir;
+      this.jumpDir = F.steer ? sd : F.dir;
       if (F.invuln) this.invuln = Math.max(this.invuln, F.invuln[1]);
       if (kind === 'hand') this.dashCd = Math.max(this.dashCd, 22 + DASH_CD);
       this.scaleY = 1.12; this.scaleX = 0.92;
@@ -776,6 +858,15 @@
         const lim = Math.max(AIR_MAX, Math.abs(this.vx));
         this.vx = clamp(this.vx + this.facing * steer * AIR_STEER * k * dt, -lim, lim);
       }
+      // ↗ again right after a front flip's take-off: the flip becomes a long flip leap
+      if (flip && flip.kind === 'front' && this.st < 9 && this.ctrl.consume('gFlipF')) {
+        const L = FLIPS.leap;
+        this.flip = { kind: 'leap', F: L };
+        this.vy = Math.min(this.vy, L.vy * 0.9);
+        this.vx = this.facing * L.vx * this.speedMul;
+        this.gravMul = L.grav;
+        SA.audio.play('whoosh_medium', 0.8);
+      }
       if (flip && flip.kind === 'hand' && this.st < flip.F.rotFrames) return;   // committed until the hands leave the floor
       if (flip && this.st < flip.F.atkFrom) return;
       if (this.airActions(game, false)) return;
@@ -785,6 +876,7 @@
 
     airActions(game, fromDash) {
       const c = this.ctrl, ms = this.moveset;
+      if (!fromDash && this.tryGesture(game)) return true;
       if (!this.airAttackUsed) {
         const fromFlip = this.state === 'flip';
         const down = c.held('down');
@@ -822,23 +914,15 @@
       // air dash (down + dash stays buffered: it is a roll on landing)
       if (!fromDash && !this.airDashUsed && this.dashCd <= 0 && !c.held('down') && (c.has('dash') || c.has('step'))) {
         c.consume('dash'); c.consume('step');
-        this.airDashUsed = true;
-        const dir = this.backHeld() ? -1 : 1;
-        this.flip = null;
-        this.setState('airdash');
-        this.startRoot('airdash', dir);
-        this.gravMul = 0;
-        this.vy = 0;
-        this.dashCd = this.rm.frames + DASH_CD;
-        SA.audio.play('dash', 1.1);
-        SA.audio.play('wind', 0.4);
+        this.startAirDash(this.backHeld() ? -1 : 1);
         return true;
       }
       return false;
     }
 
-    startPrejump(fromRun) {
+    startPrejump(fromRun, kind) {
       this.fromRun = fromRun;
+      this.jumpKind = kind || null;
       // the direction is taken when jump is pressed (a quick back+up tap is still a backflip)
       this.jumpIntent = this.fwdHeld() ? 1 : this.backHeld() ? -1 : 0;
       this.setState('prejump');
@@ -847,6 +931,8 @@
 
     doJump(game) {
       const dir = this.fwdHeld() ? 1 : this.backHeld() ? -1 : this.jumpIntent || 0;
+      // joystick gestures pick the jump directly (spin jump / front flip / backflip)
+      if (this.jumpKind) { const k = this.jumpKind; this.jumpKind = null; this.startFlip(k, game); return; }
       // run / dash / slide + jump = front flip, back + jump = backflip
       if (this.fromRun) { this.startFlip('front', game); return; }
       if (dir < 0) { this.startFlip('back', game); return; }
@@ -912,11 +998,29 @@
 
       // a hit may always be cancelled into movement (dash / roll / backstep), a block only off cooldown
       if (this.moveContact && this.grounded && ((m.power || 0.5) < 0.8 || this.moveContact === 'hit') && !m.ranged &&
-          (this.dashCd <= 0 || this.moveContact === 'hit') && this.mt >= m.startup && (c.has('dash') || c.has('step'))) {
+          (this.dashCd <= 0 || this.moveContact === 'hit') && this.mt >= m.startup && (c.has('dash') || c.has('step') || this.hasMoveGesture())) {
         this.cancelMove();
         this.dashCd = 0;
-        this.tryDash(game);
+        if (!this.tryGesture(game)) this.tryDash(game);
         return;
+      }
+      // ATTACK double tap: a heavy pressed right after a whiffing light cancels it into the context heavy
+      if (!this.moveContact && (m.power || 0.5) < 0.62 && !m.ranged && !m.reload && this.mt <= m.startup + m.active + 8 && c.tapHeavy > 0 && c.has('heavy')) {
+        c.tapHeavy = 0;
+        const ms = this.moveset;
+        const run = m.id === ms.dashLight || m.id === ms.runLight;
+        if (!this.grounded && m.air) {
+          c.consume('heavy');
+          this.cancelMove();
+          this.startMove(c.held('down') ? ms.airKick : ms.airHeavy);
+          if (c.held('down')) { this.dive = true; this.vy = Math.max(this.vy, 1450); this.vx = this.facing * 720 * this.speedMul; this.gravMul = 1; }
+          return;
+        }
+        if (this.grounded) {
+          if (run) { c.consume('heavy'); this.startMove(ms.dashHeavy); return; }
+          this.cancelMove();
+          if (this.tryAttacks()) return;
+        }
       }
       if (m.chain && this.cancelOpen()) {
         for (const key in m.chain) {
@@ -950,6 +1054,17 @@
           this.startPrejump(false);
           return;
         }
+        if ((light || this.moveContact === 'hit') && this.hasJumpGesture()) {
+          this.cancelMove();
+          this.tryGesture(game);
+          return;
+        }
+        // movement out of a light attack's late window (whiff): roll / dash / backstep gestures
+        if (light && this.hasMoveGesture() && this.dashCd <= 0) {
+          this.cancelMove();
+          this.tryGesture(game);
+          return;
+        }
       }
       if (m.air && !this.grounded && this.mt >= m.total) {
         // air attack finished: keep falling in the air state (no pose snap), flips end here too
@@ -964,6 +1079,7 @@
 
     onLand(game, impactVy) {
       this.grounded = true;
+      this.fastFall = false;
       this.vy = 0;
       this.y = 0;
       this.airTime = 0;

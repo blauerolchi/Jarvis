@@ -221,6 +221,20 @@
       [0.65, P({ torso: 0.3, head: 0.3, aF1: 2.6, aF2: 0.5, aB1: 2.5, aB2: 0.5, lF1: 1.6, lF2: -1.6, lB1: 1.2, lB2: -1.8 })],
       [1, POSES.crouch, 'smooth'],
     ];
+    // up: acrobatic jump, quick tuck spin, opens early (air attacks from frame 5)
+    ACRO.spin = [
+      [0, P({ torso: 0.15, head: -0.1, aF1: 2.4, aF2: 0.5, aB1: 2.2, aB2: 0.6, lF1: 0.1, lF2: -0.3, lB1: -0.3, lB2: -0.2 })],
+      [0.3, P({ torso: 0.9, aF1: 1.3, aF2: 1.8, aB1: 1.1, aB2: 1.9 }, tuck), 'smooth'],
+      [0.75, P({ torso: 0.7, aF1: 1.2, aF2: 1.4, aB1: 0.8, aB2: 1.5, lF1: 1.4, lF2: -1.9, lB1: 1.0, lB2: -2.0 }, tuck)],
+      [1, P({ torso: 0.1, head: -0.1, aF1: 1.2, aF2: 0.9, aB1: -0.6, aB2: 0.9, lF1: 0.7, lF2: -1.2, lB1: -0.2, lB2: -0.8 }), 'smooth'],
+    ];
+    // flip leap: stretched layout flip, long arms, opens into a landing reach
+    ACRO.leap = [
+      [0, P({ torso: 0.45, head: -0.15, aF1: 2.8, aF2: 0.2, aB1: 2.6, aB2: 0.3, lF1: 0.1, lF2: -0.1, lB1: -0.6, lB2: -0.1 })],
+      [0.3, P({ torso: 0.5, aF1: 2.9, aF2: 0.1, aB1: 2.7, aB2: 0.2, lF1: 0.3, lF2: -0.2, lB1: -0.4, lB2: -0.2 }), 'smooth'],
+      [0.7, P({ torso: 1.0, aF1: 1.1, aF2: 1.8, aB1: 1.0, aB2: 1.9 }, tuck)],
+      [1, P({ torso: 0.1, head: -0.1, aF1: 1.4, aF2: 0.8, aB1: -0.8, aB2: 0.8, lF1: 0.8, lF2: -1.1, lB1: -0.1, lB2: -0.9 }), 'smooth'],
+    ];
     ACRO.slide = P({ torso: -0.85, head: 0.5, lF1: 1.45, lF2: -0.1, lB1: 0.7, lB2: -2.2, aF1: -0.3, aF2: 0.9, aB1: -0.9, aB2: 0.4 });
     ACRO.airdash = P({ torso: 0.85, head: -0.35, aF1: 1.2, aF2: 0.4, aB1: -1.1, aB2: 0.6, lF1: 0.9, lF2: -1.4, lB1: -0.9, lB2: -0.5 });
   }
@@ -386,7 +400,7 @@
       if (w < 1) { const r = target.rot; lerpPose(target, f.pose, target, w); target.rot = r; }
       copyPose(f.pose, target);
       direct = true;
-      name = f.flip.kind === 'hand' ? 'handspring' : f.flip.kind + 'flip';
+      name = f.flip.kind === 'hand' ? 'handspring' : f.flip.kind === 'spin' ? 'spinjump' : f.flip.kind + 'flip';
     } else if (st === 'airdash') {
       if (!ACRO.front) buildAcro();
       copyPose(target, ACRO.airdash);

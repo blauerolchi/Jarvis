@@ -178,7 +178,9 @@
     }
   }
 
-  const FIGHT_ACTIONS = ['left', 'right', 'up', 'down', 'light', 'heavy', 'kick', 'block', 'dash', 'step', 'special', 'ranged', 'reload'];
+  const FIGHT_ACTIONS = ['left', 'right', 'up', 'down', 'light', 'heavy', 'kick', 'block', 'dash', 'step', 'special', 'ranged', 'reload',
+    // joystick gestures (src/touch.js), already resolved relative to the opponent (F = toward)
+    'gJump', 'gFlipF', 'gFlipB', 'gRollF', 'gRollB', 'gDown', 'gDashF', 'gDashB', 'gLongF', 'gLongB'];
 
   class Controller {
     constructor() {
@@ -199,6 +201,7 @@
     }
     // Ages buffered presses; called once per simulation tick (not during hit stop).
     tick(ts) {
+      if (this.tapHeavy > 0) this.tapHeavy -= ts;
       let j = 0;
       for (let i = 0; i < this.buf.length; i++) {
         const b = this.buf[i];
@@ -249,7 +252,10 @@
       const kb = this.input.heldActions.has('left') || this.input.heldActions.has('right');
       this.stick = !kb && (this.input.virtual.has('left') || this.input.virtual.has('right'));
       this.analog = this.stick ? this.input.analogX : 1;
-      for (const a of presses) if (FIGHT_ACTIONS.indexOf(a) >= 0) this.press(a);
+      for (const a of presses) {
+        if (a === 'heavyTap') { this.press('heavy'); this.tapHeavy = 12; continue; }   // ATTACK double tap
+        if (FIGHT_ACTIONS.indexOf(a) >= 0) this.press(a);
+      }
     }
   }
 

@@ -22,7 +22,8 @@
   const CROUCH_H = 170;
   const LYING_H = 70;
   const MAX_STEP = 26;        // max correction per tick for deep overlaps (soft resolve, no snapping)
-  const OTHER_SHARE = 0.12;   // share of the correction the standing fighter takes when only one walks
+  const OTHER_SHARE = 0.12;
+  const FAST_FALL = 1650;   // share of the correction the standing fighter takes when only one walks
 
   // A fighter's movement collider (width/height in world px), cached per state.
   function bodyOf(f) {
@@ -49,6 +50,8 @@
       if (f.state === 'rushed') return;
       // falling is a bit faster than rising: snappy, weighty jumps
       if (!f.grounded) f.vy += SA.GRAVITY * (f.vy > 0 ? 1.18 : 1) * (f.gravMul === undefined ? 1 : f.gravMul) * dt;
+      // fast fall (joystick down in the air): a hard, steady drop
+      if (f.fastFall && !f.grounded && f.gravMul !== 0) f.vy = Math.max(f.vy, FAST_FALL);
       f.x += f.vx * dt;
       f.y += f.vy * dt;
       if (!f.grounded) {
