@@ -1,0 +1,46 @@
+# Aim harness settings. All keys are optional; missing keys use defaults.
+
+# Where sessions and reports are stored (relative to the project folder).
+data_dir = "data"
+
+[mouse]
+dpi = 800
+# Mouse travel for a full 360 degree turn. Match this to the game you
+# usually play to keep muscle memory comparable.
+cm_per_360 = 34.6
+# Optional: set the angle per mouse count directly (overrides the two
+# values above when > 0). Example: CS2 sens 1.0 -> 0.022.
+deg_per_count = 0.0
+invert_y = false
+
+[display]
+# 0 = desktop resolution of the selected monitor
+width = 0
+height = 0
+mode = "fullscreen"         # fullscreen | borderless | windowed
+display_index = 0
+hfov_deg = 103.0
+fps_cap = 360               # 0 = uncapped
+show_fps = false            # toggle in-game with F3
+
+[crosshair]
+color = "#00ff7f"
+dot = true
+dot_size = 2
+lines = true
+length = 7
+gap = 4
+thickness = 2
+outline = true
+
+[input]
+backend = "auto"            # auto | rawinput | pygame
+
+[audio]
+enabled = true
+volume = 0.35
+
+[session]
+countdown_s = 3.0
+setup_note = ""             # e.g. "G Pro X Superlight, 1000 Hz, Artisan Zero"
+

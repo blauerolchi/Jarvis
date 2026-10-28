@@ -1,0 +1,19 @@
+id = "flick_fitts"
+name = "Flick (Fitts-Design)"
+description = "Ein Ziel pro Durchgang in fester Distanz/Größe (balancierte Bedingungen), zufällige Vorlaufzeit. Liefert Reaktionszeit, Fitts-Kurve und effektiven Durchsatz."
+duration_s = 90.0
+scoring = "click"
+
+[targets]
+distance_m = [10.0]
+radius_m = [0.2, 0.45]
+color = "#26b4ff"
+
+[spawn]
+pattern = "amplitude"
+count = 1
+amplitudes_deg = [8.0, 16.0, 32.0]
+yaw_range_deg = [-45.0, 45.0]
+pitch_range_deg = [-20.0, 25.0]
+delay_ms = [300.0, 900.0]
+timeout_s = 3.0
