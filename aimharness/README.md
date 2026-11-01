@@ -11,25 +11,35 @@ Das Harness misst und visualisiert nur. Es erzeugt keine Eingaben und steuert ni
 ## Voraussetzungen
 
 - Windows 10/11 (Raw Input). Unter Linux/macOS läuft es mit framegenauen Zeitstempeln.
-- Python 3.11 bis 3.13, **64-Bit**
+- Python 3.11 oder neuer, **64-Bit** (geprüft: fertige Windows-Pakete für 3.13, 3.14 und 3.15)
 - Maus mit 500–8000 Hz Pollingrate empfohlen
 
 ## Installation
 
 Am einfachsten per Doppelklick auf `start.bat`. Beim ersten Start legt es eine virtuelle
-Umgebung in `.venv` an und installiert die Abhängigkeiten.
+Umgebung in `.venv` an und installiert die Abhängigkeiten. Bei jedem weiteren Start prüft es
+die Installation und repariert sie, falls eine frühere Installation abgebrochen ist.
 
 Manuell (PowerShell, im Ordner `aimharness`):
 
 ```powershell
-py -3.12 -m venv .venv
+py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 python -m aimharness
 ```
 
-Falls für deine Python-Version kein `pygame`-Wheel existiert: `pip install pygame-ce`
-statt `pygame`. Das Harness nutzt nur die gemeinsame API.
+Als Grafikbibliothek dient `pygame-ce`, der aktiv gepflegte Fork von pygame mit derselben API
+(`import pygame`). Das ursprüngliche `pygame` hat für Python 3.14 und neuer keine fertigen
+Windows-Pakete. Beide Pakete nicht gleichzeitig in dieselbe Umgebung installieren.
+
+### Fehlerbehebung
+
+| Meldung | Lösung |
+|---|---|
+| `No module named aimharness` | `start.bat` erneut starten: Es erkennt die unvollständige Installation und installiert nach. Hilft das nicht, den Ordner `.venv` löschen und `start.bat` neu starten. |
+| `Installation fehlgeschlagen` | Die pip-Meldung darüber zeigt das Paket, das nicht installiert werden konnte. Python-Version mit `py -3 --version` prüfen (3.11+ und 64-Bit nötig). |
+| `Kein passendes Python gefunden` | Python von python.org installieren (64-Bit) und dabei den Launcher `py` mitinstallieren. |
 
 ## Erste Schritte
 

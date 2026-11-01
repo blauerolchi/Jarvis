@@ -1,0 +1,23 @@
+id = "strafeshot"
+name = "Strafeshot"
+description = "Bewegte Ziele mit zufälligen Richtungswechseln (ADAD-Strafe). Flick auf bewegte Ziele."
+duration_s = 60.0
+scoring = "click"
+
+[targets]
+distance_m = [12.0]
+radius_m = [0.4]
+color = "#26b4ff"
+
+[spawn]
+pattern = "random"
+count = 1
+yaw_range_deg = [-25.0, 25.0]
+pitch_range_deg = [-4.0, 10.0]
+timeout_s = 4.0
+
+[motion]
+kind = "strafe"
+speed_mps = [3.0, 6.0]
+reverse_interval_s = [0.3, 1.0]
+accel_mps2 = 40.0

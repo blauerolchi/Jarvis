@@ -9,7 +9,8 @@ description = "Research harness for recording and analysing human pointing/aimin
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "pygame>=2.5",
+    # Community fork of pygame (same `import pygame` API) with wheels for current Python versions.
+    "pygame-ce>=2.5",
     "numpy>=1.24",
     "pandas>=2.0",
     "pyarrow>=12",
