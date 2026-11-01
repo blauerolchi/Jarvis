@@ -250,9 +250,9 @@ class Renderer:
         return (sx, sy) if on else None
 
     # -- 2D overlay ------------------------------------------------------------------
-    def draw_crosshair(self) -> None:
+    def draw_crosshair(self, center: tuple[int, int] | None = None) -> None:
         c = self.crosshair
-        cx, cy = self.w // 2, self.h // 2
+        cx, cy = center or (self.w // 2, self.h // 2)
         rects = []
         th = c.thickness
         if c.lines:

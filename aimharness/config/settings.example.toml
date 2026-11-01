@@ -1,0 +1,42 @@
+# Aim harness settings. Written by the settings menu; manual edits are fine.
+# All keys are optional; missing keys use their defaults.
+
+data_dir = "data"              # where sessions and reports are stored (relative to the project folder)
+
+[mouse]
+dpi = 800                      # mouse DPI / CPI
+cm_per_360 = 34.6              # mouse travel for a 360 degree turn (used when game is empty)
+game = ""                      # sensitivity as in a game: cs2 | valorant | apex | overwatch2 | cod (empty = cm_per_360)
+game_sens = 0.0                # in-game sensitivity for 'game'
+deg_per_count = 0.0            # > 0 overrides everything: view angle per mouse count
+invert_y = false
+
+[display]
+width = 0                      # 0 = desktop resolution
+height = 0                     # 0 = desktop resolution
+mode = "fullscreen"            # fullscreen | borderless | windowed
+display_index = 0
+hfov_deg = 103.0               # horizontal field of view
+fps_cap = 360                  # 0 = uncapped
+show_fps = false               # toggle in-game with F3
+
+[crosshair]
+color = "#00ff7f"
+dot = true
+dot_size = 2
+lines = true
+length = 7
+gap = 4
+thickness = 2
+outline = true
+
+[input]
+backend = "auto"               # auto | rawinput | pygame
+
+[audio]
+enabled = true
+volume = 0.35
+
+[session]
+countdown_s = 3.0
+setup_note = ""                # stored with every session, e.g. mouse, polling rate, pad, monitor Hz

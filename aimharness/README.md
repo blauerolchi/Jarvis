@@ -43,8 +43,9 @@ Windows-Pakete. Beide Pakete nicht gleichzeitig in dieselbe Umgebung installiere
 
 ## Erste Schritte
 
-1. **Sensitivität einstellen** in `config/settings.toml`: `dpi` und `cm_per_360` so wählen
-   wie in deinem Spiel. Alternativ `deg_per_count` direkt setzen (z. B. CS2 Sens 1.0 → `0.022`).
+1. **Sensitivität einstellen:** im Menü **Einstellungen** (Taste **E**). Die Sensitivität lässt
+   sich als cm/360 oder direkt als Spiel-Sens (CS2, Valorant, Apex Legends, Overwatch 2,
+   Call of Duty) eingeben; mit **T** probierst du sie im Sensitivitäts-Test aus.
 2. **Raw Input prüfen:**
    ```powershell
    python -m aimharness inputtest
@@ -68,6 +69,35 @@ Windows-Pakete. Beide Pakete nicht gleichzeitig in dieselbe Umgebung installiere
 | Session | Esc | Beenden. Die Daten werden gespeichert und als „abgebrochen“ markiert |
 | Session | F3 | FPS-Anzeige |
 | Ergebnis | Enter / M | Nochmal / Menü |
+| Menü | E | Einstellungen |
+| Einstellungen | ↑/↓, ←/→ (Shift: große Schritte) | Auswahl, Wert ändern |
+| Einstellungen | Enter | Wert eintippen (Zahl, Hex-Farbe, Notiz) bzw. umschalten |
+| Einstellungen | Entf | Standardwert |
+| Einstellungen | T | Sensitivitäts-Test: freies Zielen ohne Aufzeichnung, + / − ändert die Sens um 2 % |
+| Einstellungen | Esc | Speichern und zurück |
+
+## Einstellungen
+
+Alle Einstellungen lassen sich im Menü ändern und werden in `config/settings.toml` gespeichert.
+Die Datei wird beim ersten Speichern angelegt und ist nicht Teil des Downloads. Ein Update
+überschreibt sie daher nicht. `config/settings.example.toml` zeigt alle Schlüssel mit
+Standardwerten und kann als Vorlage für Änderungen von Hand dienen.
+
+| Bereich | Einstellungen |
+|---|---|
+| Maus | Sensitivität als cm/360, Spiel-Sens oder °/count; DPI; Y-Achse invertieren |
+| Darstellung | Vollbild / rahmenlos / Fenster, Auflösung, Sichtfeld (FOV), FPS-Limit, FPS-Anzeige |
+| Crosshair | Farbe (Vorlagen oder Hex), Mittelpunkt, Linien, Länge, Abstand, Stärke, Kontur |
+| Eingabe | Raw Input oder pygame |
+| Ton | Treffertöne, Lautstärke |
+| Session | Countdown, Setup-Notiz (wird mit jeder Session gespeichert) |
+
+Beim Wechsel der Eingabeart (z. B. von cm/360 auf CS2) bleibt die tatsächliche Sensitivität
+gleich, sie wird nur umgerechnet. Eine DPI-Änderung verhält sich wie im jeweiligen Spiel: Im
+cm/360-Modus bleibt der Mausweg pro Drehung gleich, bei Spiel-Sens der Winkel pro Count.
+
+Jede Session speichert Sensitivität und FOV mit. Ändern sie sich, weist der Report darauf hin,
+weil Kennzahlen vor und nach der Änderung nur eingeschränkt vergleichbar sind.
 
 ## Szenarien
 
@@ -213,7 +243,7 @@ T Spur · Pos1 Anfang · Klick auf die Zeitleiste springt.
 
 ```
 aimharness/
-├── config/settings.toml          Benutzereinstellungen
+├── config/settings.example.toml  Vorlage; config/settings.toml legt das Menü an
 ├── scenarios/                    eigene Szenarien (optional)
 ├── data/                         Sessions und Reports (wird angelegt)
 ├── src/aimharness/
@@ -221,7 +251,7 @@ aimharness/
 │   ├── settings.py, scenario.py  Konfiguration
 │   ├── mathutil.py               Winkel, Kamera, Projektion
 │   ├── inputsrc/                 Raw Input (Windows), pygame, Skript-Eingabe für Tests
-│   ├── game/                     Ziele, Renderer, Session-Schleife, Menü
+│   ├── game/                     Ziele, Renderer, Session-Schleife, Menüs, Einstellungen, Sens-Test
 │   ├── data/                     Schema, Recorder, Session-Speicher
 │   ├── analysis/                 Kinematik, Durchgänge, Fitts, Jitter, Tracking, Report
 │   ├── replay.py                 Wiedergabe

@@ -11,7 +11,7 @@ import webbrowser
 from pathlib import Path
 
 from aimharness import __version__
-from aimharness.settings import data_root, harness_home, load_settings
+from aimharness.settings import data_root, default_settings_path, harness_home, load_settings
 
 
 def _settings(args):
@@ -30,8 +30,11 @@ def _scenarios():
 def cmd_play(args) -> int:
     from aimharness.game.app import App
 
-    settings = _settings(args)
-    return App(settings, _scenarios(), data_root(settings), args.backend).run(args.scenario)
+    # --windowed is a one-off override and must not end up in the saved settings.
+    settings = load_settings(Path(args.settings) if args.settings else None)
+    path = Path(args.settings) if args.settings else default_settings_path()
+    app = App(settings, _scenarios(), data_root(settings), args.backend, path, force_windowed=args.windowed)
+    return app.run(args.scenario)
 
 
 def cmd_list(args) -> int:

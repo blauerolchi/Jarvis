@@ -12,11 +12,13 @@ import pygame
 
 from aimharness.data.store import list_sessions, read_meta
 from aimharness.game.render import BG, Renderer
+from aimharness.game.sandbox import run_sandbox
 from aimharness.game.session import GameSession, SessionResult
+from aimharness.game.settings_menu import SettingsMenu, display_changed, snapshot
 from aimharness.game.sound import Sounds
 from aimharness.inputsrc import create_input_source, resolve_backend
 from aimharness.scenario import Scenario
-from aimharness.settings import Settings
+from aimharness.settings import GAME_YAW, Settings, default_settings_path
 
 TEXT = (230, 232, 238)
 MUTED = (150, 154, 166)
@@ -43,15 +45,16 @@ def init_platform() -> None:
                 pass
 
 
-def open_display(settings: Settings) -> pygame.Surface:
+def open_display(settings: Settings, force_windowed: bool = False) -> pygame.Surface:
     d = settings.display
+    mode = "windowed" if force_windowed else d.mode
     sizes = pygame.display.get_desktop_sizes()
     idx = max(0, min(d.display_index, len(sizes) - 1))
-    if d.mode == "windowed":
+    if mode == "windowed":
         size = (d.width or 1600, d.height or 900)
     else:
         size = (d.width or sizes[idx][0], d.height or sizes[idx][1])
-    flags = {"fullscreen": pygame.FULLSCREEN, "borderless": pygame.NOFRAME, "windowed": 0}[d.mode]
+    flags = {"fullscreen": pygame.FULLSCREEN, "borderless": pygame.NOFRAME, "windowed": 0}[mode]
     screen = pygame.display.set_mode(size, flags, display=idx)
     pygame.display.set_caption("Aim Harness")
     return screen
@@ -73,10 +76,13 @@ def scenario_history(data_root: Path, scenario_id: str) -> list[dict]:
 
 
 class App:
-    def __init__(self, settings: Settings, scenarios: list[Scenario], data_root: Path, backend: str | None = None):
+    def __init__(self, settings: Settings, scenarios: list[Scenario], data_root: Path, backend: str | None = None,
+                 settings_path: Path | None = None, force_windowed: bool = False):
         self.settings = settings
+        self.force_windowed = force_windowed
         self.scenarios = scenarios
         self.data_root = data_root
+        self.settings_path = settings_path or default_settings_path()
         self.backend = resolve_backend(backend or settings.input.backend)
         self.selected = 0
         self.message = ""
@@ -92,7 +98,7 @@ class App:
         pygame.mixer.pre_init(44100, -16, 1, 256)
         pygame.init()
         try:
-            self.screen = open_display(self.settings)
+            self.screen = open_display(self.settings, self.force_windowed)
             self.renderer = Renderer(self.screen, self.settings.display.hfov_deg, self.settings.crosshair)
             self.sounds = Sounds(self.settings.audio.enabled, self.settings.audio.volume)
             self.clock = pygame.time.Clock()
@@ -156,11 +162,18 @@ class App:
                         return True
                     elif e.key == pygame.K_r:
                         self._make_report()
+                    elif e.key == pygame.K_e:
+                        if not self._settings_menu():
+                            return False
                     elif pygame.K_1 <= e.key <= pygame.K_9 and e.key - pygame.K_1 < len(self.scenarios):
                         self.selected = e.key - pygame.K_1
                 elif e.type == pygame.MOUSEWHEEL:
                     self.selected = (self.selected - e.y) % len(self.scenarios)
                 elif e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                    if self._settings_button().collidepoint(e.pos):
+                        if not self._settings_menu():
+                            return False
+                        continue
                     hit = self._menu_item_at(e.pos)
                     if hit is not None:
                         if hit == self.selected:
@@ -174,6 +187,29 @@ class App:
         r = self.renderer
         x, y0, h = int(r.w * 0.08), int(r.h * 0.22), 46
         return [pygame.Rect(x, y0 + i * h, int(r.w * 0.36), h - 6) for i in range(len(self.scenarios))]
+
+    def _settings_button(self) -> pygame.Rect:
+        rows = self._menu_rows()
+        last = rows[-1]
+        return pygame.Rect(last.x, last.bottom + 22, last.w, last.h)
+
+    def _settings_menu(self) -> bool:
+        """Open the settings screen; apply display/audio/input changes afterwards. False = quit."""
+        before = snapshot(self.settings)
+
+        def sandbox() -> None:
+            run_sandbox(self.screen, self.settings, resolve_backend(self.settings.input.backend), self.sounds)
+
+        keep_running = SettingsMenu(self.screen, self.settings, self.settings_path, sandbox).run()
+        if display_changed(before, self.settings):
+            self.screen = open_display(self.settings, self.force_windowed)
+        self.renderer = Renderer(self.screen, self.settings.display.hfov_deg, self.settings.crosshair)
+        if before.audio != self.settings.audio:
+            self.sounds = Sounds(self.settings.audio.enabled, self.settings.audio.volume)
+        if before.input.backend != self.settings.input.backend:
+            self.backend = resolve_backend(self.settings.input.backend)
+        self.message = "Einstellungen gespeichert"
+        return keep_running
 
     def _menu_item_at(self, pos) -> int | None:
         for i, rect in enumerate(self._menu_rows()):
@@ -195,6 +231,11 @@ class App:
                 pygame.draw.rect(r.surface, ACCENT, rect, 2)
             r.text(f"{i + 1}  {sc.name}", (rect.x + 14, rect.centery), 30, TEXT if sel else MUTED, anchor="midleft")
             r.text(f"{sc.duration_s:.0f}s", (rect.right - 14, rect.centery), 24, MUTED, anchor="midright")
+        btn = self._settings_button()
+        hover = btn.collidepoint(pygame.mouse.get_pos())
+        r.panel(btn, 200 if hover else 120)
+        r.text("Einstellungen", (btn.x + 14, btn.centery), 30, TEXT if hover else MUTED, anchor="midleft")
+        r.text("E", (btn.right - 14, btn.centery), 24, MUTED, anchor="midright")
 
         sc = self.scenarios[self.selected]
         box = pygame.Rect(int(r.w * 0.50), int(r.h * 0.22), int(r.w * 0.42), int(r.h * 0.46))
@@ -225,10 +266,11 @@ class App:
 
         m = self.settings.mouse
         dpc = m.effective_deg_per_count()
-        info = (f"Sensitivität {dpc:.4f}°/count ({m.effective_cm_per_360():.1f} cm/360 @ {m.dpi} DPI)  ·  "
+        game = f"{GAME_YAW[m.game][0]} {m.game_sens:g}, " if m.sens_mode in GAME_YAW else ""
+        info = (f"Sensitivität: {game}{m.effective_cm_per_360():.1f} cm/360 @ {m.dpi} DPI ({dpc:.4f}°/count)  ·  "
                 f"FOV {self.settings.display.hfov_deg:g}°  ·  Eingabe: {self.backend}")
         r.text(info, (r.w * 0.08, r.h * 0.86), 24, MUTED)
-        r.text("Pfeiltasten oder 1-9: Auswahl   Enter/Doppelklick: Start   R: Report   Esc: Beenden",
+        r.text("Pfeiltasten oder 1-9: Auswahl   Enter/Doppelklick: Start   E: Einstellungen   R: Report   Esc: Beenden",
                (r.w * 0.08, r.h * 0.86 + 30), 24, MUTED)
         if self.message:
             r.text(self.message, (r.w * 0.08, r.h * 0.86 - 34), 24, ACCENT)

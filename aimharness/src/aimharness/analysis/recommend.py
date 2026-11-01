@@ -28,6 +28,17 @@ def recommendations(latest: dict, history: list[dict]) -> list[dict]:
         add("warning", "Zeitstempel nur framegenau",
             "Diese Session lief mit dem pygame-Backend. Reaktionszeit, Kinematik und Jitter sind nur "
             "eingeschränkt aussagekräftig. Unter Windows das Raw-Input-Backend verwenden.")
+    dpc, base_dpc = _num(latest, "deg_per_count"), _baseline(history, "deg_per_count")
+    if math.isfinite(dpc) and math.isfinite(base_dpc) and base_dpc > 0 and abs(dpc / base_dpc - 1) > 0.01:
+        add("info", "Sensitivität geändert",
+            f"{base_dpc:.4f} → {dpc:.4f}°/count ({dpc / base_dpc - 1:+.0%}) gegenüber den letzten Sessions. "
+            "Kennzahlen vor und nach der Änderung sind nur eingeschränkt vergleichbar; die Motorik braucht "
+            "einige Sessions zur Anpassung.")
+    fov, base_fov = _num(latest, "hfov_deg"), _baseline(history, "hfov_deg")
+    if math.isfinite(fov) and math.isfinite(base_fov) and abs(fov - base_fov) >= 1:
+        add("info", "Sichtfeld geändert",
+            f"{base_fov:.0f}° → {fov:.0f}°. Zielgrößen und Abstände wirken auf dem Bildschirm anders; "
+            "Vergleiche mit früheren Sessions sind eingeschränkt.")
     rereg = _num(latest, "rawinput_reregistrations")
     if math.isfinite(rereg) and rereg > 0:
         add("warning", "Raw-Input-Registrierung unterbrochen",

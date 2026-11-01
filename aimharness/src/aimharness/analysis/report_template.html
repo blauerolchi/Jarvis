@@ -692,9 +692,10 @@ footer dd { margin: 0; }
     const keys = sc.scoring === "click"
       ? ["score", "accuracy", "kills_per_min", "rt_median_ms", "overshoot_rate"]
       : ["score", "on_target_held_pct", "track_lag_ms", "reversal_response_ms"];
-    const cols = ["#", "Datum", ...keys.map((k) => DATA.metrics[k].label), "Eingabe", "Rate", "fps", "Status"];
+    const cols = ["#", "Datum", ...keys.map((k) => DATA.metrics[k].label), "Sens (°/count)", "FOV", "Eingabe", "Rate", "fps", "Status"];
     const rows = sc.sessions.map((r, i) => [
       String(i + 1), r.started.replace("T", " "), ...keys.map((k) => metricText(DATA.metrics[k], r[k])),
+      finite(r.deg_per_count) ? fmtNum(r.deg_per_count, 4) : "–", finite(r.hfov_deg) ? fmtNum(r.hfov_deg, 0) + "°" : "–",
       r.backend, finite(r.input_rate_hz) ? fmtNum(r.input_rate_hz, 0) + " Hz" : "–",
       finite(r.mean_fps) ? fmtNum(r.mean_fps, 0) : "–", r.aborted ? "abgebrochen" : "vollständig",
     ]).reverse();
