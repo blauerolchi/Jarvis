@@ -11,6 +11,7 @@ from aimharness.confutil import parse_color
 from aimharness.data.store import SessionData
 from aimharness.game.app import init_platform, open_display
 from aimharness.game.render import Renderer
+from aimharness.scenario import BOT_EYE_HEIGHT, SPHERE_FLOOR_Y
 from aimharness.settings import Settings
 
 TRAIL_NS = 350_000_000
@@ -42,7 +43,9 @@ class Replay:
         self.shots = list(zip(sh["t_ns"].to_numpy(np.int64), sh["yaw_deg"], sh["pitch_deg"], sh["hit"]))
         kills = sess.targets[sess.targets["outcome"] == "killed"]["end_t_ns"]
         self.kills = np.sort(kills.to_numpy(np.int64))
-        self.color = parse_color(sess.meta["scenario"]["targets"]["color"]) if "targets" in sess.meta["scenario"] else (38, 180, 255)
+        targets = sess.meta["scenario"].get("targets", {})
+        self.color = parse_color(targets.get("color", "#26b4ff"))
+        self.humanoid = targets.get("kind") == "humanoid"
         self.t = int(self.f_t[0]) if len(self.f_t) else 0
         self.playing = True
         self.show_trail = True
@@ -53,7 +56,8 @@ class Replay:
         try:
             screen = open_display(self.settings)
             hfov = float(self.sess.meta.get("display", {}).get("hfov_deg", self.settings.display.hfov_deg))
-            self.r = Renderer(screen, hfov, self.settings.crosshair)
+            floor = -BOT_EYE_HEIGHT if self.humanoid else SPHERE_FLOOR_Y
+            self.r = Renderer(screen, hfov, self.settings.crosshair, floor)
             clock = pygame.time.Clock()
             last = time.perf_counter_ns()
             while True:
@@ -121,6 +125,11 @@ class Replay:
         r.draw_room()
         lo, hi = np.searchsorted(self.tf_frame, [frame, frame + 1])
         for yaw, pitch, dist, rad in sorted(self.tf[lo:hi], key=lambda row: -row[2]):
+            if self.humanoid:
+                bot = r.bot_screen(yaw, pitch, dist)
+                if bot.on_screen:
+                    r.draw_bot(bot, self.color)
+                continue
             sx, sy, sr, on = r.target_screen(yaw, pitch, dist, rad)
             if on:
                 r.draw_sphere(sx, sy, sr, self.color)

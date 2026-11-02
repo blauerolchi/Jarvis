@@ -110,6 +110,28 @@ weil Kennzahlen vor und nach der Änderung nur eingeschränkt vergleichbar sind.
 | `strafeshot` | bewegte Ziele mit ADAD-Richtungswechseln | Flicks auf bewegte Ziele |
 | `tracking_smooth` | weiche Zielbewegung, LMB halten | Tracking, Nachlauf |
 | `tracking_reactive` | abrupte Wechsel in beiden Achsen | Reaktion auf Richtungswechsel |
+| `bots_flick` | ein Bot nach dem anderen, 5–20 m, zufällige Position | Reaktion und Flick auf Kopfhöhe |
+| `bots_strafe` | ein Bot, der seitlich mit Richtungswechseln läuft | Bewegte Gegner, Timing |
+| `bots_range` | sechs Bots gleichzeitig in 6–19 m, wie eine Schießbahn | Zielwechsel zwischen Gegnern |
+| `bots_headshot` | fünf Bots, nur Kopftreffer zählen | Crosshair-Platzierung auf Kopfhöhe |
+
+### Trainings-Bots
+
+Die Bot-Szenarien nutzen menschengroße Trainings-Bots (1,76 m) statt Kugeln. Sie stehen auf dem
+Boden, die Kamera liegt auf 1,65 m Augenhöhe, die Köpfe also etwa auf Höhe des Crosshairs.
+Getroffen wird nach Zonen:
+
+| Zone | Schaden (Standard) | Treffer bis Kill bei 100 Leben |
+|---|---|---|
+| Kopf | 100 | 1 |
+| Körper (Hals, Torso, Arme, Becken) | 34 | 3 |
+| Beine | 25 | 4 |
+
+Der Bot wird aus derselben Geometrie gezeichnet, mit der Treffer berechnet werden. Was du
+siehst, kannst du auch treffen. Bei mehreren Bots hintereinander zählt der vordere. Nicht
+tödliche Treffer lassen den Bot kurz aufleuchten, Kopftreffer haben einen eigenen Ton.
+Ergebnisbildschirm, `analyze` und Report zeigen die Kopftreffer-Quote. Bei Bot-Szenarien
+beziehen sich Zieldistanz, Overshoot und Endfehler der Bewegungsanalyse auf den Kopf.
 
 ### Eigene Szenarien
 
@@ -125,10 +147,16 @@ scoring = "click"            # click | tracking
 seed = 0                     # 0 = zufällig; fester Wert = reproduzierbare Zielfolge
 
 [targets]
-distance_m = [10.0]          # Kandidaten, pro Ziel wird einer gezogen
-radius_m = [0.15, 0.3]
-color = "#26b4ff"
-hp = 1
+kind = "sphere"              # sphere | humanoid (Trainings-Bot)
+distance_m = [10.0]          # Kandidaten, pro Ziel wird einer gezogen (Bots: Entfernung am Boden)
+radius_m = [0.15, 0.3]       # nur Kugeln
+color = "#26b4ff"            # Kugelfarbe bzw. Akzentfarbe der Bots
+hp = 1                       # Kugeln: Treffer bis Kill
+health = 100.0               # Bots: Leben und Schaden pro Zone
+damage_head = 100.0
+damage_body = 34.0
+damage_legs = 25.0
+headshot_only = false        # Bots: nur Kopftreffer machen Schaden
 
 [spawn]
 pattern = "amplitude"        # grid | random | amplitude
@@ -152,6 +180,9 @@ vertical = false
 vertical_speed_mps = [0.5, 1.5]
 ```
 
+Bots unterstützen die Muster `random` und `amplitude` (seitlicher Abstand zum Crosshair) sowie
+seitliche Bewegung (`strafe`), aber keine vertikale.
+
 Beim Muster `amplitude` ist jede Kombination aus Distanz × Radius × Entfernung eine
 Bedingung. Die Bedingungen kommen in gemischten Blöcken gleich oft vor. Daraus berechnet die
 Analyse den effektiven Durchsatz nach ISO 9241-411.
@@ -160,15 +191,16 @@ Analyse den effektiven Durchsatz nach ISO 9241-411.
 
 Jede Session landet in `data/sessions/<Datum>_<Uhrzeit>_<Szenario>/`. Alle Zeiten sind
 Nanosekunden relativ zum Session-Start auf der `perf_counter`-Uhr (QueryPerformanceCounter).
-Winkel sind in Grad, Yaw liegt in [-180, 180).
+Winkel sind in Grad, Yaw liegt in [-180, 180). Bei Bots beziehen sich Richtung, Entfernung und
+Radius in `target_frames` und `targets` auf den Kopf.
 
 | Datei | Inhalt (eine Zeile pro …) |
 |---|---|
 | `input_events.parquet` | Maus-Report: `t_ns`, OS-Zeit `t_msg_ms`, `dx`/`dy` in Counts, Button-Flags, Gerät, Crosshair-Richtung nach dem Event, Frame |
 | `frames.parquet` | Frame: Start- und Present-Zeit, dt, gerenderte Crosshair-Richtung, Summen der Deltas, LMB, Ziel unter dem Crosshair |
 | `target_frames.parquet` | Frame × Ziel: Richtung, Entfernung, Radius, Winkelradius, Bildschirmposition und -radius |
-| `targets.parquet` | Ziel: Spawn, erster sichtbarer Frame, Ende, Ergebnis (`killed`/`expired`/`session_end`), Bedingung |
-| `shots.parquet` | Klick: Zeit, Richtung, Treffer, Zielfehler (Winkel und x/y-Komponenten), Winkelradius |
+| `targets.parquet` | Ziel: Art (`sphere`/`humanoid`), Spawn, erster sichtbarer Frame, Ende, Ergebnis (`killed`/`expired`/`session_end`), Bedingung |
+| `shots.parquet` | Klick: Zeit, Richtung, Treffer, Trefferzone (`head`/`body`/`legs`), Schaden, Zielfehler (Winkel und x/y-Komponenten), Winkelradius |
 | `target_events.parquet` | Ereignis: Spawn, sichtbar, Treffer, Kill, Ablauf, Richtungswechsel, Pause |
 | `meta.json` | Szenario, Sensitivität, Display, FOV, Backend, Seed, Pausen, Plattform, Kurzstatistik |
 | `summary.json`, `trials.parquet` | Ergebnis der Analyse (Cache; `analyze --force` bzw. `report --force` berechnet neu) |

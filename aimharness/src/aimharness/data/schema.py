@@ -5,7 +5,13 @@ All ``t_ns`` columns are nanoseconds relative to the session start (t0) on the
 degrees, yaw wrapped to [-180, 180).
 """
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+# Values for columns added after schema version 1 when loading older sessions.
+DEFAULTS: dict[str, dict[str, object]] = {
+    "shots": {"zone": "", "damage": float("nan")},
+    "targets": {"kind": "sphere"},
+}
 
 TABLES: dict[str, dict[str, str]] = {
     # One row per mouse report as delivered by the input backend.
@@ -55,6 +61,7 @@ TABLES: dict[str, dict[str, str]] = {
     # One row per target (life cycle).
     "targets": {
         "target_id": "int64",
+        "kind": "string",           # sphere | humanoid (yaw/pitch/radius then refer to the head)
         "cond_id": "int32",
         "amplitude_nominal_deg": "float64",
         "is_home": "bool",
@@ -88,6 +95,8 @@ TABLES: dict[str, dict[str, str]] = {
         "err_x_deg": "float64",     # target - crosshair, tangent plane (+ = right)
         "err_y_deg": "float64",     # (+ = up)
         "ang_radius_deg": "float64",
+        "zone": "string",           # humanoids: head | body | legs; "" for spheres and misses
+        "damage": "float32",
     },
     # Discrete events: spawn, kill, expire, hit, reverse_x, reverse_y, pause, resume.
     "target_events": {

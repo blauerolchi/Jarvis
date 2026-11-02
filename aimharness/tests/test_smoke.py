@@ -26,7 +26,7 @@ def recorded(tmp_path_factory):
     settings.display.fps_cap = 240
     scenarios = {s.id: s for s in load_all_scenarios()}
     paths = []
-    for sid in ("gridshot", "strafeshot", "tracking_reactive"):
+    for sid in ("gridshot", "strafeshot", "tracking_reactive", "bots_range"):
         sc = scenarios[sid]
         sc.duration_s = 1.0
         src = ScriptedInputSource()
@@ -40,7 +40,7 @@ def recorded(tmp_path_factory):
 
 def test_session_files_follow_schema(recorded):
     root, paths, _ = recorded
-    assert len(list_sessions(root)) == 3
+    assert len(list_sessions(root)) == 4
     for p in paths:
         meta = json.loads((p / "meta.json").read_text())
         assert meta["input"]["backend"] == "scripted"
@@ -61,7 +61,7 @@ def test_analysis_and_report(recorded):
         summary = analyze_session(p, force=True)
         assert summary["session"] == p.name
         assert summary["mean_fps"] > 0
-    tracking = analyze_session(paths[-1])
+    tracking = analyze_session(paths[2])
     assert tracking["on_target_pct"] is not None
     report = build_report(root)
     html = report.read_text(encoding="utf-8")
@@ -77,3 +77,11 @@ def test_replay_renders_a_frame(recorded):
     rp.r = Renderer(pygame.display.get_surface(), 103.0, settings.crosshair)
     rp.t = int(rp.f_t[len(rp.f_t) // 2])
     rp._draw()
+
+
+def test_bot_session_records_zones(recorded):
+    _, paths, _ = recorded
+    sess = load_session(paths[-1])
+    assert set(sess.targets["kind"]) == {"humanoid"}
+    assert set(sess.shots["zone"]) <= {"", "head", "body", "legs"}
+    assert len(sess.targets) >= 6

@@ -80,7 +80,8 @@ def cmd_analyze(args) -> int:
             print(f"  score={s.get('score')}  acc={_fmt(100 * (s.get('accuracy') or 0))}%  trials={_fmt(s.get('n_trials'), 0)}"
                   f"  RT={_fmt(s.get('rt_median_ms'), 0)} ms  MT={_fmt(s.get('mt_median_ms'), 0)} ms"
                   f"  overshoot={_fmt(100 * s['overshoot_rate'] if s.get('overshoot_rate') is not None else None)}%"
-                  f"  corr={_fmt(s.get('corrections_mean'), 2)}  TPe={_fmt(s.get('tp_effective_bps'), 2)} bit/s")
+                  f"  corr={_fmt(s.get('corrections_mean'), 2)}  TPe={_fmt(s.get('tp_effective_bps'), 2)} bit/s"
+                  + (f"  kopf={_fmt(100 * s['headshot_rate'])}%" if _fmt(s.get('headshot_rate')) != "-" else ""))
         else:
             print(f"  on-target={_fmt(s.get('on_target_held_pct'))}%  lag={_fmt(s.get('track_lag_ms'), 0)} ms"
                   f"  reversal={_fmt(s.get('reversal_response_ms'), 0)} ms  gain={_fmt(s.get('track_gain'), 2)}")

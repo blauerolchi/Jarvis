@@ -22,6 +22,7 @@ from aimharness.mathutil import tangent_offset
 METRICS: dict[str, dict] = {
     "score": dict(label="Score", unit="", dec=0, scale=1, better="up", scoring="both"),
     "accuracy": dict(label="Genauigkeit", unit="%", dec=1, scale=100, better="up", scoring="click"),
+    "headshot_rate": dict(label="Kopftreffer-Quote", unit="%", dec=1, scale=100, better="up", scoring="click"),
     "kills_per_min": dict(label="Kills pro Minute", unit="", dec=1, scale=1, better="up", scoring="click"),
     "rt_median_ms": dict(label="Reaktionszeit (Median)", unit="ms", dec=0, scale=1, better="down", scoring="click"),
     "mt_median_ms": dict(label="Bewegungszeit (Median)", unit="ms", dec=0, scale=1, better="down", scoring="click"),
@@ -40,7 +41,8 @@ METRICS: dict[str, dict] = {
 }
 
 KPI_KEYS = {
-    "click": ["score", "accuracy", "rt_median_ms", "tp_effective_bps", "overshoot_rate", "corrections_mean"],
+    "click": ["score", "accuracy", "headshot_rate", "rt_median_ms", "tp_effective_bps", "overshoot_rate",
+              "corrections_mean"],
     "tracking": ["score", "on_target_held_pct", "track_lag_ms", "reversal_response_ms", "track_rms_err_deg", "jitter_rms_arcmin"],
 }
 RECENT_SESSIONS = 5

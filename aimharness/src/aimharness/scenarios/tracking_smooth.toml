@@ -1,5 +1,6 @@
 id = "tracking_smooth"
 name = "Tracking (smooth)"
+order = 60
 description = "Ein Ziel mit weichen, vorhersehbaren Bewegungen. Linke Maustaste halten, solange das Crosshair auf dem Ziel liegt."
 duration_s = 60.0
 scoring = "tracking"

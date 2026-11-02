@@ -180,6 +180,7 @@ footer dd { margin: 0; }
         <dt>Nachkorrekturen</dt><dd>Weitere Geschwindigkeitsspitzen nach der Primärbewegung, jeweils mindestens 8 % der Spitze bzw. 8 °/s.</dd>
         <dt>Durchsatz</dt><dd>Nominal: Mittelwert von ID/MT mit ID = log2(A/W + 1). Effektiv (ISO 9241-411): pro Bedingung We = 4,133 · SD der Endpunkte entlang der Achse. Nur Bedingungen mit mindestens 5 Durchgängen.</dd>
         <dt>Mikrojitter</dt><dd>RMS der 6–25-Hz-bandpassgefilterten Crosshair-Position in Haltephasen (Geschwindigkeit unter 20 °/s), in Bogenminuten.</dd>
+        <dt>Bots</dt><dd>Bei Bot-Szenarien beziehen sich Zieldistanz, Zielgröße, Overshoot und Endfehler auf den Kopf. Die Kopftreffer-Quote ist der Anteil der Kopftreffer an allen Treffern.</dd>
         <dt>Nachlauf, Richtungswechsel</dt><dd>Nachlauf ist der Lag der maximalen Kreuzkorrelation zwischen Ziel- und Crosshair-Geschwindigkeit. Die Reaktion auf Richtungswechsel ist die Zeit vom Vorzeichenwechsel der Zielgeschwindigkeit bis zu dem der Crosshair-Geschwindigkeit.</dd>
       </dl>
     </footer>
@@ -240,8 +241,12 @@ footer dd { margin: 0; }
   }
   function niceScale(lo, hi, count) {
     if (!(hi > lo)) {
-      const d = Math.abs(lo) * 0.1 || 1;
-      lo -= d; hi += d;
+      if (lo === 0) {
+        hi = 1;  // all zero: no negative axis for counts and rates
+      } else {
+        const d = Math.abs(lo) * 0.1;
+        lo -= d; hi += d;
+      }
     }
     const raw = (hi - lo) / count;
     const mag = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -539,7 +544,7 @@ footer dd { margin: 0; }
     h("div", "delta", "Letzte: " + last.started.replace("T", " "), tile0);
     for (const key of DATA.kpis[sc.scoring]) {
       const m = DATA.metrics[key];
-      if (!m) continue;
+      if (!m || !rows.some((r) => finite(r[key]))) continue;
       const t = h("div", "tile", null, host);
       h("div", "label", m.label, t);
       h("div", "value", metricText(m, last[key]), t);

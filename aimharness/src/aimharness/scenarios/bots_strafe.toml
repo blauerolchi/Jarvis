@@ -1,0 +1,24 @@
+id = "bots_strafe"
+name = "Bots: Strafe"
+order = 81
+description = "Ein Bot, der mit zufälligen Richtungswechseln seitlich läuft (ADAD). Kopf tötet sofort, Körper braucht 3 Treffer, Beine 4."
+duration_s = 60.0
+scoring = "click"
+
+[targets]
+kind = "humanoid"
+distance_m = [5.0, 8.0, 11.0, 15.0]
+color = "#e5484d"
+
+[spawn]
+pattern = "random"
+count = 1
+yaw_range_deg = [-30.0, 30.0]
+delay_ms = [200.0, 500.0]
+timeout_s = 4.0
+
+[motion]
+kind = "strafe"
+speed_mps = [2.5, 5.0]
+reverse_interval_s = [0.3, 0.9]
+accel_mps2 = 30.0

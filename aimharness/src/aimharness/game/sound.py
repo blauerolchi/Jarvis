@@ -27,6 +27,7 @@ class Sounds:
             self._hit = self._make(_tone(1250, 45, 90, volume), channels)
             self._kill = self._make(_tone(1650, 70, 60, volume), channels)
             self._miss = self._make(_tone(260, 40, 120, volume * 0.6), channels)
+            self._headshot = self._make(_tone(2300, 90, 45, volume), channels)
             self.ok = True
         except (pygame.error, ValueError):
             self.ok = False
@@ -43,6 +44,10 @@ class Sounds:
     def kill(self) -> None:
         if self.ok:
             self._kill.play()
+
+    def headshot(self) -> None:
+        if self.ok:
+            self._headshot.play()
 
     def miss(self) -> None:
         if self.ok:

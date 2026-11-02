@@ -1,5 +1,6 @@
 id = "strafeshot"
 name = "Strafeshot"
+order = 50
 description = "Bewegte Ziele mit zufälligen Richtungswechseln (ADAD-Strafe). Flick auf bewegte Ziele."
 duration_s = 60.0
 scoring = "click"

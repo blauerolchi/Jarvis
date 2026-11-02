@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import math
 import os
 import sys
 import webbrowser
@@ -184,14 +185,16 @@ class App:
             self.clock.tick(60)
 
     def _menu_rows(self) -> list[pygame.Rect]:
+        """Scenario rows; the height shrinks so that all rows plus the settings button fit."""
         r = self.renderer
-        x, y0, h = int(r.w * 0.08), int(r.h * 0.22), 46
+        x, y0 = int(r.w * 0.08), int(r.h * 0.22)
+        h = max(24, min(46, int((r.h * 0.80 - y0) / (len(self.scenarios) + 1.5))))
         return [pygame.Rect(x, y0 + i * h, int(r.w * 0.36), h - 6) for i in range(len(self.scenarios))]
 
     def _settings_button(self) -> pygame.Rect:
         rows = self._menu_rows()
         last = rows[-1]
-        return pygame.Rect(last.x, last.bottom + 22, last.w, last.h)
+        return pygame.Rect(last.x, last.bottom + max(10, last.h // 2), last.w, last.h)
 
     def _settings_menu(self) -> bool:
         """Open the settings screen; apply display/audio/input changes afterwards. False = quit."""
@@ -224,18 +227,21 @@ class App:
         r.dim(170)
         r.text("AIM HARNESS", (r.w * 0.08, r.h * 0.08), 72, ACCENT)
         r.text("Zeigebewegungen erfassen und auswerten", (r.w * 0.08, r.h * 0.08 + 62), 28, MUTED)
-        for i, (sc, rect) in enumerate(zip(self.scenarios, self._menu_rows())):
+        rows = self._menu_rows()
+        size = min(30, rows[0].h - 6)
+        for i, (sc, rect) in enumerate(zip(self.scenarios, rows)):
             sel = i == self.selected
             r.panel(rect, 230 if sel else 120)
             if sel:
                 pygame.draw.rect(r.surface, ACCENT, rect, 2)
-            r.text(f"{i + 1}  {sc.name}", (rect.x + 14, rect.centery), 30, TEXT if sel else MUTED, anchor="midleft")
-            r.text(f"{sc.duration_s:.0f}s", (rect.right - 14, rect.centery), 24, MUTED, anchor="midright")
+            label = f"{i + 1}  {sc.name}" if i < 9 else f"    {sc.name}"
+            r.text(label, (rect.x + 14, rect.centery), size, TEXT if sel else MUTED, anchor="midleft")
+            r.text(f"{sc.duration_s:.0f}s", (rect.right - 14, rect.centery), size - 6, MUTED, anchor="midright")
         btn = self._settings_button()
         hover = btn.collidepoint(pygame.mouse.get_pos())
         r.panel(btn, 200 if hover else 120)
-        r.text("Einstellungen", (btn.x + 14, btn.centery), 30, TEXT if hover else MUTED, anchor="midleft")
-        r.text("E", (btn.right - 14, btn.centery), 24, MUTED, anchor="midright")
+        r.text("Einstellungen", (btn.x + 14, btn.centery), size, TEXT if hover else MUTED, anchor="midleft")
+        r.text("E", (btn.right - 14, btn.centery), size - 6, MUTED, anchor="midright")
 
         sc = self.scenarios[self.selected]
         box = pygame.Rect(int(r.w * 0.50), int(r.h * 0.22), int(r.w * 0.42), int(r.h * 0.46))
@@ -247,11 +253,22 @@ class App:
             r.text(line, (box.x + 20, y), 26, MUTED)
             y += 26
         y += 14
-        details = [
-            f"Wertung: {'Tracking (LMB halten)' if sc.scoring == 'tracking' else 'Klick'}",
-            f"Ziele: {sc.spawn.count} gleichzeitig, Muster '{sc.spawn.pattern}', Bewegung '{sc.motion.kind}'",
-            f"Radius {', '.join(f'{v:g}' for v in sc.targets.radius_m)} m  ·  Distanz {', '.join(f'{v:g}' for v in sc.targets.distance_m)} m",
-        ]
+        tg = sc.targets
+        moving = "bewegt" if sc.motion.kind == "strafe" else "statisch"
+        details = [f"Wertung: {'Tracking (LMB halten)' if sc.scoring == 'tracking' else 'Klick'}"]
+        if tg.humanoid:
+            details += [
+                f"Ziele: {sc.spawn.count} Bot{'s' if sc.spawn.count > 1 else ''} gleichzeitig, {moving}",
+                f"Entfernung {min(tg.distance_m):g}-{max(tg.distance_m):g} m",
+                "Nur Kopftreffer zählen" if tg.headshot_only else
+                "Treffer bis Kill: " + "  ".join(f"{label} {_hits_to_kill(tg.health, tg.damage(zone))}"
+                                                 for zone, label in (("head", "Kopf"), ("body", "Körper"), ("legs", "Beine"))),
+            ]
+        else:
+            details += [
+                f"Ziele: {sc.spawn.count} Kugel{'n' if sc.spawn.count > 1 else ''} gleichzeitig, {moving}",
+                f"Radius {', '.join(f'{v:g}' for v in tg.radius_m)} m  ·  Distanz {', '.join(f'{v:g}' for v in tg.distance_m)} m",
+            ]
         for line in details:
             r.text(line, (box.x + 20, y), 24, MUTED)
             y += 26
@@ -334,6 +351,10 @@ class App:
             self.message = f"Report fehlgeschlagen: {exc}"
 
 
+def _hits_to_kill(health: float, damage: float) -> str:
+    return str(math.ceil(health / damage)) if damage > 0 else "-"
+
+
 def _result_rows(st: dict, scoring: str) -> list[tuple[str, str]]:
     if scoring == "tracking":
         return [
@@ -342,13 +363,17 @@ def _result_rows(st: dict, scoring: str) -> list[tuple[str, str]]:
             ("Aktive Zeit", f"{st.get('active_s', 0):.1f} s"),
         ]
     ttk = st.get("mean_ttk_ms")
-    return [
+    rows = [
         ("Treffer / Schüsse", f"{st.get('hits', 0)} / {st.get('shots', 0)}"),
         ("Genauigkeit", f"{100 * st.get('accuracy', 0):.1f} %"),
         ("Kills pro Minute", f"{st.get('kills_per_min', 0):.1f}"),
-        ("Ø Zeit bis Treffer", f"{ttk:.0f} ms" if ttk else "–"),
+        ("Ø Zeit bis Kill", f"{ttk:.0f} ms" if ttk else "–"),
         ("Abgelaufene Ziele", str(st.get("expired", 0))),
     ]
+    if "headshot_rate" in st:
+        rows.insert(2, ("Kopftreffer-Quote", f"{100 * st['headshot_rate']:.1f} %  "
+                                             f"({st['head_hits']} Kopf · {st['body_hits']} Körper · {st['leg_hits']} Beine)"))
+    return rows
 
 
 def _wrap(text: str, font: pygame.font.Font, width: int) -> list[str]:

@@ -7,18 +7,23 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from aimharness.game import humanoid as hm
 from aimharness.mathutil import angle_between, angular_radius_deg, destination, wrap_deg
-from aimharness.scenario import Scenario
+from aimharness.scenario import Scenario, floor_y
 
 
 @dataclass
 class Target:
+    # Spheres: centre direction and radius. Humanoids: head centre and head radius
+    # (the head is also the reference point of the movement analysis).
     id: int
     yaw: float
     pitch: float
     distance: float
     radius: float
     hp: int
+    kind: str = "sphere"
+    health: float = 0.0
     cond_id: int = -1
     amplitude_nominal: float = float("nan")
     is_home: bool = False
@@ -72,6 +77,7 @@ class TargetManager:
         self._cond_queue: list[int] = []
         self._last_was_home = True
         self._last_cell = -1
+        self.floor_y = floor_y(scenario)
         sp = scenario.spawn
         self._cells = [
             (float(y), float(p))
@@ -107,10 +113,15 @@ class TargetManager:
             for tgt in self.alive.values():
                 self._move(tgt, t_ns, frame, sim_s, dt_s)
 
-    def hit(self, tgt: Target, t_ns: int, frame: int, sim_s: float) -> bool:
-        """Register a hit; returns True if the target was destroyed."""
+    def hit(self, tgt: Target, t_ns: int, frame: int, sim_s: float, zone: str = "") -> bool:
+        """Register a hit in ``zone`` (humanoids); returns True if the target was destroyed."""
         tgt.hits += 1
-        if tgt.hits < tgt.hp:
+        if tgt.kind == "humanoid":
+            tgt.health -= self.sc.targets.damage(zone)
+            alive = tgt.health > 0
+        else:
+            alive = tgt.hits < tgt.hp
+        if alive:
             self.events.append(TargetEvent(t_ns, frame, tgt.id, "hit", tgt.hits))
             return False
         self._end(tgt, t_ns, frame, "killed")
@@ -136,9 +147,25 @@ class TargetManager:
                 best, best_edge = tgt, edge
         return best, best_edge
 
+    def pick(self, yaw: float, pitch: float) -> tuple[Target | None, str]:
+        """Front-most target hit by the view ray and the hit zone ("" for spheres)."""
+        best, best_t, best_zone = None, math.inf, ""
+        for tgt in self.alive.values():
+            if tgt.kind == "humanoid":
+                res = hm.ray_hit(yaw, pitch, tgt.yaw, tgt.pitch, tgt.distance)
+                if res is None:
+                    continue
+                zone, t = res
+            elif float(angle_between(yaw, pitch, tgt.yaw, tgt.pitch)) <= tgt.ang_radius:
+                zone, t = "", tgt.distance
+            else:
+                continue
+            if t < best_t:
+                best, best_t, best_zone = tgt, t, zone
+        return best, best_zone
+
     def under_crosshair(self, yaw: float, pitch: float) -> Target | None:
-        tgt, edge = self.nearest(yaw, pitch)
-        return tgt if tgt is not None and edge <= 0.0 else None
+        return self.pick(yaw, pitch)[0]
 
     # -- internals -------------------------------------------------------------------
     def _schedule(self, sim_s: float) -> None:
@@ -159,7 +186,11 @@ class TargetManager:
         sc, sp = self.sc, self.sc.spawn
         cond_id, amp, is_home, cell = -1, float("nan"), False, -1
         radius, dist = self._draw(sc.targets.radius_m), self._draw(sc.targets.distance_m)
-        if sp.pattern == "grid":
+        if sc.targets.humanoid:
+            ground_yaw, ground, cond_id, amp, is_home = self._bot_position(cross_yaw)
+            yaw, pitch, dist = hm.head_pose(ground_yaw, ground, self.floor_y)
+            radius = hm.HEAD_R
+        elif sp.pattern == "grid":
             cell = self._pick_cell()
             yaw, pitch = self._cells[cell]
         elif sp.pattern == "random":
@@ -176,7 +207,7 @@ class TargetManager:
 
         tgt = Target(
             id=self._next_id, yaw=yaw, pitch=pitch, distance=dist, radius=radius, hp=sc.targets.hp,
-            cond_id=cond_id, amplitude_nominal=amp, is_home=is_home, cell=cell,
+            kind=sc.targets.kind, health=sc.targets.health, cond_id=cond_id, amplitude_nominal=amp, is_home=is_home, cell=cell,
             spawn_t_ns=t_ns, spawn_frame=frame, spawn_yaw=yaw, spawn_pitch=pitch,
         )
         self._next_id += 1
@@ -213,6 +244,26 @@ class TargetManager:
             if self._separated(yaw, pitch):
                 break
         return yaw, pitch
+
+    def _bot_position(self, cross_yaw: float) -> tuple[float, float, int, float, bool]:
+        """(yaw, ground distance, condition, nominal amplitude, is_home) for a new bot."""
+        sp, tg = self.sc.spawn, self.sc.targets
+        lo, hi = sp.yaw_range_deg
+        if sp.pattern == "amplitude":
+            if sp.center_return and not self._last_was_home:
+                return 0.0, tg.distance_m[0], -1, float("nan"), True
+            cond = self._next_condition()
+            amp, _, ground = self._conds[cond]
+            options = [y for y in (cross_yaw + amp, cross_yaw - amp) if lo <= y <= hi]
+            yaw = float(options[self.rng.integers(len(options))]) if options else float(np.clip(cross_yaw + amp, lo, hi))
+            return yaw, ground, cond, amp, False
+        ground = self._draw(tg.distance_m)
+        yaw = 0.0
+        for _ in range(100):
+            yaw = float(self.rng.uniform(lo, hi))
+            if self._separated(*hm.head_pose(yaw, ground, self.floor_y)[:2]):
+                break
+        return yaw, ground, -1, float("nan"), False
 
     def _next_condition(self) -> int:
         # Balanced blocks: every condition once per block, shuffled.

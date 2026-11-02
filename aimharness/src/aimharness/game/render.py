@@ -8,7 +8,9 @@ from dataclasses import dataclass
 import numpy as np
 import pygame
 
+from aimharness.game import humanoid as hm
 from aimharness.mathutil import Projector, camera_basis, sph_to_world
+from aimharness.scenario import SPHERE_FLOOR_Y
 from aimharness.settings import CrosshairSettings
 
 BG = (18, 19, 24)
@@ -21,15 +23,15 @@ FACE_COLORS = {
 GRID = (86, 90, 104)
 NEAR = 0.05
 
-# Room box (metres). The player stands at the origin.
+# Room box (metres). The player's eye is at the origin.
 ROOM_X = (-30.0, 30.0)
-ROOM_Y = (-4.0, 14.0)
+ROOM_Y = (SPHERE_FLOOR_Y, 14.0)
 ROOM_Z = (-30.0, 30.0)
 GRID_STEP = 3.0
 
 
-def _room_faces() -> list[tuple[np.ndarray, tuple[int, int, int]]]:
-    (x0, x1), (y0, y1), (z0, z1) = ROOM_X, ROOM_Y, ROOM_Z
+def _room_faces(floor_y: float) -> list[tuple[np.ndarray, tuple[int, int, int]]]:
+    (x0, x1), (y0, y1), (z0, z1) = ROOM_X, (floor_y, ROOM_Y[1]), ROOM_Z
     q = lambda *pts: np.array(pts, dtype=float)  # noqa: E731
     return [
         (q((x0, y0, z0), (x1, y0, z0), (x1, y0, z1), (x0, y0, z1)), FACE_COLORS["floor"]),
@@ -41,9 +43,9 @@ def _room_faces() -> list[tuple[np.ndarray, tuple[int, int, int]]]:
     ]
 
 
-def _room_grid() -> tuple[np.ndarray, np.ndarray]:
+def _room_grid(floor_y: float) -> tuple[np.ndarray, np.ndarray]:
     """Grid line segments on the floor and the four walls."""
-    (x0, x1), (y0, y1), (z0, z1) = ROOM_X, ROOM_Y, ROOM_Z
+    (x0, x1), (y0, y1), (z0, z1) = ROOM_X, (floor_y, ROOM_Y[1]), ROOM_Z
     a, b = [], []
     for x in np.arange(x0, x1 + 1e-6, GRID_STEP):
         a += [(x, y0, z0), (x, y0, z1), (x, y0, z0)]  # floor, back wall, front wall
@@ -139,6 +141,15 @@ def make_sphere_sprite(color: tuple[int, int, int], size: int = 256) -> pygame.S
 
 
 @dataclass
+class BotScreen:
+    sx: float          # head centre on screen
+    sy: float
+    r_head: float      # head radius in pixels
+    rect: pygame.Rect  # sprite rectangle on screen
+    on_screen: bool
+
+
+@dataclass
 class Effect:
     yaw: float
     pitch: float
@@ -150,14 +161,15 @@ class Effect:
 
 
 class Renderer:
-    def __init__(self, surface: pygame.Surface, hfov_deg: float, crosshair: CrosshairSettings):
+    def __init__(self, surface: pygame.Surface, hfov_deg: float, crosshair: CrosshairSettings,
+                 floor_y: float = ROOM_Y[0]):
         self.surface = surface
         self.w, self.h = surface.get_size()
         self.proj = Projector(self.w, self.h, hfov_deg)
         self.crosshair = crosshair
         self.basis = camera_basis(0.0, 0.0)
-        self._faces = _room_faces()
-        self._grid_a, self._grid_b = _room_grid()
+        self._faces = _room_faces(floor_y)
+        self._grid_a, self._grid_b = _room_grid(floor_y)
         self._fog_colors = [self._mix(GRID, FACE_COLORS["wall_x"], f) for f in np.linspace(0.0, 0.8, 9)]
         self._sprites: dict[tuple[int, int, int], pygame.Surface] = {}
         self._scaled: dict[tuple, pygame.Surface] = {}
@@ -228,6 +240,54 @@ class Renderer:
                 self._scaled.clear()
             self._scaled[key] = img
         self.surface.blit(img, (sx - d / 2, sy - d / 2))
+
+    # -- humanoid bots ---------------------------------------------------------------
+    def bot_sprite(self, accent: tuple[int, int, int], flash: bool = False) -> pygame.Surface:
+        """Full-resolution bot sprite (created once per accent colour)."""
+        key = ("bot", accent, flash)
+        base = self._sprites.get(key)
+        if base is None:
+            if flash:
+                base = self.bot_sprite(accent).copy()
+                base.fill((110, 110, 110), special_flags=pygame.BLEND_RGB_ADD)
+            else:
+                base = hm.make_bot_sprite(accent)
+                if pygame.display.get_surface() is not None:
+                    base = base.convert_alpha()
+            self._sprites[key] = base
+        return base
+
+    def bot_screen(self, yaw: float, pitch: float, distance: float) -> BotScreen:
+        """Screen placement of a bot whose head centre is at (yaw, pitch, distance)."""
+        head = sph_to_world(yaw, pitch, distance)
+        pts = np.stack([head, head + (0.0, hm.V_TOP, 0.0), head + (0.0, hm.V_BOTTOM, 0.0)]) @ self.basis.T
+        if np.any(pts[:, 2] < 4 * NEAR):
+            return BotScreen(0.0, 0.0, 0.0, pygame.Rect(0, 0, 0, 0), False)
+        (sx, sy), (_, top), (_, bottom) = self.proj.project_cam(pts)
+        height = max(2.0, bottom - top)
+        width = height * hm.sprite_aspect()
+        rect = pygame.Rect(int(round(sx - width / 2)), int(round(top)), int(round(width)), int(round(height)))
+        on = rect.colliderect(pygame.Rect(0, 0, self.w, self.h))
+        return BotScreen(float(sx), float(sy), self.proj.focal * hm.HEAD_R / float(pts[0, 2]), rect, on)
+
+    def draw_bot(self, info: BotScreen, accent: tuple[int, int, int], flash: bool = False,
+                 alpha: int = 255) -> tuple[pygame.Surface, tuple[float, float]]:
+        """Blit the bot; returns the scaled sprite and its top-left position."""
+        h = max(2, min(4096, info.rect.h))
+        key = ("bot", accent, flash, h)
+        img = self._scaled.get(key)
+        if img is None:
+            base = self.bot_sprite(accent, flash)
+            img = pygame.transform.smoothscale(base, (max(1, round(h * base.get_width() / base.get_height())), h))
+            if len(self._scaled) > 600:
+                self._scaled.clear()
+            self._scaled[key] = img
+        if alpha < 255:
+            img = img.copy()
+            img.set_alpha(alpha)
+        pos = (info.sx - img.get_width() / 2, info.rect.y)
+        self.surface.blit(img, pos)
+        return img, pos
 
     def draw_effects(self, effects: list[Effect], now_s: float) -> None:
         for e in effects:

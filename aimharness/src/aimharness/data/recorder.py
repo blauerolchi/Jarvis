@@ -41,8 +41,10 @@ class SessionRecorder:
         self.rows["target_frames"].append((frame, target_id, yaw, pitch, distance, radius, ang_radius, sx, sy, sr, on_screen))
 
     def shot(self, shot_id: int, t_ns: int, frame: int, yaw: float, pitch: float, hit: bool, killed: bool,
-             target_id: int, err: float, err_x: float, err_y: float, ang_radius: float) -> None:
-        self.rows["shots"].append((shot_id, t_ns - self.t0, frame, yaw, pitch, hit, killed, target_id, err, err_x, err_y, ang_radius))
+             target_id: int, err: float, err_x: float, err_y: float, ang_radius: float,
+             zone: str = "", damage: float = float("nan")) -> None:
+        self.rows["shots"].append((shot_id, t_ns - self.t0, frame, yaw, pitch, hit, killed, target_id, err, err_x, err_y,
+                                   ang_radius, zone, damage))
 
     def event(self, t_ns: int, frame: int, target_id: int, kind: str, value: float = float("nan")) -> None:
         self.rows["target_events"].append((t_ns - self.t0, frame, target_id, kind, value))
@@ -51,7 +53,7 @@ class SessionRecorder:
         rel = self.rel
         for t in targets:
             self.rows["targets"].append((
-                t.id, t.cond_id, t.amplitude_nominal, t.is_home,
+                t.id, t.kind, t.cond_id, t.amplitude_nominal, t.is_home,
                 rel(t.spawn_t_ns), t.spawn_frame,
                 rel(t.visible_t_ns) if t.visible_t_ns >= 0 else -1, t.visible_frame,
                 rel(t.end_t_ns) if t.end_t_ns >= 0 else -1, t.end_frame, t.outcome,

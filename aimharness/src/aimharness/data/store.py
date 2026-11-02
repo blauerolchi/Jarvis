@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from aimharness.data.schema import TABLES
+from aimharness.data.schema import DEFAULTS, TABLES
 
 
 def sessions_root(data_root: Path) -> Path:
@@ -78,5 +78,9 @@ def load_session(path: Path) -> SessionData:
     tables = {}
     for name, cols in TABLES.items():
         f = path / f"{name}.parquet"
-        tables[name] = pd.read_parquet(f) if f.exists() else pd.DataFrame(columns=list(cols)).astype(cols)
+        df = pd.read_parquet(f) if f.exists() else pd.DataFrame(columns=list(cols))
+        for col in cols:
+            if col not in df:
+                df[col] = DEFAULTS.get(name, {}).get(col)
+        tables[name] = df[list(cols)].astype(cols)
     return SessionData(path=path, meta=meta, **tables)

@@ -71,6 +71,10 @@ def session_summary(sess: SessionData) -> tuple[dict, pd.DataFrame]:
         "input_rate_hz": 1e9 / interval if interval and math.isfinite(interval) else math.nan,
         **{k: v for k, v in meta.get("quick_stats", {}).items()},
     }
+    hits = sess.shots[sess.shots["hit"]]
+    zoned = hits[hits["zone"] != ""]
+    if len(zoned):
+        s["headshot_rate"] = float((zoned["zone"] == "head").mean())
     trials = build_trials(sess)
     if sess.scoring == "click" and not trials.empty:
         killed = trials[trials["outcome"] == "killed"]

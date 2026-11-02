@@ -1,5 +1,6 @@
 id = "flick_fitts"
 name = "Flick (Fitts-Design)"
+order = 30
 description = "Ein Ziel pro Durchgang in fester Distanz/Größe (balancierte Bedingungen), zufällige Vorlaufzeit. Liefert Reaktionszeit, Fitts-Kurve und effektiven Durchsatz."
 duration_s = 90.0
 scoring = "click"

@@ -1,5 +1,6 @@
 id = "microshot"
 name = "Microshot"
+order = 20
 description = "Kleine statische Ziele, kurze Distanzen. Präzision und Feinkorrektur."
 duration_s = 60.0
 scoring = "click"

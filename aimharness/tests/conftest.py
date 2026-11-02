@@ -65,7 +65,7 @@ def make_click_session(tmp_path: Path, segments: list[tuple[float, float, float,
         "screen_x": 0.0, "screen_y": 0.0, "screen_r": 0.0, "on_screen": True,
     })
     targets = pd.DataFrame([{
-        "target_id": 0, "cond_id": 0, "amplitude_nominal_deg": target_yaw, "is_home": False,
+        "target_id": 0, "kind": "sphere", "cond_id": 0, "amplitude_nominal_deg": target_yaw, "is_home": False,
         "spawn_t_ns": int(t_visible_ms * MS) - MS, "spawn_frame": vis_frame,
         "visible_t_ns": int(t_visible_ms * MS), "visible_frame": vis_frame,
         "end_t_ns": click_t, "end_frame": click_t // (4 * MS), "outcome": "killed",
@@ -76,7 +76,7 @@ def make_click_session(tmp_path: Path, segments: list[tuple[float, float, float,
         "shot_id": 0, "t_ns": click_t, "frame": click_t // (4 * MS), "yaw_deg": pos_at_click,
         "pitch_deg": 0.0, "hit": True, "killed": True, "target_id": 0,
         "err_deg": abs(target_yaw - pos_at_click), "err_x_deg": target_yaw - pos_at_click,
-        "err_y_deg": 0.0, "ang_radius_deg": ang_radius,
+        "err_y_deg": 0.0, "ang_radius_deg": ang_radius, "zone": "", "damage": float("nan"),
     }])
     events = pd.DataFrame(columns=list(TABLES["target_events"])).astype(TABLES["target_events"])
     tables = {"input_events": inp, "frames": frames, "target_frames": target_frames, "targets": targets,

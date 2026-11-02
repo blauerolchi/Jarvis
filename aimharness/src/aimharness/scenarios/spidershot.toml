@@ -1,5 +1,6 @@
 id = "spidershot"
 name = "Spidershot"
+order = 40
 description = "Abwechselnd Mittelziel und Ziel in zufälliger Richtung. Flicks hin und zurück."
 duration_s = 60.0
 scoring = "click"

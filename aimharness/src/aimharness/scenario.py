@@ -10,15 +10,40 @@ from pathlib import Path
 
 from aimharness.confutil import from_dict, parse_color
 
+# Floor below the player's eye: sphere targets float in a room with a low floor,
+# training bots stand on the floor with the camera at a typical eye height.
+SPHERE_FLOOR_Y = -4.0
+BOT_EYE_HEIGHT = 1.65
+
 
 @dataclass
 class TargetSpec:
+    # "sphere" | "humanoid" (training bot standing on the floor)
+    kind: str = "sphere"
     # Candidate values; one is drawn per spawn (or combined into conditions
-    # for the "amplitude" spawn pattern).
+    # for the "amplitude" spawn pattern). For humanoids distance_m is the
+    # distance along the floor and radius_m is ignored.
     distance_m: list[float] = field(default_factory=lambda: [10.0])
     radius_m: list[float] = field(default_factory=lambda: [0.35])
+    # Sphere colour, or accent colour of the bots.
     color: str = "#26b4ff"
+    # Spheres: hits needed.
     hp: int = 1
+    # Humanoids: health and damage per hit zone; headshot_only ignores body/leg hits.
+    health: float = 100.0
+    damage_head: float = 100.0
+    damage_body: float = 34.0
+    damage_legs: float = 25.0
+    headshot_only: bool = False
+
+    @property
+    def humanoid(self) -> bool:
+        return self.kind == "humanoid"
+
+    def damage(self, zone: str) -> float:
+        if self.headshot_only and zone != "head":
+            return 0.0
+        return {"head": self.damage_head, "body": self.damage_body, "legs": self.damage_legs}.get(zone, 0.0)
 
     @property
     def rgb(self) -> tuple[int, int, int]:
@@ -64,6 +89,7 @@ class Scenario:
     id: str = ""
     name: str = ""
     description: str = ""
+    order: int = 100  # position in the menu
     duration_s: float = 60.0
     # "click" (targets die when shot) | "tracking" (hold LMB on target)
     scoring: str = "click"
@@ -98,6 +124,17 @@ def validate(sc: Scenario) -> None:
         errs.append("amplitude pattern requires spawn.count = 1")
     if sc.scoring == "tracking" and sc.spawn.count != 1:
         errs.append("tracking requires spawn.count = 1")
+    if sc.targets.kind not in ("sphere", "humanoid"):
+        errs.append("targets.kind must be sphere|humanoid")
+    if sc.targets.humanoid:
+        if sc.spawn.pattern == "grid":
+            errs.append("humanoid targets support the random and amplitude patterns")
+        if sc.motion.vertical:
+            errs.append("humanoid targets cannot move vertically")
+        if sc.targets.health <= 0 or max(sc.targets.damage_head, sc.targets.damage_body, sc.targets.damage_legs) <= 0:
+            errs.append("targets.health and at least one damage value must be > 0")
+        if any(d <= 1.0 for d in sc.targets.distance_m):
+            errs.append("humanoid distance_m must be > 1 m")
     if not sc.targets.distance_m or not sc.targets.radius_m:
         errs.append("targets.distance_m and targets.radius_m must not be empty")
     if any(r <= 0 for r in sc.targets.radius_m) or any(d <= r for d in sc.targets.distance_m for r in sc.targets.radius_m):
@@ -139,4 +176,9 @@ def load_all_scenarios(user_dir: Path | None = None) -> list[Scenario]:
     for p in paths:
         sc = load_scenario_file(p)
         by_id[sc.id] = sc
-    return list(by_id.values())
+    return sorted(by_id.values(), key=lambda sc: (sc.order, sc.id))
+
+
+def floor_y(sc: Scenario) -> float:
+    """Floor height relative to the player's eye (metres)."""
+    return -BOT_EYE_HEIGHT if sc.targets.humanoid else SPHERE_FLOOR_Y

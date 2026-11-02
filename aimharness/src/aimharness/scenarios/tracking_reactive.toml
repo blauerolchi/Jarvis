@@ -1,5 +1,6 @@
 id = "tracking_reactive"
 name = "Tracking (reaktiv)"
+order = 70
 description = "Ein Ziel mit abrupten Richtungswechseln in beide Achsen. Misst die Reaktion auf Richtungswechsel."
 duration_s = 60.0
 scoring = "tracking"

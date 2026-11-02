@@ -23,8 +23,11 @@ from aimharness.game.sound import Sounds
 from aimharness.game.targets import TargetManager
 from aimharness.inputsrc.base import FLAG_ABSOLUTE, LMB_DOWN, LMB_UP, InputSource
 from aimharness.mathutil import angle_between, tangent_offset, wrap_deg
-from aimharness.scenario import Scenario
+from aimharness.scenario import Scenario, floor_y
 from aimharness.settings import Settings
+
+FLASH_S = 0.07   # bot lights up after a non-lethal hit
+DYING_S = 0.25   # killed bot fades out
 
 
 @dataclass
@@ -37,6 +40,13 @@ class QuickStats:
     on_target_s: float = 0.0       # tracking: time on target while LMB held
     on_target_any_s: float = 0.0   # tracking: time on target regardless of LMB
     active_s: float = 0.0
+    humanoid: bool = False
+    zones: dict[str, int] = field(default_factory=lambda: {"head": 0, "body": 0, "legs": 0})
+
+    @property
+    def headshot_rate(self) -> float:
+        n = sum(self.zones.values())
+        return self.zones["head"] / n if n else 0.0
 
     @property
     def accuracy(self) -> float:
@@ -63,6 +73,9 @@ class QuickStats:
         else:
             d["kills_per_min"] = round(60 * self.kills / self.active_s, 2) if self.active_s else 0.0
             d["mean_ttk_ms"] = round(float(np.mean(self.ttk_ms)), 1) if self.ttk_ms else None
+        if self.humanoid:
+            d["headshot_rate"] = round(self.headshot_rate, 4)
+            d["head_hits"], d["body_hits"], d["leg_hits"] = self.zones["head"], self.zones["body"], self.zones["legs"]
         return d
 
 
@@ -81,11 +94,15 @@ class GameSession:
         self.sc = scenario
         self.source = source
         self.data_root = data_root
-        self.renderer = Renderer(screen, settings.display.hfov_deg, settings.crosshair)
+        self.renderer = Renderer(screen, settings.display.hfov_deg, settings.crosshair, floor_y(scenario))
         self.color = scenario.targets.rgb
         self.highlight_color = tuple(min(255, int(c * 0.6 + 110)) for c in self.color)
-        for c in (self.color, self.highlight_color):
-            self.renderer.sphere_sprite(c)
+        if scenario.targets.humanoid:
+            for flash in (False, True):
+                self.renderer.bot_sprite(self.color, flash)
+        else:
+            for c in (self.color, self.highlight_color):
+                self.renderer.sphere_sprite(c)
         self.sounds = sounds or Sounds(False, 0.0)
         self.max_frames = max_frames  # for automated tests
         self.deg_per_count = settings.mouse.effective_deg_per_count()
@@ -99,7 +116,9 @@ class GameSession:
         self.paused = False
         self.show_fps = settings.display.show_fps
         self.effects: list[Effect] = []
-        self.stats = QuickStats()
+        self.flash_until: dict[int, float] = {}
+        self.dying: list[tuple[float, float, float, float]] = []  # yaw, pitch, distance, t0
+        self.stats = QuickStats(humanoid=scenario.targets.humanoid)
         self._shot_id = 0
         self._pauses: list[list[int]] = []
 
@@ -273,21 +292,36 @@ class GameSession:
             self._pauses[-1][1] = t_ns - rec.t0
 
     def _fire(self, t_ns: int, frame: int, mgr: TargetManager, rec: SessionRecorder, sim_s: float) -> None:
-        tgt, edge = mgr.nearest(self.yaw, self.pitch)
-        hit = tgt is not None and edge <= 0.0
+        hit_tgt, zone = mgr.pick(self.yaw, self.pitch)
+        hit = hit_tgt is not None
+        # Misses are recorded relative to the nearest target (its head for bots).
+        tgt = hit_tgt if hit else mgr.nearest(self.yaw, self.pitch)[0]
         killed = False
+        damage = float("nan")
         if self.sc.scoring == "click":
             self.stats.shots += 1
             if hit:
                 self.stats.hits += 1
-                killed = mgr.hit(tgt, t_ns, frame, sim_s)
+                if tgt.kind == "humanoid":
+                    self.stats.zones[zone] += 1
+                    damage = self.sc.targets.damage(zone)
+                killed = mgr.hit(tgt, t_ns, frame, sim_s, zone)
                 if killed:
                     self.stats.kills += 1
                     start = tgt.visible_t_ns if tgt.visible_t_ns >= 0 else tgt.spawn_t_ns
                     self.stats.ttk_ms.append((t_ns - start) / 1e6)
-                    self.effects.append(Effect(tgt.yaw, tgt.pitch, tgt.distance, tgt.radius, sim_s, self.color))
-                    self.sounds.kill()
+                    if tgt.kind == "humanoid":
+                        self.dying.append((tgt.yaw, tgt.pitch, tgt.distance, sim_s))
+                    else:
+                        self.effects.append(Effect(tgt.yaw, tgt.pitch, tgt.distance, tgt.radius, sim_s, self.color))
+                    if zone == "head":
+                        self.sounds.headshot()
+                    else:
+                        self.sounds.kill()
+                elif damage == 0:
+                    self.sounds.miss()  # headshot-only: body hits have no effect
                 else:
+                    self.flash_until[tgt.id] = sim_s + FLASH_S
                     self.sounds.hit()
             else:
                 self.sounds.miss()
@@ -295,7 +329,7 @@ class GameSession:
             err = float(angle_between(self.yaw, self.pitch, tgt.yaw, tgt.pitch))
             ex, ey = tangent_offset(self.yaw, self.pitch, tgt.yaw, tgt.pitch)
             rec.shot(self._shot_id, t_ns, frame, self.yaw, self.pitch, hit, killed, tgt.id, err,
-                     float(ex), float(ey), tgt.ang_radius)
+                     float(ex), float(ey), tgt.ang_radius, zone, damage)
         else:
             nan = float("nan")
             rec.shot(self._shot_id, t_ns, frame, self.yaw, self.pitch, False, False, -1, nan, nan, nan, nan)
@@ -305,18 +339,30 @@ class GameSession:
         r = self.renderer
         r.begin(self.yaw, self.pitch)
         r.draw_room()
+        self.dying = [d for d in self.dying if sim_s - d[3] < DYING_S]
+        for yaw, pitch, dist, t0 in self.dying:
+            alpha = int(255 * (1.0 - (sim_s - t0) / DYING_S))
+            r.draw_bot(r.bot_screen(yaw, pitch, dist), self.color, flash=True, alpha=alpha)
         info = []
         for tgt in mgr.alive.values():
-            info.append((tgt, r.target_screen(tgt.yaw, tgt.pitch, tgt.distance, tgt.radius)))
-        for tgt, (sx, sy, sr, on_screen) in sorted(info, key=lambda it: -it[0].distance):
-            if on_screen:
-                highlight = self.sc.scoring == "tracking" and self.lmb and mgr.under_crosshair(self.yaw, self.pitch) is tgt
-                r.draw_sphere(sx, sy, sr, self.highlight_color if highlight else self.color)
+            if tgt.kind == "humanoid":
+                b = r.bot_screen(tgt.yaw, tgt.pitch, tgt.distance)
+                info.append((tgt, (b.sx, b.sy, b.r_head, b.on_screen), b))
+            else:
+                info.append((tgt, r.target_screen(tgt.yaw, tgt.pitch, tgt.distance, tgt.radius), None))
+        tracked = mgr.under_crosshair(self.yaw, self.pitch) if self.sc.scoring == "tracking" and self.lmb else None
+        for tgt, (sx, sy, sr, on_screen), bot in sorted(info, key=lambda it: -it[0].distance):
+            if not on_screen:
+                continue
+            if bot is not None:
+                r.draw_bot(bot, self.color, flash=tracked is tgt or self.flash_until.get(tgt.id, -1.0) > sim_s)
+            else:
+                r.draw_sphere(sx, sy, sr, self.highlight_color if tracked is tgt else self.color)
         self.effects = [e for e in self.effects if sim_s - e.t0 <= e.duration]
         r.draw_effects(self.effects, sim_s)
         r.draw_crosshair()
         self._hud(sim_s)
-        return info
+        return [(tgt, scr) for tgt, scr, _ in info]
 
     def _hud(self, sim_s: float) -> None:
         r, st = self.renderer, self.stats
@@ -324,10 +370,12 @@ class GameSession:
         r.text(f"{st.score(self.sc.scoring)}", (r.w / 2, 62), 30, (120, 220, 255), anchor="midtop")
         if self.sc.scoring == "tracking":
             pct = 100 * st.on_target_s / sim_s if sim_s > 0 else 0.0
-            r.text(f"On target {pct:4.1f}%", (24, 18), 28)
+            r.text(f"Auf dem Ziel {pct:4.1f}%", (24, 18), 28)
         else:
-            r.text(f"Accuracy {100 * st.accuracy:5.1f}%", (24, 18), 28)
+            r.text(f"Genauigkeit {100 * st.accuracy:5.1f}%", (24, 18), 28)
             r.text(f"Kills {st.kills}", (24, 46), 28)
+            if st.humanoid:
+                r.text(f"Kopftreffer {100 * st.headshot_rate:5.1f}%", (24, 74), 28)
         if self.show_fps:
             r.text(f"{self.clock.get_fps():5.0f} fps", (r.w - 20, 18), 24, (150, 154, 166), anchor="topright")
         if self.paused:

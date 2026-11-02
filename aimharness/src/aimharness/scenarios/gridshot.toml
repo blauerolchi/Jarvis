@@ -1,5 +1,6 @@
 id = "gridshot"
 name = "Gridshot"
+order = 10
 description = "Drei statische Ziele auf einem Raster. Tempo und Zielwechsel."
 duration_s = 60.0
 scoring = "click"
